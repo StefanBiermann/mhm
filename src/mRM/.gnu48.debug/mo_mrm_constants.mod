@@ -1,0 +1,104 @@
+GFORTRAN module version '10' created from /gpfs0/home/yangx/mhmtrunk/src/mRM/mo_mrm_constants.f90
+MD5:c35b7e5a3b22ba7ec62f973a565f0858 -- If you edit this, you'll get what you deserve.
+
+(() () () () () () () () () () () () () () () () () () () () () () ()
+() () () ())
+
+()
+
+()
+
+()
+
+()
+
+()
+
+(2 'deltah' 'mo_mrm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (REAL 8 0 1 0 REAL
+()) 0 0 () (CONSTANT (REAL 8 0 1 0 REAL ()) 0 '0.50000000000000@1') () 0
+() () () 0 0)
+3 'dp' 'mo_kind' '' 1 ((PARAMETER UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN
+IMPLICIT-SAVE 0 0 IS_C_INTEROP IS_ISO_C) (INTEGER 4 0 1 1 REAL ()) 0 0 ()
+(CONSTANT (INTEGER 4 0 1 1 REAL ()) 0 '8') () 0 () () () 0 0)
+4 'given_ts' 'mo_mrm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 DIMENSION IS_C_INTEROP) (REAL 8 0
+1 0 REAL ()) 0 0 () (ARRAY (REAL 8 0 1 0 REAL ()) 1 (((CONSTANT (REAL 8
+0 1 0 REAL ()) 0 '0.3c000000000000@2') ()) ((CONSTANT (REAL 8 0 1 0 REAL
+()) 0 '0.78000000000000@2') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.b4000000000000@2') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.f0000000000000@2') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.12c00000000000@3') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.16800000000000@3') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.25800000000000@3') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.2d000000000000@3') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.38400000000000@3') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.4b000000000000@3') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.70800000000000@3') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.e1000000000000@3') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.1c200000000000@4') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.2a300000000000@4') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.38400000000000@4') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.54600000000000@4') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.70800000000000@4') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.a8c00000000000@4') ()) ((CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.15180000000000@5') ())) ('19')) (1 0 EXPLICIT (CONSTANT (INTEGER 4 0
+0 0 INTEGER ()) 0 '1') (CONSTANT (INTEGER 4 0 0 0 INTEGER ()) 0 '19')) 0
+() () () 0 0)
+5 'hoursecs' 'mo_mrm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (REAL 8 0 1 0 REAL
+()) 0 0 () (CONSTANT (REAL 8 0 1 0 REAL ()) 0 '0.e1000000000000@3') () 0
+() () () 0 0)
+6 'i4' 'mo_kind' '' 1 ((PARAMETER UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN
+IMPLICIT-SAVE 0 0 IS_C_INTEROP IS_ISO_C) (INTEGER 4 0 1 1 INTEGER ()) 0
+0 () (CONSTANT (INTEGER 4 0 1 1 INTEGER ()) 0 '4') () 0 () () () 0 0)
+7 'maxnlcovers' 'mo_mrm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (INTEGER 4 0 1 0
+INTEGER ()) 0 0 () (CONSTANT (INTEGER 4 0 1 0 INTEGER ()) 0 '50') () 0 ()
+() () 0 0)
+8 'maxnobasins' 'mo_mrm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (INTEGER 4 0 1 0
+INTEGER ()) 0 0 () (CONSTANT (INTEGER 4 0 1 0 INTEGER ()) 0 '50') () 0 ()
+() () 0 0)
+9 'maxnogauges' 'mo_mrm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (INTEGER 4 0 1 0
+INTEGER ()) 0 0 () (CONSTANT (INTEGER 4 0 1 0 INTEGER ()) 0 '200') () 0
+() () () 0 0)
+10 'mo_kind' 'mo_kind' '' 1 ((MODULE UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN
+UNKNOWN 0 0) (UNKNOWN 0 0 0 0 UNKNOWN ()) 0 0 () () 0 () () () 0 0)
+11 'mo_mrm_constants' 'mo_mrm_constants' '' 1 ((MODULE UNKNOWN-INTENT
+UNKNOWN-PROC UNKNOWN UNKNOWN 0 0) (UNKNOWN 0 0 0 0 UNKNOWN ()) 0 0 () ()
+0 () () () 0 0)
+12 'ncolpars' 'mo_mrm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (INTEGER 4 0 1 0
+INTEGER ()) 0 0 () (CONSTANT (INTEGER 4 0 1 0 INTEGER ()) 0 '5') () 0 ()
+() () 0 0)
+13 'nodata_dp' 'mo_mrm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0) (REAL 8 0 1 0 REAL ()) 0 0 () (
+CONSTANT (REAL 8 0 0 0 REAL ()) 0 '-0.270f0000000000@4') () 0 () () () 0
+0)
+14 'nodata_i4' 'mo_mrm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0) (INTEGER 4 0 1 0 INTEGER ()) 0 0
+() (CONSTANT (INTEGER 4 0 0 0 INTEGER ()) 0 '-9999') () 0 () () () 0 0)
+15 'noutflxstate' 'mo_mrm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (INTEGER 4 0 1 0
+INTEGER ()) 0 0 () (CONSTANT (INTEGER 4 0 1 0 INTEGER ()) 0 '1') () 0 ()
+() () 0 0)
+16 'nroutingstates' 'mo_mrm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0) (INTEGER 4 0 1 0 INTEGER ()) 0 0
+() (CONSTANT (INTEGER 4 0 0 0 INTEGER ()) 0 '2') () 0 () () () 0 0)
+17 'p1_initstatefluxes' 'mo_mrm_constants' '' 1 ((PARAMETER
+UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (
+REAL 8 0 1 0 REAL ()) 0 0 () (CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.00000000000000@0') () 0 () () () 0 0)
+18 'rout_space_weight' 'mo_mrm_constants' '' 1 ((PARAMETER
+UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (
+REAL 8 0 1 0 REAL ()) 0 0 () (CONSTANT (REAL 8 0 1 0 REAL ()) 0
+'0.00000000000000@0') () 0 () () () 0 0)
+)
+
+('deltah' 0 2 'dp' 0 3 'given_ts' 0 4 'hoursecs' 0 5 'i4' 0 6
+'maxnlcovers' 0 7 'maxnobasins' 0 8 'maxnogauges' 0 9 'mo_kind' 0 10
+'mo_mrm_constants' 0 11 'ncolpars' 0 12 'nodata_dp' 0 13 'nodata_i4' 0
+14 'noutflxstate' 0 15 'nroutingstates' 0 16 'p1_initstatefluxes' 0 17
+'rout_space_weight' 0 18)

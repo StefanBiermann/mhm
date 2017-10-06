@@ -1,0 +1,2 @@
+/gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_standard_score.d : /gpfs0/home/yangx/mhmtrunk/src/lib/mo_standard_score.f90
+/gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_standard_score.o : /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_standard_score.d /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_kind.o /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_moment.o /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_orderpack.o

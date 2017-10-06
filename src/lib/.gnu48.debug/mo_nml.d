@@ -1,0 +1,2 @@
+/gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_nml.d : /gpfs0/home/yangx/mhmtrunk/src/lib/mo_nml.f90
+/gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_nml.o : /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_nml.d /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_finish.o /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_kind.o /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_message.o /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_string_utils.o

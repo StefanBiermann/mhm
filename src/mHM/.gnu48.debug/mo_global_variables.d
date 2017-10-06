@@ -1,0 +1,2 @@
+/gpfs0/home/yangx/mhmtrunk/src/mHM/.gnu48.debug/mo_global_variables.d : /gpfs0/home/yangx/mhmtrunk/src/mHM/mo_global_variables.f90
+/gpfs0/home/yangx/mhmtrunk/src/mHM/.gnu48.debug/mo_global_variables.o : /gpfs0/home/yangx/mhmtrunk/src/mHM/.gnu48.debug/mo_global_variables.d /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_kind.o /gpfs0/home/yangx/mhmtrunk/src/common/.gnu48.debug/mo_common_variables.o /gpfs0/home/yangx/mhmtrunk/src/mHM/.gnu48.debug/mo_mhm_constants.o

@@ -1,0 +1,2 @@
+/gpfs0/home/yangx/mhmtrunk/src/mHM/.gnu48.debug/mo_neutrons.d : /gpfs0/home/yangx/mhmtrunk/src/mHM/mo_neutrons.f90
+/gpfs0/home/yangx/mhmtrunk/src/mHM/.gnu48.debug/mo_neutrons.o : /gpfs0/home/yangx/mhmtrunk/src/mHM/.gnu48.debug/mo_neutrons.d /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_constants.o /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_kind.o /gpfs0/home/yangx/mhmtrunk/src/mHM/.gnu48.debug/mo_mhm_constants.o
