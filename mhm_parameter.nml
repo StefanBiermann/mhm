@@ -105,7 +105,7 @@
  !
  &nutrientparameter 
  denitrification_aquatic   =    1.000E-008  ,    5.0003E-002  ,    3.5675699329499520E-004  ,  1 , 1 
- primaryprod_rate          =    1.000E-008  ,    1.000        ,    9.6738693898761117E-005  ,  1 , 1 
+ primaryprod_rate          =    1.000E-008  ,    1.000        ,    9.6738693898761117E-002  ,  1 , 1 
  primaryprod_rate_agri     =    1.000E-008  ,    1.000        ,    5.6374409920937046E-004  ,  1 , 1 
  degradationN_rate         =    1.000E-005  ,    5.000E-005   ,    4.9995780003339870E-005  ,  1 , 1 
  degradationN_rate_agri    =    1.000E-005  ,    5.000E-005   ,    1.0030590411761094E-005  ,  1 , 1 

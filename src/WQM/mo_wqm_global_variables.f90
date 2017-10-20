@@ -80,6 +80,7 @@ MODULE mo_wqm_global_variables
     real(dp), dimension(:),     allocatable, public :: L1_soilUptakeN    ! soil N uptake amount
     real(dp), dimension(:),     allocatable, public :: L1_soilDenitri    ! soil denitrification amount
     real(dp), dimension(:),     allocatable, public :: L1_soilMineralN    ! soil N mineralisation amount
+    real(dp), dimension(:),     allocatable, public :: L1_soilINfrtmanapp ! soil IN surpplied amount
     !nitrate parameters
     real(dp), dimension(:),     allocatable, public :: L1_rdegradN       ! degradation rate from humusN pool to fastN pool
     real(dp), dimension(:),     allocatable, public :: L1_rmineralN      ! mineralisation rate from fastN pool 
@@ -213,7 +214,7 @@ MODULE mo_wqm_global_variables
   
   !State Fluxes variable for output
   integer(i4)                      :: timeStep_model_outputs_wqm ! timestep for writing model outputs
-  integer(i4),parameter, public    :: nOUTstate_wqm = 11_i4      ! total number of states that can be written out
+  integer(i4),   public    :: nOUTstate_wqm      ! total number of states that can be written out
   logical, dimension(:), allocatable, public :: outputFlxState_wqm         ! Define model outputs see "wqm_outputs.nml"
   character(256), parameter, public      :: Version_WQM = '1.0'          ! model version
 

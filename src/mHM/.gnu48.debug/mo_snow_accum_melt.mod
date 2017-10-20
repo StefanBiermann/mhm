@@ -1,4 +1,4 @@
-GFORTRAN module version '10' created from /gpfs0/home/yangx/mhmtrunk/src/mHM/mo_snow_accum_melt.f90
+GFORTRAN module version '10' created from /gpfs0/home/yangx/mhmnitrate5.7/nitrate-mhm5.7/src/mHM/mo_snow_accum_melt.f90
 MD5:8c30344dcccdf27ab453ff8bf4fda08b -- If you edit this, you'll get what you deserve.
 
 (() () () () () () () () () () () () () () () () () () () () () () ()

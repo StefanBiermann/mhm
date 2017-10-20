@@ -88,7 +88,7 @@ CONTAINS
     use mo_julian, only: caldat
     use mo_wqm_global_variables, only: L1_csoilMoist, L1_cfastRunoff, L1_cslowRunoff, &
                                        L1_cbaseflow, L1_ctotal_runoff, L1_soilUptakeN, &
-                                       L1_soilDenitri, L1_soilMineralN,   &
+                                       L1_soilDenitri, L1_soilMineralN,L1_soilINfrtmanapp,   &
                                        L11_concMod, L11_aquaticDenitri,L11_aquaticAssimil
 		
     implicit none
@@ -157,6 +157,7 @@ CONTAINS
             L1_soilUptakeN  , &
             L1_soilDenitri  , &
             L1_soilMineralN , &
+            L1_soilINfrtmanapp, &
             L11_concMod         , &
             L11_aquaticDenitri  , &
             L11_aquaticAssimil    &

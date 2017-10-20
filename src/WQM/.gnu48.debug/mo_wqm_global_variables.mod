@@ -1,5 +1,5 @@
-GFORTRAN module version '10' created from /gpfs0/home/yangx/mhmtrunk/src/WQM/mo_wqm_global_variables.f90
-MD5:1d71c90aeacc05e514b8b3eede33f13f -- If you edit this, you'll get what you deserve.
+GFORTRAN module version '10' created from /gpfs0/home/yangx/mhmnitrate5.7/nitrate-mhm5.7/src/WQM/mo_wqm_global_variables.f90
+MD5:ca663f4872048c955934c757fd4229f2 -- If you edit this, you'll get what you deserve.
 
 (() () () () () () () () () () () () () () () () () () () () () () ()
 () () () ())
@@ -362,135 +362,138 @@ DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (1 0 DEFERRED () ()) 0 () () ()
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (1 0 DEFERRED () ()) 0 () () ()
 0 0)
-117 'l1_soilmineraln' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+117 'l1_soilinfrtmanapp' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (1 0 DEFERRED () ()) 0 () () ()
 0 0)
-118 'l1_soiltemp' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+118 'l1_soilmineraln' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (1 0 DEFERRED () ()) 0 () () ()
 0 0)
-119 'l1_soiluptaken' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+119 'l1_soiltemp' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (1 0 DEFERRED () ()) 0 () () ()
 0 0)
-120 'maxcols' 'mo_wqm_global_variables' '' 1 ((PARAMETER UNKNOWN-INTENT
+120 'l1_soiluptaken' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
+DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (1 0 DEFERRED () ()) 0 () () ()
+0 0)
+121 'maxcols' 'mo_wqm_global_variables' '' 1 ((PARAMETER UNKNOWN-INTENT
 UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (INTEGER 4 0 1 0
 INTEGER ()) 0 0 () (CONSTANT (INTEGER 4 0 1 0 INTEGER ()) 0 '3') () 0 ()
 () () 0 0)
-121 'maxnlcovers' 'mo_mhm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+122 'maxnlcovers' 'mo_mhm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
 UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (INTEGER 4 0 1 0
 INTEGER ()) 0 0 () (CONSTANT (INTEGER 4 0 1 0 INTEGER ()) 0 '50') () 0 ()
 () () 0 0)
-122 'maxnobasins' 'mo_mhm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+123 'maxnobasins' 'mo_mhm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
 UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (INTEGER 4 0 1 0
 INTEGER ()) 0 0 () (CONSTANT (INTEGER 4 0 1 0 INTEGER ()) 0 '50') () 0 ()
 () () 0 0)
-123 'mineran_lai' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+124 'mineran_lai' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (1 0 DEFERRED () ()) 0 () () ()
 0 0)
-124 'mo_common_variables' 'mo_common_variables' '' 1 ((MODULE
+125 'mo_common_variables' 'mo_common_variables' '' 1 ((MODULE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN UNKNOWN 0 0) (UNKNOWN 0 0 0 0
 UNKNOWN ()) 0 0 () () 0 () () () 0 0)
-125 'mo_kind' 'mo_kind' '' 1 ((MODULE UNKNOWN-INTENT UNKNOWN-PROC
+126 'mo_kind' 'mo_kind' '' 1 ((MODULE UNKNOWN-INTENT UNKNOWN-PROC
 UNKNOWN UNKNOWN 0 0) (UNKNOWN 0 0 0 0 UNKNOWN ()) 0 0 () () 0 () () () 0
 0)
-126 'mo_wqm_global_variables' 'mo_wqm_global_variables' '' 1 ((MODULE
+127 'mo_wqm_global_variables' 'mo_wqm_global_variables' '' 1 ((MODULE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN UNKNOWN 0 0) (UNKNOWN 0 0 0 0
 UNKNOWN ()) 0 0 () () 0 () () () 0 0)
-127 'naddincmeasperday' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+128 'naddincmeasperday' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (INTEGER 4 0 1 0 INTEGER ()) 0 0 () (1 0 DEFERRED () ()) 0 ()
 () () 0 0)
-128 'ncroptation' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+129 'ncroptation' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (INTEGER 4 0 1 0 INTEGER ()) 0 0 () (1 0 DEFERRED () ()) 0 ()
 () () 0 0)
-129 'nevalcmeasperday' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+130 'nevalcmeasperday' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (INTEGER 4 0 1 0 INTEGER ()) 0 0 () (1 0 DEFERRED () ()) 0 ()
 () () 0 0)
-130 'noutflxstate' 'mo_mhm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+131 'noutflxstate' 'mo_mhm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
 UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (INTEGER 4 0 1 0
 INTEGER ()) 0 0 () (CONSTANT (INTEGER 4 0 1 0 INTEGER ()) 0 '20') () 0 ()
 () () 0 0)
-131 'noutstate_wqm' 'mo_wqm_global_variables' '' 1 ((PARAMETER
-UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (
-INTEGER 4 0 1 0 INTEGER ()) 0 0 () (CONSTANT (INTEGER 4 0 1 0 INTEGER ())
-0 '11') () 0 () () () 0 0)
-132 'nsubstances' 'mo_wqm_global_variables' '' 1 ((PARAMETER
+132 'noutstate_wqm' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0) (INTEGER 4 0 1 0
+INTEGER ()) 0 0 () () 0 () () () 0 0)
+133 'nsubstances' 'mo_wqm_global_variables' '' 1 ((PARAMETER
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0) (INTEGER 4 0 1 0
 INTEGER ()) 0 0 () (CONSTANT (INTEGER 4 0 0 0 INTEGER ()) 0 '2') () 0 ()
 () () 0 0)
-133 'num_crops' 'mo_wqm_global_variables' '' 1 ((VARIABLE UNKNOWN-INTENT
+134 'num_crops' 'mo_wqm_global_variables' '' 1 ((VARIABLE UNKNOWN-INTENT
 UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0) (INTEGER 4 0 1 0 INTEGER ()) 0 0
 () () 0 () () () 0 0)
-134 'numaddincol' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+135 'numaddincol' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (INTEGER 4 0 1 0 INTEGER ()) 0 0 () (1 0 DEFERRED () ()) 0 ()
 () () 0 0)
-135 'numevalcol' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+136 'numevalcol' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (INTEGER 4 0 1 0 INTEGER ()) 0 0 () (1 0 DEFERRED () ()) 0 ()
 () () 0 0)
-136 'outputflxstate_wqm' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+137 'outputflxstate_wqm' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (LOGICAL 4 0 0 0 LOGICAL ()) 0 0 () (1 0 DEFERRED () ()) 0 ()
 () () 0 0)
-137 'period' 'mo_common_variables' '' 1 ((PROCEDURE UNKNOWN-INTENT
+138 'period' 'mo_common_variables' '' 1 ((PROCEDURE UNKNOWN-INTENT
 UNKNOWN-PROC DECL UNKNOWN 0 0 FUNCTION GENERIC) (UNKNOWN 0 0 0 0 UNKNOWN
 ()) 0 0 () () 0 () () () 0 0)
-138 'prevstep_baseflow' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+139 'prevstep_baseflow' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (1 0 DEFERRED () ()) 0 () () ()
 0 0)
-139 'prevstep_percol' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+140 'prevstep_percol' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (1 0 DEFERRED () ()) 0 () () ()
 0 0)
-140 'prevstep_satstorage' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+141 'prevstep_satstorage' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (1 0 DEFERRED () ()) 0 () () ()
 0 0)
-141 'prevstep_sealedstorage' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+142 'prevstep_sealedstorage' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (1 0 DEFERRED () ()) 0 () () ()
 0 0)
-142 'prevstep_soilmoisture' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+143 'prevstep_soilmoisture' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (2 0 DEFERRED () () () ()) 0 ()
 () () 0 0)
-143 'prevstep_unsatstorage' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+144 'prevstep_unsatstorage' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (1 0 DEFERRED () ()) 0 () () ()
 0 0)
-144 'rotation' 'mo_wqm_global_variables' '' 1 ((VARIABLE UNKNOWN-INTENT
+145 'rotation' 'mo_wqm_global_variables' '' 1 ((VARIABLE UNKNOWN-INTENT
 UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE DIMENSION) (DERIVED 4
 0 0 0 DERIVED ()) 0 0 () (1 0 DEFERRED () ()) 0 () () () 0 0)
-145 'rotationtype' 'mo_wqm_global_variables' '' 1 ((PROCEDURE
+146 'rotationtype' 'mo_wqm_global_variables' '' 1 ((PROCEDURE
 UNKNOWN-INTENT UNKNOWN-PROC DECL UNKNOWN 0 0 FUNCTION GENERIC) (UNKNOWN
 0 0 0 0 UNKNOWN ()) 0 0 () () 0 () () () 0 0)
-146 'timestep_model_outputs_wqm' 'mo_wqm_global_variables' '' 1 ((
+147 'timestep_model_outputs_wqm' 'mo_wqm_global_variables' '' 1 ((
 VARIABLE UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0) (
 INTEGER 4 0 1 0 INTEGER ()) 0 0 () () 0 () () () 0 0)
-147 'version_wqm' 'mo_wqm_global_variables' '' 1 ((PARAMETER
+148 'version_wqm' 'mo_wqm_global_variables' '' 1 ((PARAMETER
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0) (CHARACTER 1 0 0
 0 CHARACTER ((CONSTANT (INTEGER 4 0 0 0 INTEGER ()) 0 '256'))) 0 0 () (
 CONSTANT (CHARACTER 1 0 0 0 CHARACTER (())) 0 256
 '1.0                                                                                                                                                                                                                                                             ')
 () 0 () () () 0 0)
-148 'wqm_basininfo' 'mo_wqm_global_variables' '' 1 ((PROCEDURE
+149 'wqm_basininfo' 'mo_wqm_global_variables' '' 1 ((PROCEDURE
 UNKNOWN-INTENT UNKNOWN-PROC DECL UNKNOWN 0 0 FUNCTION GENERIC) (UNKNOWN
 0 0 0 0 UNKNOWN ()) 0 0 () () 0 () () () 0 0)
-149 'wqm_nutrient' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+150 'wqm_nutrient' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 ALLOCATABLE
 DIMENSION) (REAL 8 0 1 0 REAL ()) 0 0 () (3 0 DEFERRED () () () () () ())
 0 () () () 0 0)
-150 'year_start' 'mo_wqm_global_variables' '' 1 ((VARIABLE
+151 'year_start' 'mo_wqm_global_variables' '' 1 ((VARIABLE
 UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0) (INTEGER 4 0 1 0
 INTEGER ()) 0 0 () () 0 () () () 0 0)
-151 'yearmonths' 'mo_mhm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
+152 'yearmonths' 'mo_mhm_constants' '' 1 ((PARAMETER UNKNOWN-INTENT
 UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (REAL 8 0 1 0 REAL
 ()) 0 0 () (CONSTANT (REAL 8 0 1 0 REAL ()) 0 '0.c0000000000000@1') () 0
 () () () 0 0)
@@ -516,15 +519,15 @@ UNKNOWN-PROC UNKNOWN IMPLICIT-SAVE 0 0 IS_C_INTEROP) (REAL 8 0 1 0 REAL
 0 107 'l1_frotation' 0 108 'l1_gwresidt' 0 109 'l1_humusn' 0 110
 'l1_rdegradn' 0 111 'l1_rdenisoil' 0 112 'l1_rdissoln' 0 113
 'l1_reachtemp' 0 114 'l1_rmineraln' 0 115 'l1_soildenitri' 0 116
-'l1_soilmineraln' 0 117 'l1_soiltemp' 0 118 'l1_soiluptaken' 0 119
-'maxcols' 0 120 'maxnlcovers' 0 121 'maxnobasins' 0 122 'mineran_lai' 0
-123 'mo_common_variables' 0 124 'mo_kind' 0 125 'mo_wqm_global_variables'
-0 126 'naddincmeasperday' 0 127 'ncroptation' 0 128 'nevalcmeasperday' 0
-129 'noutflxstate' 0 130 'noutstate_wqm' 0 131 'nsubstances' 0 132
-'num_crops' 0 133 'numaddincol' 0 134 'numevalcol' 0 135
-'outputflxstate_wqm' 0 136 'period' 0 137 'prevstep_baseflow' 0 138
-'prevstep_percol' 0 139 'prevstep_satstorage' 0 140
-'prevstep_sealedstorage' 0 141 'prevstep_soilmoisture' 0 142
-'prevstep_unsatstorage' 0 143 'rotation' 0 144 'rotationtype' 0 145
-'timestep_model_outputs_wqm' 0 146 'version_wqm' 0 147 'wqm_basininfo' 0
-148 'wqm_nutrient' 0 149 'year_start' 0 150 'yearmonths' 0 151)
+'l1_soilinfrtmanapp' 0 117 'l1_soilmineraln' 0 118 'l1_soiltemp' 0 119
+'l1_soiluptaken' 0 120 'maxcols' 0 121 'maxnlcovers' 0 122 'maxnobasins'
+0 123 'mineran_lai' 0 124 'mo_common_variables' 0 125 'mo_kind' 0 126
+'mo_wqm_global_variables' 0 127 'naddincmeasperday' 0 128 'ncroptation'
+0 129 'nevalcmeasperday' 0 130 'noutflxstate' 0 131 'noutstate_wqm' 0
+132 'nsubstances' 0 133 'num_crops' 0 134 'numaddincol' 0 135 'numevalcol'
+0 136 'outputflxstate_wqm' 0 137 'period' 0 138 'prevstep_baseflow' 0
+139 'prevstep_percol' 0 140 'prevstep_satstorage' 0 141
+'prevstep_sealedstorage' 0 142 'prevstep_soilmoisture' 0 143
+'prevstep_unsatstorage' 0 144 'rotation' 0 145 'rotationtype' 0 146
+'timestep_model_outputs_wqm' 0 147 'version_wqm' 0 148 'wqm_basininfo' 0
+149 'wqm_nutrient' 0 150 'year_start' 0 151 'yearmonths' 0 152)

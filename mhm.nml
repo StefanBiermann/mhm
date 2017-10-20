@@ -137,9 +137,7 @@ opti_method = 1
 !> further functions can be implemented in mo_objective_function and mo_mrm_objective_function
 !> (29) SO: Q + ET: weighted OF using ET (OF27) and Q (OF14) equally weighted                                                       \n
 !> (30) SO: Q + basin_avg_ET: [1.0-KGE(Q)]*RMSE(basin_avg_ET) - objective function using Q and basin average ET (standard score)    \n
-! *wqm (needs further improve)*
-!> (31) SO: Q + nutrient: ((1-NSE)**6+(1-lnNSE)**6)**(1/6) $
-!> further functions can be implemented in mo_objective_function and mo_mrm_objective_function
+
 opti_function = 5
 !-----------------------------------------------------------------------------
 !> flags for reading and writing restart output, and calculating mpr
@@ -346,10 +344,10 @@ timeStep_et_input = -2
 !>    the effective modeling period of 2001/01/01 to 2003/12/31.
 !-----------------------------------------------------------------------------
 !------1997/2010 :1460/6207
-warming_Days(1)    = 6207
+warming_Days(1)    = 1460
 !warming_Days(2)    = 180
 !> first year of wanted simulation period
-eval_Per(1)%yStart = 2010
+eval_Per(1)%yStart = 1997
 !eval_Per(2)%yStart = 1993
 !> first month of wanted simulation period
 eval_Per(1)%mStart = 01
@@ -648,31 +646,31 @@ InflowGauge_id(1,1)       = 1001
 !> name of file with timeseries of inflow gauge(1) for subbasin(1) --> (1,1)
 InflowGauge_filename(1,1) = "1001.txt"
 !> consider flows from upstream/headwater cells of inflow gauge(1) for subbasin(1) --> (1,1)
-InflowGauge_Headwater(1,1) = .FALSE.
+InflowGauge_Headwater(1,1) = .TRUE.
 !> id of inflow gauge(2) for subbasin(1) --> (1,2)
 InflowGauge_id(1,2)       = 1002
 !> name of file with timeseries of inflow gauge(2) for subbasin(1) --> (1,2)
 InflowGauge_filename(1,2) = "1002.txt"
 !> consider flows from upstream/headwater cells of inflow gauge(2) for subbasin(1) --> (1,2)
-InflowGauge_Headwater(1,2) = .FALSE.
+InflowGauge_Headwater(1,2) = .TRUE.
 !> id of inflow gauge(3) for subbasin(1) --> (1,3)
 InflowGauge_id(1,3)       = 1003
 !> name of file with timeseries of inflow gauge(3) for subbasin(1) --> (1,3)
 InflowGauge_filename(1,3) = "1003.txt"
 !> consider flows from upstream/headwater cells of inflow gauge(3) for subbasin(1) --> (1,3)
-InflowGauge_Headwater(1,3) = .FALSE.
+InflowGauge_Headwater(1,3) = .TRUE.
 !> id of inflow gauge(4) for subbasin(1) --> (1,4)
 InflowGauge_id(1,4)       = 1004
 !> name of file with timeseries of inflow gauge(4) for subbasin(1) --> (1,4)
 InflowGauge_filename(1,4) = "1004.txt"
 !> consider flows from upstream/headwater cells of inflow gauge(4) for subbasin(1) --> (1,4)
-InflowGauge_Headwater(1,4) = .FALSE.
+InflowGauge_Headwater(1,4) = .TRUE.
 !> id of inflow gauge(5) for subbasin(1) --> (1,5)
 InflowGauge_id(1,5)       = 1005
 !> name of file with timeseries of inflow gauge(5) for subbasin(1) --> (1,5)
 InflowGauge_filename(1,5) = "1005.txt"
 !> consider flows from upstream/headwater cells of inflow gauge(5) for subbasin(1) --> (1,5)
-InflowGauge_Headwater(1,5) = .FALSE.
+InflowGauge_Headwater(1,5) = .TRUE.
 /
 !******************************************************************************************
 ! *wqm* WATER QUALITY MODEL

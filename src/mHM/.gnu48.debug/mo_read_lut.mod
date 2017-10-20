@@ -1,4 +1,4 @@
-GFORTRAN module version '10' created from /gpfs0/home/yangx/mhmtrunk/src/mHM/mo_read_lut.f90
+GFORTRAN module version '10' created from /gpfs0/home/yangx/mhmnitrate5.7/nitrate-mhm5.7/src/mHM/mo_read_lut.f90
 MD5:65fe40a23d0bfefa561b9681ad3afc4f -- If you edit this, you'll get what you deserve.
 
 (() () () () () () () () () () () () () () () () () () () () () () ()

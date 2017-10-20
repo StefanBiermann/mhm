@@ -352,7 +352,7 @@ contains
         
        tmpvars(ii) = OutputVariablewqm( &
             ncn%setVariable("cfastrunoff", dtype, dims1), &
-            ncells, mask1)
+            ncells, mask1,.true.)
        call writeVariableAttributes(tmpvars(ii), "fast runoff concentration", "mg l-1")
     end if
 
@@ -385,7 +385,7 @@ contains
        ii = ii + 1
        tmpvars(ii) = OutputVariablewqm( &
             ncn%setVariable("soiluptakeN", dtype, dims1), &
-            ncells, mask1, .true.)
+            ncells, mask1)
        call writeVariableAttributes(tmpvars(ii), "total uptake amount in terrestrial phase", "mg m-2")
     end if
 	
@@ -393,7 +393,7 @@ contains
        ii = ii + 1
        tmpvars(ii) = OutputVariablewqm( &
             ncn%setVariable("soildenitri", dtype, dims1), &
-            ncells, mask1, .true.)
+            ncells, mask1)
        call writeVariableAttributes(tmpvars(ii), "total denitrification amount", "mg m-2")
     end if
 
@@ -401,30 +401,38 @@ contains
        ii = ii + 1
        tmpvars(ii) = OutputVariablewqm( &
             ncn%setVariable("soilmineralN", dtype, dims1), &
-            ncells, mask1, .true.)
+            ncells, mask1)
        call writeVariableAttributes(tmpvars(ii), "total mineralization amount", "mg m-2")
     end if
 
-    ! level 11
     if (outputFlxState_wqm(9)) then
+       ii = ii + 1
+       tmpvars(ii) = OutputVariablewqm( &
+            ncn%setVariable("INfrtmanapp", dtype, dims1), &
+            ncells, mask1)
+       call writeVariableAttributes(tmpvars(ii), "total IN application from fertilizer and manure ", "mg m-2")
+    end if
+
+    ! level 11
+    if (outputFlxState_wqm(10)) then
        ii = ii + 1
        tmpvars(ii) = OutputVariablewqm( &
             ncn%setVariable("concmod", dtype, dims11), &
             ncells11, mask11, .true.)
        call writeVariableAttributes(tmpvars(ii), "output concentration of each reach", "mg l-1")
     end if
-    if (outputFlxState_wqm(10)) then
-       ii = ii + 1
-       tmpvars(ii) = OutputVariablewqm( &
-            ncn%setVariable("waterdenitri", dtype, dims11), &
-            ncells11, mask11, .true.)
-       call writeVariableAttributes(tmpvars(ii), "instream denitrification amount", "mg m-2")
-    end if
     if (outputFlxState_wqm(11)) then
        ii = ii + 1
        tmpvars(ii) = OutputVariablewqm( &
+            ncn%setVariable("waterdenitri", dtype, dims11), &
+            ncells11, mask11)
+       call writeVariableAttributes(tmpvars(ii), "instream denitrification amount", "mg m-2")
+    end if
+    if (outputFlxState_wqm(12)) then
+       ii = ii + 1
+       tmpvars(ii) = OutputVariablewqm( &
             ncn%setVariable("waterassimi", dtype, dims11), &
-            ncells11, mask11, .true.)
+            ncells11, mask11)
        call writeVariableAttributes(tmpvars(ii), "instream assimilatory uptake amount", "mg m-2")
     end if
 	
@@ -506,6 +514,7 @@ contains
             L1_soilUptakeN  , &
             L1_soilDenitri  , &
             L1_soilMineralN , &
+            L1_soilINfrtmanapp, &
             L11_concMod         , &
             L11_aquaticDenitri  , &
             L11_aquaticAssimil    )
@@ -526,6 +535,7 @@ contains
     real(dp),             intent(in)            :: L1_soilUptakeN(:)
     real(dp),             intent(in)            :: L1_soilDenitri(:)
     real(dp),             intent(in)            :: L1_soilMineralN(:)
+    real(dp),             intent(in)            :: L1_soilINfrtmanapp(:)
     real(dp),             intent(in)            :: L11_concMod(:,:)
     real(dp),             intent(in)            :: L11_aquaticDenitri(:)
     real(dp),             intent(in)            :: L11_aquaticAssimil(:)
@@ -605,8 +615,17 @@ contains
 #endif
     end if
  
-    !Level 11 
     if (outputFlxState_wqm(9)) then
+       ii = ii + 1
+#ifdef pgiFortran
+       call updateVariablewqm(vars(ii), L1_soilINfrtmanapp(sidx1:eidx1))
+#else
+       call vars(ii)%updateVariablewqm(L1_soilINfrtmanapp(sidx1:eidx1))
+#endif
+    end if
+ 
+    !Level 11 
+    if (outputFlxState_wqm(10)) then
        ii = ii + 1
 #ifdef pgiFortran
        call updateVariablewqm(vars(ii), L11_concMod(sidx11:eidx11, 1))
@@ -614,7 +633,7 @@ contains
        call vars(ii)%updateVariablewqm(L11_concMod(sidx11:eidx11, 1))
 #endif
     end if
-    if (outputFlxState_wqm(10)) then
+    if (outputFlxState_wqm(11)) then
        ii = ii + 1
 #ifdef pgiFortran
        call updateVariablewqm(vars(ii), L11_aquaticDenitri(sidx11:eidx11))
@@ -622,7 +641,7 @@ contains
        call vars(ii)%updateVariablewqm(L11_aquaticDenitri(sidx11:eidx11))
 #endif
     end if
-    if (outputFlxState_wqm(11)) then
+    if (outputFlxState_wqm(12)) then
        ii = ii + 1
 #ifdef pgiFortran
        call updateVariablewqm(vars(ii), L11_aquaticAssimil(sidx11:eidx11))
@@ -827,7 +846,7 @@ contains
     real(dp), allocatable   :: northing(:), easting(:), lat(:,:), lon(:,:)
     real(dp), allocatable   :: northing11(:), easting11(:), lat11(:,:), lon11(:,:)
 
-    fname = trim(dirOut(ibasin)) // 'WQM_Fulxes_States.nc'
+    fname = trim(dirOut(ibasin)) // 'WQM_Fluxes_States.nc'
     call mapCoordinates(ibasin, level1, northing, easting)
     call geoCoordinates(ibasin, level1, lat, lon)
     call mapCoordinates(ibasin, level11, northing11, easting11)

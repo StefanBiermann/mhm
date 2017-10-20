@@ -1,4 +1,4 @@
-GFORTRAN module version '10' created from /gpfs0/home/yangx/mhmtrunk/src/mRM/mo_mrm_net_startup.f90
+GFORTRAN module version '10' created from /gpfs0/home/yangx/mhmnitrate5.7/nitrate-mhm5.7/src/mRM/mo_mrm_net_startup.f90
 MD5:2baba47b3613f3ab720ebb2649914a27 -- If you edit this, you'll get what you deserve.
 
 (() () () () () () () () () () () () () () () () () () () () () () ()

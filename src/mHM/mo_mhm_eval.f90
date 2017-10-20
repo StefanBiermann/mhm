@@ -234,7 +234,7 @@ CONTAINS
          L1_rdeniSoil,                                     & ! INOUT NE1 nitrate submodel parameters          
          L0_cover_rotation, L1_fLAI,                       & ! 
          L1_frotation, L1_soilUptakeN,L1_soilDenitri,      & !
-         L1_soilMineralN,                                  & !
+         L1_soilMineralN, L1_soilINfrtmanapp,              & !
          prevstep_sealedStorage,             & ! sealed storage in previous step
          prevstep_unsatStorage,              & ! unsaturated storage in previous step
          prevstep_satStorage,                & ! saturated storage in previous step
@@ -504,6 +504,7 @@ CONTAINS
        writeout_counter = 0
        hour = -timestep
        iGridLAI_TS = 0
+   	   
        do tt = 1, nTimeSteps
           if ( timeStep_model_inputs(ii) .eq. 0_i4 ) then
              ! whole meteorology is already read
@@ -790,23 +791,7 @@ CONTAINS
                   L11_FracFPimp(s11:e11), & ! fraction of impervious layer at L11 scale
                   ! OPTIONAL INPUT variables
                   do_mpr)
-             ! -------------------------------------------------------------------
-             ! reset variables
-             ! -------------------------------------------------------------------
-             if (processMatrix(8, 1) .eq. 1) then
-                ! reset Input variables
-                InflowDischarge = 0._dp
-                RunToRout = 0._dp
-             else if (processMatrix(8, 1) .eq. 2) then
-                if ((.not. (tsRoutFactorIn .lt. 1._dp)) .and. do_rout) then
-                   do jj = 1, nint(tsRoutFactorIn)
-                      mRM_runoff(tt - jj + 1, :) = mRM_runoff(tt, :)
-                   end do
-                   ! reset Input variables
-                   InflowDischarge = 0._dp
-                   RunToRout = 0._dp
-                end if
-             end if
+
           end if
 #endif
           ! *wqm* call water quality model (nitrogen submodel)
@@ -848,7 +833,8 @@ CONTAINS
                   L1_crain(s1:e1,:), L1_cpercolate(s1:e1,:), L1_crunoffSeal(s1:e1,:),          & ! INOUT NX 
                   L1_cfastRunoff(s1:e1,:), L1_cslowRunoff(s1:e1,:), L1_cbaseflow(s1:e1,:),     & ! INOUT NX  
                   L1_ctotal_runoff(s1:e1,:),                                                   & ! INOUT NX  
-                  L1_soilUptakeN(s1:e1), L1_soilDenitri(s1:e1), L1_soilMineralN(s1:e1),        & ! INOUT NX 
+                  L1_soilUptakeN(s1:e1), L1_soilDenitri(s1:e1), L1_soilMineralN(s1:e1),        & ! INOUT NX
+                  L1_soilINfrtmanapp(s1:e1),                                                   & ! INOUT
                   L1_rdegradN(s1:e1),L1_rmineralN(s1:e1),L1_rdissolN(s1:e1),                   & ! INOUT NE1
                   L1_rdeniSoil(s1:e1),                                                         & ! INOUT NE1 
                ! routing
@@ -887,8 +873,26 @@ CONTAINS
              Prevstep_percol        = L1_percol
              prevstep_baseflow      = L1_baseflow
           end if
-
-
+		  
+             ! -------------------------------------------------------------------
+             ! reset variables
+             ! -------------------------------------------------------------------		  
+          if (processMatrix(8, 1) .gt. 0) then
+             if (processMatrix(8, 1) .eq. 1) then
+                ! reset Input variables
+                InflowDischarge = 0._dp
+                RunToRout = 0._dp
+             else if (processMatrix(8, 1) .eq. 2) then
+                if ((.not. (tsRoutFactorIn .lt. 1._dp)) .and. do_rout) then
+                   do jj = 1, nint(tsRoutFactorIn)
+                      mRM_runoff(tt - jj + 1, :) = mRM_runoff(tt, :)
+                   end do
+                   ! reset Input variables
+                   InflowDischarge = 0._dp
+                   RunToRout = 0._dp
+                end if
+             end if
+          end if
           ! update the counters
           if (day_counter   .NE. day  ) day_counter   = day
           if (month_counter .NE. month) month_counter = month

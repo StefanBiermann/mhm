@@ -191,7 +191,8 @@ CONTAINS
     integer(i4), dimension(:), intent(in) :: InflowGaugeIndexList ! index list of inflow gauges
     logical, dimension(:),     intent(in) :: InflowGaugeHeadwater ! flag for headwater cell of inflow gauge
     integer(i4), dimension(:), intent(in) :: InflowGaugeNodeList ! gauge node list at L11
-    real(dp), dimension(:),    intent(in) :: InflowDischarge ! inflowing discharge at discharge gauge at current day
+    !changed from "in" to "inout" by yangx 2017-09 
+    real(dp), dimension(:),    intent(inout) :: InflowDischarge ! inflowing discharge at discharge gauge at current day
     integer(i4),               intent(in) :: nGauges ! number of recording gauges
     integer(i4), dimension(:), intent(in) :: gaugeIndexList ! index list for outflow gauges
     integer(i4), dimension(:), intent(in) :: gaugeNodeList ! gauge node list at L11
@@ -510,7 +511,7 @@ CONTAINS
        qOut) ! Intent INOUT
 
     use mo_kind, only: i4, dp
-    
+    use mo_mrm_constants, only: nodata_dp   !added by yangx 2017-09    
     implicit none
 
     ! input variables
@@ -518,7 +519,9 @@ CONTAINS
     integer(i4), intent(in)    :: InflowIndexList(:) ! [-] index of inflow points
     logical,     intent(in)    :: InflowHeadwater(:) ! [-] if to consider headwater cells of inflow gauge
     integer(i4), intent(in)    :: InflowNodeList(:)  ! [-]        L11 ID of inflow points
-    real(dp),    intent(in)    :: QInflow(:)         ! [m3 s-1]   inflowing water
+    !changed from "in" to "inout" by yangx 2017-09 
+    real(dp),    intent(inout)    :: QInflow(:)         ! [m3 s-1]   inflowing water
+
     ! output variables
     real(dp),    intent(inout) :: qOut(:)            ! [m3 s-1] Series of attenuated runoff 
 
@@ -528,6 +531,7 @@ CONTAINS
     ! discharge for inflow gauges (e.g. for missing upstream catchments) is added here
     ! should be put after UH attenuation because it is measured runoff at this cell 
     if (nInflowGauges .gt. 0) then
+       where (QInflow .eq. nodata_dp) QInflow = 0.0_dp
        do ii = 1, nInflowGauges
           if (InflowHeadwater(ii)) then 
              ! add inflowing water to water produced by upstream/headwater cells

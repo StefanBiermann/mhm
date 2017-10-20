@@ -215,7 +215,7 @@ PROGRAM mhm_driver
 
   USE mo_wqm_write,           ONLY : wqm_write
   USE mo_wqm_restart,         ONLY : wqm_write_restart_files
-  USE mo_wqm_objective_function, ONLY : wqm_objective
+
 
   !$ USE omp_lib,             ONLY : OMP_GET_NUM_THREADS           ! OpenMP routines
 
@@ -431,9 +431,6 @@ PROGRAM mhm_driver
      case(10:13,15,17,27,28,29,30)
         ! call optimization for other variables
         call optimization(objective, dirConfigOut, funcBest, maskpara)
-     case(31)
-        ! *wqm* objective function for water quality model (multivariables, not complete yet)
-        call optimization(wqm_objective, dirConfigOut, funcBest, maskpara)
      case default
         call message('***ERROR: mhm_driver: The given objective function number ', &
              trim(adjustl(num2str(opti_function))), ' in mhm.nml is not valid!')

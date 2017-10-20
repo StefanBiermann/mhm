@@ -19,7 +19,7 @@ MODULE mo_water_quality
   IMPLICIT NONE
 
 
-  PUBLIC :: wqm  ! water quality model 
+  PUBLIC :: wqm  ! water quality model
 
 CONTAINS
 
@@ -135,7 +135,7 @@ CONTAINS
       csoilMoist,        & ! conc. in soil moisture
       csealSTW,          & ! conc. in sealed water storage
       cunsatSTW,         & ! conc. in unsaturated water storage
-      csatSTW,           & ! conc. in saturated water storage
+      csatSTW,           & ! conc. in saturated water storage, not used at the moment
       soiltemp,          & ! soil temperature (calculated from air temperature)
       basef_avg,         & ! mean baseflow for calculating baseflow conc.(eq. introduced from INCA model) 
       cinfiltration,     & ! conc. in infiltrated soil water (between each soillayer)
@@ -150,6 +150,7 @@ CONTAINS
       soil_uptakeN,      & ! N uptake amount in soil phase [mg/m^2/timestep]
       soil_denitri,      & ! N denitrified amount in soil phase
       soil_mineralN,     & ! N mineralised amount in soil phase
+      infrtmanapp,       & ! IN applied from fertilizer and manure
       degradN_rate,      & ! nitrate parameter degradation rate from humusN pool to fastN pool
       mineraN_rate,      & ! nitrate parameter mineralisation rate from fastN pool to dissolved inorganic pool
       dissolN_rate,      & ! nitrate parameter dissolution rate from fastN pool to dissolved organic pool
@@ -287,6 +288,7 @@ CONTAINS
     real(dp), dimension(:),        intent(inout) :: soil_uptakeN
     real(dp), dimension(:),        intent(inout) :: soil_denitri
     real(dp), dimension(:),        intent(inout) :: soil_mineralN
+    real(dp), dimension(:),        intent(inout) :: infrtmanapp
     real(dp), dimension(:),        intent(inout) :: degradN_rate
     real(dp), dimension(:),        intent(inout) :: mineraN_rate
     real(dp), dimension(:),        intent(inout) :: dissolN_rate
@@ -439,12 +441,12 @@ CONTAINS
        call totalrunoff_concentration(fsealed(k),runoff_sealed(k), fastRunoff(k), slowRunoff(k), baseflow(k),  &
          total_runoff(k), crunoff_sealed(k,:), cfastrunoff(k,:), cslowrunoff(k,:), cbaseflow(k,:),   &
          ctotal_runoff(k,:))
-       !if (k==451) write(22,*) cslowrunoff(k,1)
+
        !agricultural management--nutrient input from fertilizer and manure application (crop data)
        !AND potential plant uptake (potential_uptake)
       
        call agri_management(timeStep, iBasin, no_day, no_year, day_preyr,frotation(k,:), soilMoisture(k,:), &
-         csoilMoist(k,:,:), fastN(k,:), humusN(k,:), temp(k), potential_uptake, nCroptation)       
+         csoilMoist(k,:,:), fastN(k,:), humusN(k,:), temp(k), potential_uptake, nCroptation,infrtmanapp(k))       
 	   
        !update dissolved ON and IN pools		  
        dissIN(k,:) = soilMoisture(k,:) * csoilMoist(k,:,1)
@@ -454,13 +456,13 @@ CONTAINS
        call soil_nutrient_transformation(timeStep, nHorizons_mHM, HorizonDepth(:), temp(k), soiltemp(k), snowpack(k), &
           wilting_point(k,:),soilmoist_sat(k,:), soilMoisture(k,:), csoilMoist(k,:,:), fastN(k,:), humusN(k,:), &
           dissIN(k,:), dissON(k,:), degradN_rate(k), mineraN_rate(k), dissolN_rate(k), soil_mineralN(k))
-       !if (k == 451) write(22,*)  csoilMoist(k,:,1)!ctotal_runoff(k,1)
+
        !plant uptake and denitrification in soil phase 
        call soil_plant_uptake(wilting_point(k,:), soilMoisture(k,:), csoilMoist(k,:,:), &
           potential_uptake, soil_uptakeN(k))
        dissIN(k,:) = soilMoisture(k,:) * csoilMoist(k,:,1)
 	   
-       !if (k == 451) write(23,*) csoilMoist(k,:,1)
+
        call soil_denitrification(timeStep, nHorizons_mHM, soilmoist_sat(k,:), soiltemp(k), soilMoisture(k,:),csoilMoist(k,:,:),&
           dissIN(k,:), sdenitr_rate(k), soil_denitri(k))
 
@@ -474,8 +476,9 @@ CONTAINS
        else
            cRunToRout(k,:) = ctotal_runoff(k,:)
        end if
-	   
-   
+ 
+
+
     end do   
     !**************************
     !In-stream phase (routing)
@@ -506,7 +509,6 @@ CONTAINS
         ! reset accumlative variables
         cRunToRout = 0.0_dp
         InflowConc = 0.0_dp
-
 
     end if
 
@@ -646,6 +648,7 @@ CONTAINS
      width = 5.40_dp * nLink_yravg_q(i)**(0.50_dp)  ! from M. Rode (2016), EST
      depth = 0.27_dp * nLink_yravg_q(i)**(0.39_dp)  ! from J.A. Moody(2002), Earth Surface Processes and Landforms
      beneath_area = width * nLink_length(i)
+	 
      !total input at "iNode"
      temp_qTIN(iNode) = temp_qTIN(iNode) + nNode_qOUT(iNode)
      !conc. of total infow of node(at iNode)
@@ -658,6 +661,7 @@ CONTAINS
      nLink_criverbox(i,:) = (nLink_criverbox(i,:) * nLink_riverbox(i) + nNode_interload(iNode,:) + &
                 nNode_qOUT(iNode) * nNode_concOUT(iNode,:) * sec_TS) / newbox          
      nLink_riverbox(i) = newbox
+
      !instream denitrification and primary production
      !10- and 20-day moving mean temperature of river water
      L11_rivert_avg10(i) = L11_rivert_avg10(i) + (rivertemp11(i) - L11_rivert_avg10(i)) / (10.0_dp )
@@ -672,9 +676,7 @@ CONTAINS
      nNode_interload(tNode,:) = nNode_interload(tNode,:) + nLink_criverbox(i,:) * nNode_qTR(iNode) * sec_TS
      !accumulate flow to the 'to node' of the current link, as the upstream inflow of 'to node'
      temp_qTIN(tNode) = temp_qTIN(tNode) + nNode_qTR(iNode)
-	
 
-	
   end do
   !*************************************
   !accumulate at the outlet of catchment
@@ -687,7 +689,7 @@ CONTAINS
 
   !variable for final concentration output
   do i=1, nNodes
-  nNode_concMod(i,:) = nNode_concTIN(i,:)  
+  nNode_concMod(i,:) = nNode_concTIN(i,:)
   end do
   
   end subroutine conc_routing_process
@@ -786,11 +788,12 @@ CONTAINS
   
   DT = 24.0_dp / TS
 
- 
+
   INpool = riverbox * criverbox(1) / 1000.0_dp   !kg
   f_temp = tempfactor(rivertemp11)
   f_conc = criverbox(1) / (criverbox(1) + halfsatINwater )
-
+  
+  aqdenitri = 0.0_dp
   !denitrification amount
   aqdenitri = pardeniratew * f_temp * f_conc * beneath_area / DT
   aqdenitri = min(maxdenitriwater*INpool, aqdenitri) 
@@ -834,8 +837,8 @@ CONTAINS
   else
     criverbox(1) = 0.0_dp
     criverbox(2) = 0.0_dp
-  end if  
-  
+  end if   
+ 
   end subroutine instream_nutrient_processes 
   !--------------------------------------------------------------------
   ! ------------------------------------------------------------------
@@ -974,20 +977,21 @@ CONTAINS
      rivertemp11(mm) = temperature11(k)
     end do     
   end if
-  
+ 
   !ADDITIONAL INFLOW STATION (point source and upstream inflow guages)....
   if (nInflowGauges .gt. 0_i4 ) then
      where (cqInflow .lt. 0.0_dp) cqInflow = 0.0_dp
      do nn=1, nInflowGauges
         if (InflowHeadwater(nn)) then
-           cqOUT(InflowNodeList(nn),:) = cqInflow(InflowIndexList(nn), 1:2) 
-        else
            cqOUT(InflowNodeList(nn),:) = (cqOUT(InflowNodeList(nn),:)* sumq(InflowNodeList(nn))+ &
               cqInflow(InflowIndexList(nn),1:2)*Qinflow(InflowIndexList(nn)) )/ &
-              (sumq(InflowNodeList(nn))+Qinflow(InflowIndexList(nn)))   
+              (sumq(InflowNodeList(nn))+Qinflow(InflowIndexList(nn)))  
+
+        else
+           cqOUT(InflowNodeList(nn),:) = cqInflow(InflowIndexList(nn), 1:2)  
         end if
      end do
-    
+   
   end if
 
   end subroutine conc_routing_accmix
@@ -1382,7 +1386,7 @@ CONTAINS
   !>        X. Yang Jun 2017 enabled different time-step (hourly)
   
   subroutine agri_management(TS, iBasin, noday, noyear, days_prev, frac_rotation, soilmoist, concsoil, &
-       fast_N, humus_N, temp, potential_uptake, nCroptation)
+       fast_N, humus_N, temp, potential_uptake, nCroptation,infrtmanapp)
   
   use mo_wqm_global_variables,   only: &
        cropdata, rotation              !&
@@ -1398,6 +1402,7 @@ CONTAINS
   real(dp), dimension(:),    intent(inout) :: fast_N, humus_N                 ![mg/m^2]
   real(dp), dimension(:),    intent(inout) :: potential_uptake  
   integer(i4),               intent(in)    :: nCroptation
+  real(dp),                  intent(inout) :: infrtmanapp                     ![mg/m^2]
 
 
   !local variables
@@ -1570,6 +1575,8 @@ CONTAINS
 
   end do  
  
+  infrtmanapp =  sum(frtman_nadd(:,1))
+
   end subroutine agri_management   
   !-------------------------------------------------------------------
   ! ------------------------------------------------------------------
@@ -1700,7 +1707,7 @@ CONTAINS
        concsoil(j,1) = concsoil(j,1) + mineraN2
        concsoil(j,2) = concsoil(j,2) - mineraN2
     !total mineralistaion amount
-       mineralN_lyr(j) = mineraN + mineraN2 
+       mineralN_lyr(j) = mineraN + mineraN2*soilmoist(j)
 	!update dissolved IN and ON pools
        diss_IN(j) = concsoil(j,1) * soilmoist(j)
        diss_ON(j) = concsoil(j,2) * soilmoist(j)

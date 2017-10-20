@@ -23,9 +23,9 @@ Flag WRITE restart                     F
 -------------------------------------------------------------
                                        From                To
                             Day Month  Year   Day Month  Year
-Warming Period (1)            3     1  1993    31    12  2009
-Evaluation Period (2)         1     1  2010    31    12  2015
-Simulation Period (1)+(2)     3     1  1993    31    12  2015
+Warming Period (1)            2     1  1993    31    12  1996
+Evaluation Period (2)         1     1  1997    31    12  2015
+Simulation Period (1)+(2)     2     1  1993    31    12  2015
 
 
 --------------------------------------------------
@@ -132,9 +132,9 @@ Simulation Period (1)+(2)     3     1  1993    31    12  2015
                  Basin Runoff Data                
 --------------------------------------------------
  Gauge No.  Basin Id     Qmax[m3/s]     Qmin[m3/s]
-         1         1         30.534          0.208
+         1         1         35.076          0.049
          2         1         34.060          0.090
-         3         1         15.180          0.100
+         3         1         18.300          0.070
 
 --------------------------------------------------
                 Basin Inflow Data                 

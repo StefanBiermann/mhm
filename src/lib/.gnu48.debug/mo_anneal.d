@@ -1,2 +1,2 @@
-/gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_anneal.d : /gpfs0/home/yangx/mhmtrunk/src/lib/mo_anneal.f90
-/gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_anneal.o : /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_anneal.d /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_kind.o /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_utils.o /gpfs0/home/yangx/mhmtrunk/src/lib/.gnu48.debug/mo_xor4096.o
+/gpfs0/home/yangx/mhmnitrate5.7/nitrate-mhm5.7/src/lib/.gnu48.debug/mo_anneal.d : /gpfs0/home/yangx/mhmnitrate5.7/nitrate-mhm5.7/src/lib/mo_anneal.f90
+/gpfs0/home/yangx/mhmnitrate5.7/nitrate-mhm5.7/src/lib/.gnu48.debug/mo_anneal.o : /gpfs0/home/yangx/mhmnitrate5.7/nitrate-mhm5.7/src/lib/.gnu48.debug/mo_anneal.d /gpfs0/home/yangx/mhmnitrate5.7/nitrate-mhm5.7/src/lib/.gnu48.debug/mo_kind.o /gpfs0/home/yangx/mhmnitrate5.7/nitrate-mhm5.7/src/lib/.gnu48.debug/mo_utils.o /gpfs0/home/yangx/mhmnitrate5.7/nitrate-mhm5.7/src/lib/.gnu48.debug/mo_xor4096.o

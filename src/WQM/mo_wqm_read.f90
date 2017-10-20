@@ -399,6 +399,7 @@ CONTAINS
   !======================================================
   !READ parameter namelist "wqm_outputs.nml"
   !======================================================  
+  nOUTstate_wqm =12
   allocate(outputFlxState_wqm(nOUTstate_wqm) )  
   outputFlxState_wqm = .FALSE.
   timeStep_model_outputs_wqm = -2
@@ -437,12 +438,15 @@ CONTAINS
         call message( '    Total mineralisation amount (L1_soilMineralN) [mg/m^2/timestep]')
      end if
      if (outputFlxState_wqm(9)) then
-        call message( '    output concentration of each reach at routing level (L11_concMod) [mg/l]')
+        call message( '    Total frtman applied IN amount (L1_soilINfrtmanapp) [mg/m^2/timestep]')
      end if
      if (outputFlxState_wqm(10)) then
-        call message( '    Instream denitrification amount (L11_aquaticDenitri) [mg/m^2/timestep]')
+        call message( '    output concentration of each reach at routing level (L11_concMod) [mg/l]')
      end if
      if (outputFlxState_wqm(11)) then
+        call message( '    Instream denitrification amount (L11_aquaticDenitri) [mg/m^2/timestep]')
+     end if
+     if (outputFlxState_wqm(12)) then
         call message( '    Instream assimilatory uptake amount (L11_aquaticAssimil) [mg/m^2/timestep]]')
      end if
 	 
@@ -841,7 +845,7 @@ CONTAINS
          L1_rdegradN, L1_rmineralN, L1_rdissolN,                   & ! INOUT NE1 nitrate submodel parameters
          L1_rdeniSoil, L1_gwresidT,  L1_fLAI,                       &     ! INOUT NE1 nitrate submodel parameters  
          L1_frotation, L1_soilUptakeN, L1_soilDenitri,     &
-         L1_soilMineralN,                                  &
+         L1_soilMineralN, L1_soilINfrtmanapp,               &
          prevstep_sealedStorage,             & ! sealed storage in last step
          prevstep_unsatStorage,              & ! unsaturated storage in last step
          prevstep_satStorage,                & ! saturated storage in last step
@@ -917,6 +921,7 @@ CONTAINS
     call append(L1_soilUptakeN, dummy_vector)
     call append(L1_soilDenitri, dummy_vector)
     call append(L1_soilMineralN, dummy_vector)
+    call append(L1_soilINfrtmanapp, dummy_vector)
     !store 20day's average air temperature (for instream calcualting)
     call append(L1_reachtemp, dummy_vector)
 
@@ -1063,7 +1068,7 @@ CONTAINS
          L1_rdegradN, L1_rmineralN, L1_rdissolN,                   & ! INOUT NE1 nitrate submodel parameters
          L1_rdeniSoil, L1_gwresidT,  L1_fLAI,                       &     ! INOUT NE1 nitrate submodel parameters  
          L1_frotation, L1_soilUptakeN, L1_soilDenitri,     &
-         L1_soilMineralN,                                  &
+         L1_soilMineralN, L1_soilINfrtmanapp,             &
          prevstep_sealedStorage,             & ! sealed storage in last step
          prevstep_unsatStorage,              & ! unsaturated storage in last step
          prevstep_satStorage,                & ! saturated storage in last step
@@ -1106,6 +1111,7 @@ CONTAINS
     L1_soilUptakeN = P1_InitStateFluxes
     L1_soilDenitri = P1_InitStateFluxes
     L1_soilMineralN = P1_InitStateFluxes
+    L1_soilINfrtmanapp = P1_InitStateFluxes
     !store 20day's average air temperature (for instream calcualting)
     L1_reachtemp = P1_InitStateFluxes
 
