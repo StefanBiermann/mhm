@@ -174,7 +174,7 @@ CONTAINS
     aet_sealed    = 0.0_dp
 
     if (frac_sealed > 0.0_dp) then
-       tmp = storage_sealed + prec_effec** frac_sealed
+       tmp = storage_sealed + prec_effec* frac_sealed
 
        if (tmp > water_thresh_sealed) then
           runoff_sealed  = tmp - water_thresh_sealed

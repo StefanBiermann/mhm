@@ -590,7 +590,7 @@ processCase(10) = 0
 !> water quality
 !> 0 - deactivited
 !> 1 - water quality model (mHM-Nitrate)
-processCase(11) = 0
+processCase(11) = 1
 /
 
 !******************************************************************************************

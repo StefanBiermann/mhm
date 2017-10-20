@@ -127,6 +127,17 @@ Simulation Period (1)+(2)     2     1  1993    31    12  2015
         64          1.000       1000.000        232.788                     GeoParam(21,:)
         65          1.000       1000.000         67.714                     GeoParam(22,:)
         66          1.000       1000.000        995.387                     GeoParam(23,:)
+        67          0.000          0.050          0.000            denitrification_aquatic
+        68          0.000          1.000          0.097                   primaryprod_rate
+        69          0.000          1.000          0.001              primaryprod_rate_agri
+        70          0.000          0.000          0.000                  degradationN_rate
+        71          0.000          0.000          0.000             degradationN_rate_agri
+        72          0.000          0.800          0.505               mineralisationN_rate
+        73          0.000          0.800          0.023          mineralisationN_rate_agri
+        74          0.001        200.000          0.688                  dissolutionN_rate
+        75          0.001        200.000        199.665             dissolutionN_rate_agri
+        76          0.000          1.100          0.020               denitrification_soil
+        77          0.000          1.100          0.004           denitrification_agrisoil
 
 --------------------------------------------------
                  Basin Runoff Data                
