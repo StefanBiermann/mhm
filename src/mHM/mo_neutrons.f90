@@ -170,6 +170,7 @@ CONTAINS
         COSMIC_bd, COSMIC_vwclat, COSMIC_N, COSMIC_alpha, &
         COSMIC_L1, COSMIC_L2, COSMIC_L3, COSMIC_L4
     use mo_constants, only: PI_dp
+    use mo_message,             ONLY : message, message_text          ! For print out
     implicit none
     
     real(dp), dimension(:,:),        intent(in)  :: sm
@@ -177,12 +178,14 @@ CONTAINS
     real(dp), dimension(:),          intent(in)  :: params ! 1: N0, 2: N1, 3: N2, 4: alpha0, 5: alpha1, 6: L30, 7. L31
     real(dp), dimension(size(sm,1)), intent(out) :: neutrons
 
-    ! local variables
-    real(dp) :: zdeg         
-    real(dp) :: zrad         
-    real(dp) :: ideg         
-    real(dp) :: costheta     
-    real(dp) :: dtheta       
+    real(dp) :: eps=0.0000001_dp
+    integer(i4) :: steps=100
+    real(dp) :: xmin=0.0_dp
+    real(dp) :: xmax=PI_dp/2.0_dp
+    real(dp) :: aFast
+    real(dp) :: lambdaFast
+    real(dp) :: temp=0.0_dp
+
    
     real(dp), dimension(size(Horizons))   :: dz          ! Soil layers (cm)
     real(dp), dimension(size(Horizons))   :: zthick      ! Soil layer thickness (cm)
@@ -205,7 +208,6 @@ CONTAINS
     integer(i4) :: layers=1                 ! Total number of soil layers
     integer(i4) :: profiles=1               ! Total number of soil moisture profiles
     integer(i4) :: ll=1,pp=0
-    integer(i4) :: angle, angledz, maxangle ! loop indices for an integration interval
     !
     layers   = size(sm,2) ! 2
     profiles = size(sm,1) ! 34
@@ -242,17 +244,22 @@ CONTAINS
     do ll = 2,layers
        zthick(ll) = dz(ll) - dz(ll-1)
     enddo
-    
-    !
-    ! Angle distribution parameters (HARDWIRED)
-    ! rr: Using 0.5 deg angle intervals appears to be sufficient
-    ! rr: (smaller angles increase the computing time for COSMIC)
-    ideg     = 0.5_dp                   ! ideg ultimately controls the number of trips through
-    angledz  = nint(ideg*10.0_dp,i4)    ! the ANGLE loop. Make sure the 10.0 is enough
-    maxangle = 900_i4 - angledz         ! to create integers with no remainder
-    dtheta   = ideg*(PI_dp/180.0_dp)
 
-    !
+ ! Testspielwiese   
+ !   do pp=0,1000
+ !     steps=1024
+ !     call  approx_mon_int(aFast,intgrandFast,real(pp,dp)*0.001_dp,xmin,xmax,eps=0.0_dp,steps=steps,fxmax=0.0_dp)
+ !     write(*,*) 'ext', real(pp,dp)*0.001_dp, aFast
+ !     steps=100
+ !     call  approx_mon_int(temp,intgrandFast,real(pp,dp)*0.001_dp,xmin,xmax,eps=eps,steps=100,fxmax=0.0_dp)
+ !     write(*,*) 'new', real(pp,dp)*0.001_dp, temp, abs(aFast-temp)
+ !     call oldIntegration(temp,real(pp,dp)*0.001_dp)
+ !     write(*,*) 'old', real(pp,dp)*0.001_dp, temp, abs(aFast-temp) 
+ !     write(*,*) 'press enter to resume'
+ !     read(*,*)
+ !   enddo
+ !   stop
+
     do pp = 1,profiles
        do ll = 1,layers
           
@@ -274,19 +281,12 @@ CONTAINS
           hiflux(ll,pp)  = COSMIC_N*exp(-(isoimass(ll,pp)/COSMIC_L1 + iwatmass(ll,pp)/COSMIC_L2) )
           fastpot(ll,pp) = zthick(ll)*hiflux(ll,pp)*(COSMIC_alpha*COSMIC_bd + h2oeffdens(ll,pp))
 
-          ! This second loop needs to be done for the distribution of angles for fast neutron release
-          ! the intent is to loop from 0 to 89.5 by 0.5 degrees - or similar.
-          ! Because Fortran loop indices are integers, we have to divide the indices by 10 - you get the idea.  
+          lambdaFast=isoimass(ll,pp)/COSMIC_L3 + iwatmass(ll,pp)/COSMIC_L4
+          call approx_mon_int(aFast,intgrandFast,lambdaFast,xmin,xmax,eps=eps,steps=steps,fxmax=0.0_dp)
+          !call oldIntegration(fastflux(ll,pp),lambdaFast)
+          !fastflux(ll,pp)=fastpot(ll,pp)*fastflux(ll,pp)
+          fastflux(ll,pp)=fastpot(ll,pp)*aFast
 
-          do angle=0,maxangle,angledz
-             zdeg     = real(angle,dp)/10.0_dp   ! 0.0  0.5  1.0  1.5 ...
-             zrad     = (zdeg*PI_dp)/180.0_dp
-             costheta = cos(zrad)
-
-             ! Angle-dependent low energy (fast) neutron upward flux
-             fastflux(ll,pp) = fastflux(ll,pp) + fastpot(ll,pp) * &
-                               exp(-(isoimass(ll,pp)/COSMIC_L3 + iwatmass(ll,pp)/COSMIC_L4)/costheta)*dtheta
-          enddo
 
           ! After contribution from all directions are taken into account,
           ! need to multiply fastflux by 2/pi
@@ -305,5 +305,176 @@ CONTAINS
            normfast, inormfast, isoimass, iwatmass)
            
   end subroutine COSMIC
+
+  ! integrade a monotonuous function f, dependend on two parameters c and phi
+  ! xmin and xmax are the borders for the integration
+  ! if the values for f(xmin) or f(xmax) are undefinde (like exp(-1/0)), they
+  ! can be set with fxmin, fxmax.
+  ! eps is for the accuracy of the result. If the function f is monotonuous, the
+  ! error is at most eps.
+  ! steps is the maximum number of interpolation points. It is overriding the
+  ! error and is the maximum number of steps. A specification of the error
+  ! though still has an impact. If the function is interpolated well enough
+  ! in a specific flat region regarding the error it can be interpolated better
+  ! in a less flat region.
+  subroutine approx_mon_int(res,f,c,xmin,xmax,eps,steps,fxmin,fxmax)
+     real(dp)                                     :: res
+     real(dp), external                           :: f
+     real(dp),                        intent(in)  :: c
+     real(dp),                        intent(in)  :: xmax
+     real(dp),                        intent(in)  :: xmin
+     real(dp),                        optional    :: eps
+     integer(i4),                     optional    :: steps
+     real(dp),                        optional    :: fxmin
+     real(dp),                        optional    :: fxmax
+
+     !locale variables
+     real(dp)  :: epstemp
+     integer(i4) :: stepstemp
+     real(dp)  :: fxmintemp
+     real(dp)  :: fxmaxtemp
+     
+     ! init
+     if (.not. present(eps)) then
+        epstemp=0.001_dp
+     else
+        epstemp=eps
+     endif
+
+     if (.not. present(steps)) then
+        stepstemp=0
+     else
+        stepstemp=steps
+     endif
+
+     if (.not. present(fxmin)) then
+        fxmintemp=f(c,xmin)
+     else
+        fxmintemp=fxmin
+     endif
+
+     if (.not. present(fxmax)) then
+        fxmaxtemp=f(c,xmax)
+     else
+        fxmaxtemp=fxmax
+     endif
+
+     res=0.0_dp
+
+     if (stepstemp .gt. 0) then
+        call approx_mon_int_steps(res,f,c,xmin,xmax,epstemp,stepstemp,fxmintemp,fxmaxtemp)
+     else
+        call approx_mon_int_eps(res,f,c,xmin,xmax,epstemp,fxmintemp,fxmaxtemp)
+     endif
+
+  end subroutine
+
+  recursive subroutine approx_mon_int_steps(res,f,c,xmin,xmax,eps,steps,fxmin,fxmax)
+     real(dp)                                     :: res
+     real(dp), external                           :: f
+     real(dp),                        intent(in)  :: c
+     real(dp),                        intent(in)  :: xmax
+     real(dp),                        intent(in)  :: xmin
+     real(dp),                        intent(in)  :: eps
+     integer(i4),                     intent(in)  :: steps
+     real(dp),                        intent(in)  :: fxmin
+     real(dp),                        intent(in)  :: fxmax
+
+     !locale variables
+     real(dp)  :: xm
+     real(dp)  :: fxm
+     real(dp)  :: err
+
+     xm = (xmax+xmin)/2.0_dp
+     fxm= f(c,xm)
+     
+     err=abs((fxmax-fxm)*(xmax-xm))
+     if ((err .gt. eps).and.(steps .gt. 1)) then
+        call approx_mon_int_steps(res,f,c,xm,xmax,eps/2.0,steps-steps/2,fxm,fxmax)
+     else
+        res=res+(xmax-xm)*(fxmax+fxm)/2.0_dp
+     endif
+
+     err=abs((fxm-fxmin)*(xm-xmin))
+     if ((err .gt. eps).and.(steps .gt. 1)) then
+        call approx_mon_int_steps(res,f,c,xmin,xm,eps/2.0,steps/2,fxmin,fxm)
+     else
+        res=res+(xm-xmin)*(fxm+fxmin)/2.0_dp
+     endif
+  end subroutine
+
+  recursive subroutine approx_mon_int_eps(res,f,c,xmin,xmax,eps,fxmin,fxmax)
+     real(dp)                                     :: res
+     real(dp), external                           :: f
+     real(dp),                        intent(in)  :: c
+     real(dp),                        intent(in)  :: xmax
+     real(dp),                        intent(in)  :: xmin
+     real(dp),                        intent(in)  :: eps
+     real(dp),                        intent(in)  :: fxmin
+     real(dp),                        intent(in)  :: fxmax
+
+     !locale variables
+     real(dp)  :: xm
+     real(dp)  :: fxm
+     real(dp)  :: err
+
+     xm = (xmax+xmin)/2.0_dp
+     fxm= f(c,xm)
+     
+     err=abs((fxmax-fxm)*(xmax-xm))
+     if (err .gt. eps) then
+        call approx_mon_int_eps(res,f,c,xm,xmax,eps/2.0,fxm,fxmax)
+     else
+        res=res+(xmax-xm)*(fxmax+fxm)/2.0_dp
+     endif
+
+     err=abs((fxm-fxmin)*(xm-xmin))
+     if (err .gt. eps) then
+        call approx_mon_int_eps(res,f,c,xmin,xm,eps/2.0,fxmin,fxm)
+     else
+        res=res+(xm-xmin)*(fxm+fxmin)/2.0_dp
+     endif
+  end subroutine
+
+  subroutine oldIntegration(res,c)
+     use mo_constants, only: PI_dp
+     real(dp)                                     :: res
+     real(dp),                        intent(in)  :: c
+
+     ! local variables
+     real(dp) :: zdeg         
+     real(dp) :: zrad         
+     real(dp) :: costheta     
+     real(dp) :: dtheta       
+
+     integer(i4) :: angle, angledz, maxangle ! loop indices for an integration interval
+     ! Angle distribution parameters (HARDWIRED)
+     ! rr: Using 0.5 deg angle intervals appears to be sufficient
+     ! rr: (smaller angles increase the computing time for COSMIC)
+
+     dtheta   = 0.5_dp*(PI_dp/180.0_dp)
+
+     ! This second loop needs to be done for the distribution of angles for fast neutron release
+     ! the intent is to loop from 0 to 89.5 by 0.5 degrees - or similar.
+     ! Because Fortran loop indices are integers, we have to divide the indices by 10 - you get the idea.  
+
+     res=0.0_dp
+     do angle=0,179
+        zdeg     = real(angle,dp)*0.5_dp
+        zrad     = (zdeg*PI_dp)/180.0_dp
+        costheta = cos(zrad)
+
+        ! Angle-dependent low energy (fast) neutron upward flux
+        res  = res + exp(-c/costheta)*dtheta
+     enddo
+  end subroutine
+
+  function intgrandFast(c,phi)
+     real(dp) :: intgrandFast
+     real(dp), intent(in) :: c
+     real(dp), intent(in) :: phi
+     intgrandFast=exp(-c/cos(phi))
+     return
+  end function
   
 END MODULE mo_neutrons

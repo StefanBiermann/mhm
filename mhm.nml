@@ -582,7 +582,7 @@ processCase(9) = 1
 !> 0 - deactivated
 !> 1 - inverse N0 based on Desilets et al. 2010
 !> 2 - COSMIC forward operator by Shuttleworth et al. 2013
-processCase(10) = 0
+processCase(10) = 2
 /
 
 !******************************************************************************************
