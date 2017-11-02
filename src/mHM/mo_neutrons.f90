@@ -219,12 +219,12 @@ CONTAINS
     profiles = size(SoilMoisture,1) ! 34
     
     allocate(totflux(profiles))
-    allocate(wetsoidens(layers,profiles),wetsoimass(layers,profiles),&
-             iwetsoimass(layers,profiles),hiflux(layers,profiles),fastpot(layers,profiles),&
-             h2oeffheight(layers,profiles),&
-             h2oeffdens(layers,profiles),h2oeffmass(layers,profiles),ih2oeffmass(layers,profiles),&
-             idegrad(layers,profiles),fastflux(layers,profiles),normfast(layers,profiles),&
-             inormfast(layers,profiles),isoimass(layers,profiles),iwatmass(layers,profiles))
+    allocate(wetsoidens(profiles,layers),wetsoimass(profiles,layers),&
+             iwetsoimass(profiles,layers),hiflux(profiles,layers),fastpot(profiles,layers),&
+             h2oeffheight(profiles,layers),&
+             h2oeffdens(profiles,layers),h2oeffmass(profiles,layers),ih2oeffmass(profiles,layers),&
+             idegrad(profiles,layers),fastflux(profiles,layers),normfast(profiles,layers),&
+             inormfast(profiles,layers),isoimass(profiles,layers),iwatmass(profiles,layers))
 
     dz(:)            = 0.0_dp * params(1) ! <-- this multiplication with params(1) is not needed, only to make params USED
     !                                     !     PLEASE remove when possible 
@@ -263,38 +263,37 @@ CONTAINS
           ! The integration is now performed at the node of each layer (i.e., center of the layer)
 
           ! The effective water height in each layer in each profile:
-          ! ToDo:This should include in future: lattice water, roots, soil organic
-          ! matter 
-          h2oeffheight(ll,pp) = SoilMoisture(pp,ll)
+          ! ToDo:This should include in future: lattice water, roots, soil organic matter 
+          h2oeffheight(pp,ll) = SoilMoisture(pp,ll)
           ! divided by the thickness of the layers,we get the effective density
           ! ToDo:vwclat should be found in another way
-          h2oeffdens(ll,pp) = ((h2oeffheight(pp,ll) / zthick(ll) / 10.0_dp +COSMIC_vwclat)*H2Odens)/1000.0_dp  
+          h2oeffdens(pp,ll) = ((h2oeffheight(pp,ll) / zthick(ll) / 10.0_dp +COSMIC_vwclat)*H2Odens)/1000.0_dp  
 
           ! Assuming an area of 1 cm2
-          isoimass(ll,pp) = COSMIC_bd*(0.5_dp*zthick(ll))*1.0_dp 
-          iwatmass(ll,pp) = h2oeffdens(ll,pp)*(0.5_dp*zthick(ll))*1.0_dp
+          isoimass(pp,ll) = COSMIC_bd*(0.5_dp*zthick(ll))*1.0_dp 
+          iwatmass(pp,ll) = h2oeffdens(pp,ll)*(0.5_dp*zthick(ll))*1.0_dp
           if (ll>1) then
-            isoimass(ll,pp) = isoimass(ll,pp)+isoimass(ll-1,pp)+COSMIC_bd*(0.5_dp*zthick(ll-1))*1.0_dp
-            iwatmass(ll,pp) = iwatmass(ll,pp)+iwatmass(ll-1,pp)+h2oeffdens(ll-1,pp)*(0.5_dp*zthick(ll-1))*1.0_dp
+            isoimass(pp,ll) = isoimass(pp,ll)+isoimass(pp,ll-1)+COSMIC_bd*(0.5_dp*zthick(ll-1))*1.0_dp
+            iwatmass(pp,ll) = iwatmass(pp,ll)+iwatmass(pp,ll-1)+h2oeffdens(pp,ll-1)*(0.5_dp*zthick(ll-1))*1.0_dp
           endif
 
 
           ! ToDo:COSMIC_bd should not be a constant
           L3 = calcL3(COSMIC_bd)
-          lambdaHigh = isoimass(ll,pp)/COSMIC_L1 + iwatmass(ll,pp)/COSMIC_L2
-          lambdaFast = isoimass(ll,pp)/L3 + iwatmass(ll,pp)/COSMIC_L4
+          lambdaHigh = isoimass(pp,ll)/COSMIC_L1 + iwatmass(pp,ll)/COSMIC_L2
+          lambdaFast = isoimass(pp,ll)/L3 + iwatmass(pp,ll)/COSMIC_L4
 
-          hiflux(ll,pp)  = exp(-lambdaHigh)
-          fastpot(ll,pp) = zthick(ll)*(COSMIC_alpha*COSMIC_bd + h2oeffdens(ll,pp))
+          hiflux(pp,ll)  = exp(-lambdaHigh)
+          fastpot(pp,ll) = zthick(ll)*(COSMIC_alpha*COSMIC_bd + h2oeffdens(pp,ll))
 
-          call approx_mon_int(fastflux(ll,pp),intgrandFast,lambdaFast,xmin,xmax,eps=eps,steps=steps,fxmax=0.0_dp)
+          call approx_mon_int(fastflux(pp,ll),intgrandFast,lambdaFast,xmin,xmax,eps=eps,steps=steps,fxmax=0.0_dp)
 
           ! After contribution from all directions are taken into account,
           ! need to multiply fastflux by 2/pi
-          fastflux(ll,pp)=(2.0_dp/PI_dp)*fastflux(ll,pp)
+          fastflux(pp,ll)=(2.0_dp/PI_dp)*fastflux(pp,ll)
 
           ! Low energy (fast) neutron upward flux
-          totflux(pp)=totflux(pp)+hiflux(ll,pp)*fastpot(ll,pp)*fastflux(ll,pp)
+          totflux(pp)=totflux(pp)+hiflux(pp,ll)*fastpot(pp,ll)*fastflux(pp,ll)
 
        enddo
        totflux(pp)=COSMIC_N*totflux(pp)
