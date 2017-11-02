@@ -51,7 +51,7 @@ CONTAINS
   !                          N0-parameter, output(cells) )
   !
   !     INTENT(IN)
-  !>        \param[in] "real(dp), dimension(:,:) :: sm" Soil Moisture
+  !>        \param[in] "real(dp), dimension(:,:) :: SoilMoisture" Soil Moisture
   !>        \param[in] "real(dp), dimension(:)   :: Horizons" Horizon depths
   !>        \param[in] "real(dp)                 :: N0" dry neutron counts
   !
@@ -59,7 +59,7 @@ CONTAINS
   !         None
   !
   !     INTENT(OUT)
-  !>        \param[out] "real(dp), dimension(size(sm,1)) :: neutrons" Neutron counts
+  !>        \param[out] "real(dp), dimension(size(SoilMoisture,1)) :: neutrons" Neutron counts
   !
   !     INTENT(IN), OPTIONAL
   !         None
@@ -77,7 +77,7 @@ CONTAINS
   !         Horizons(1) must not be zero.
   !
   !     EXAMPLE
-  !         N0=1500cph, sm(1,1)=700mm, Horizons(1)=200mm
+  !         N0=1500cph, SoilMoisture(1,1)=700mm, Horizons(1)=200mm
   !         1500*(0.372+0.0808/ (70mm/200mm + 0.115))
   !         DesiletsN0 = 819cph
   !
@@ -90,18 +90,18 @@ CONTAINS
   !>        \author Martin Schroen
   !>        \date Mar 2015
 
-  subroutine DesiletsN0(sm, Horizons, N0, neutrons)
+  subroutine DesiletsN0(SoilMoisture, Horizons, N0, neutrons)
 
     use mo_mhm_constants, only: Desilets_a0, Desilets_a1, Desilets_a2
     implicit none
     
-    real(dp), dimension(:,:),        intent(in)  :: sm
+    real(dp), dimension(:,:),        intent(in)  :: SoilMoisture
     real(dp), dimension(:),          intent(in)  :: Horizons
     real(dp),                        intent(in)  :: N0          ! from global parameters
-    real(dp), dimension(size(sm,1)), intent(out) :: neutrons
+    real(dp), dimension(size(SoilMoisture,1)), intent(out) :: neutrons
     
     ! only use first soil layer
-    neutrons(:) = N0 * ( Desilets_a1 + Desilets_a0 / (sm(:,1)/Horizons(1) + Desilets_a2))
+    neutrons(:) = N0 * ( Desilets_a1 + Desilets_a0 / (SoilMoisture(:,1)/Horizons(1) + Desilets_a2))
   
   end subroutine DesiletsN0
 
@@ -126,7 +126,7 @@ CONTAINS
   !                          COSMIC-parameterset, output(cells) )
   !
   !     INTENT(IN)
-  !>        \param[in] "real(dp), dimension(:,:) :: sm" Soil Moisture
+  !>        \param[in] "real(dp), dimension(:,:) :: SoilMoisture" Soil Moisture
   !>        \param[in] "real(dp), dimension(:)   :: Horizons" Horizon depths
   !>        \param[in] "real(dp), dimension(:)   :: params" ! N0, N1, N2, alpha0, alpha1, L30, L31
   !
@@ -134,7 +134,7 @@ CONTAINS
   !         None
   !
   !     INTENT(OUT)
-  !>        \param[out] "real(dp), dimension(size(sm,1)) :: neutrons" Neutron counts
+  !>        \param[out] "real(dp), dimension(size(SoilMoisture,1)) :: neutrons" Neutron counts
   !
   !     INTENT(IN), OPTIONAL
   !         None
@@ -164,27 +164,32 @@ CONTAINS
   !>        \author Martin Schroen, originally written by Rafael Rosolem
   !>        \date Mar 2015
   
-  subroutine COSMIC(sm, Horizons, params, neutrons)
+  subroutine COSMIC(SoilMoisture, Horizons, params, neutrons)
     
     use mo_mhm_constants, only: H2Odens, &
         COSMIC_bd, COSMIC_vwclat, COSMIC_N, COSMIC_alpha, &
-        COSMIC_L1, COSMIC_L2, COSMIC_L3, COSMIC_L4
+        COSMIC_L1, COSMIC_L2, COSMIC_L4
     use mo_constants, only: PI_dp
     use mo_message,             ONLY : message, message_text          ! For print out
     implicit none
     
-    real(dp), dimension(:,:),        intent(in)  :: sm
+    real(dp), dimension(:,:),        intent(in)  :: SoilMoisture
     real(dp), dimension(:),          intent(in)  :: Horizons
     real(dp), dimension(:),          intent(in)  :: params ! 1: N0, 2: N1, 3: N2, 4: alpha0, 5: alpha1, 6: L30, 7. L31
-    real(dp), dimension(size(sm,1)), intent(out) :: neutrons
+    real(dp), dimension(size(SoilMoisture,1)), intent(out) :: neutrons
 
     real(dp) :: eps=0.0000001_dp
     integer(i4) :: steps=100
     real(dp) :: xmin=0.0_dp
     real(dp) :: xmax=PI_dp/2.0_dp
+    real(dp) :: L3=0.0_dp
     real(dp) :: aFast
+    real(dp) :: lambdaHigh
     real(dp) :: lambdaFast
     real(dp) :: temp=0.0_dp
+    real(dp) :: temp1=0.0_dp
+    real(dp) :: temp2=0.0_dp
+    real(dp) :: temp3=0.0_dp
 
    
     real(dp), dimension(size(Horizons))   :: dz          ! Soil layers (cm)
@@ -196,6 +201,7 @@ CONTAINS
     real(dp), dimension(:,:), allocatable :: iwetsoimass ! Integrated wet soil mass above layer (g)
     real(dp), dimension(:,:), allocatable :: hiflux      ! High energy neutron flux
     real(dp), dimension(:,:), allocatable :: fastpot     ! Fast neutron source strength of layer
+    real(dp), dimension(:,:), allocatable :: h2oeffheight! "Effective" height of water in layer (g/cm3)
     real(dp), dimension(:,:), allocatable :: h2oeffdens  ! "Effective" density of water in layer (g/cm3)
     real(dp), dimension(:,:), allocatable :: h2oeffmass  ! "Effective" mass of water in layer (g)
     real(dp), dimension(:,:), allocatable :: ih2oeffmass ! Integrated water mass above layer (g)
@@ -209,12 +215,13 @@ CONTAINS
     integer(i4) :: profiles=1               ! Total number of soil moisture profiles
     integer(i4) :: ll=1,pp=0
     !
-    layers   = size(sm,2) ! 2
-    profiles = size(sm,1) ! 34
+    layers   = size(SoilMoisture,2) ! 2
+    profiles = size(SoilMoisture,1) ! 34
     
     allocate(totflux(profiles))
     allocate(wetsoidens(layers,profiles),wetsoimass(layers,profiles),&
              iwetsoimass(layers,profiles),hiflux(layers,profiles),fastpot(layers,profiles),&
+             h2oeffheight(layers,profiles),&
              h2oeffdens(layers,profiles),h2oeffmass(layers,profiles),ih2oeffmass(layers,profiles),&
              idegrad(layers,profiles),fastflux(layers,profiles),normfast(layers,profiles),&
              inormfast(layers,profiles),isoimass(layers,profiles),iwatmass(layers,profiles))
@@ -229,6 +236,7 @@ CONTAINS
     iwatmass(:,:)    = 0.0_dp
     hiflux(:,:)      = 0.0_dp
     fastpot(:,:)     = 0.0_dp
+    h2oeffheight(:,:)= 0.0_dp
     h2oeffdens(:,:)  = 0.0_dp
     h2oeffmass(:,:)  = 0.0_dp
     ih2oeffmass(:,:) = 0.0_dp
@@ -238,6 +246,7 @@ CONTAINS
     inormfast(:,:)   = 0.0_dp 
     totflux(:)       = 0.0_dp
     
+    !ToDo: do this in global constants, so it is an input paramter
     ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
     dz(:) = Horizons(:)/10.0_dp ! from mm to cm
     zthick(1) = dz(1) - 0.0_dp
@@ -245,66 +254,68 @@ CONTAINS
        zthick(ll) = dz(ll) - dz(ll-1)
     enddo
 
- ! Testspielwiese   
- !   do pp=0,1000
- !     steps=1024
- !     call  approx_mon_int(aFast,intgrandFast,real(pp,dp)*0.001_dp,xmin,xmax,eps=0.0_dp,steps=steps,fxmax=0.0_dp)
- !     write(*,*) 'ext', real(pp,dp)*0.001_dp, aFast
- !     steps=100
- !     call  approx_mon_int(temp,intgrandFast,real(pp,dp)*0.001_dp,xmin,xmax,eps=eps,steps=100,fxmax=0.0_dp)
- !     write(*,*) 'new', real(pp,dp)*0.001_dp, temp, abs(aFast-temp)
- !     call oldIntegration(temp,real(pp,dp)*0.001_dp)
- !     write(*,*) 'old', real(pp,dp)*0.001_dp, temp, abs(aFast-temp) 
- !     write(*,*) 'press enter to resume'
- !     read(*,*)
- !   enddo
- !   stop
-
+    !ToDo: include this in the main loop
+    !ToDo: add one additional top soil layer with snowpack
     do pp = 1,profiles
        do ll = 1,layers
           
           ! High energy neutron downward flux
           ! The integration is now performed at the node of each layer (i.e., center of the layer)
-          h2oeffdens(ll,pp) = ((sm(pp,ll) / zthick(ll) / 10.0_dp +COSMIC_vwclat)*H2Odens)/1000.0_dp  
+
+          ! The effective water height in each layer in each profile:
+          ! ToDo:This should include in future: lattice water, roots, soil organic
+          ! matter 
+          h2oeffheight(ll,pp) = SoilMoisture(pp,ll)
+          ! divided by the thickness of the layers,we get the effective density
+          ! ToDo:vwclat should be found in another way
+          h2oeffdens(ll,pp) = ((h2oeffheight(pp,ll) / zthick(ll) / 10.0_dp +COSMIC_vwclat)*H2Odens)/1000.0_dp  
 
           ! Assuming an area of 1 cm2
-          if(ll > 1) then
-             isoimass(ll,pp) = isoimass(ll-1,pp) + COSMIC_bd*(0.5_dp*zthick(ll-1))*1.0_dp &
-                                             + COSMIC_bd*(0.5_dp*zthick(ll))*1.0_dp
-             iwatmass(ll,pp) = iwatmass(ll-1,pp) + h2oeffdens(ll-1,pp)*(0.5_dp*zthick(ll-1))*1.0_dp &
-                                             + h2oeffdens(ll,pp)*(0.5_dp*zthick(ll))*1.0_dp
-          else
-             isoimass(ll,pp) = COSMIC_bd*(0.5_dp*zthick(ll))*1.0_dp 
-             iwatmass(ll,pp) = h2oeffdens(ll,pp)*(0.5_dp*zthick(ll))*1.0_dp
-          end if
+          isoimass(ll,pp) = COSMIC_bd*(0.5_dp*zthick(ll))*1.0_dp 
+          iwatmass(ll,pp) = h2oeffdens(ll,pp)*(0.5_dp*zthick(ll))*1.0_dp
+          if (ll>1) then
+            isoimass(ll,pp) = isoimass(ll,pp)+isoimass(ll-1,pp)+COSMIC_bd*(0.5_dp*zthick(ll-1))*1.0_dp
+            iwatmass(ll,pp) = iwatmass(ll,pp)+iwatmass(ll-1,pp)+h2oeffdens(ll-1,pp)*(0.5_dp*zthick(ll-1))*1.0_dp
+          endif
 
-          hiflux(ll,pp)  = COSMIC_N*exp(-(isoimass(ll,pp)/COSMIC_L1 + iwatmass(ll,pp)/COSMIC_L2) )
-          fastpot(ll,pp) = zthick(ll)*hiflux(ll,pp)*(COSMIC_alpha*COSMIC_bd + h2oeffdens(ll,pp))
 
-          lambdaFast=isoimass(ll,pp)/COSMIC_L3 + iwatmass(ll,pp)/COSMIC_L4
-          call approx_mon_int(aFast,intgrandFast,lambdaFast,xmin,xmax,eps=eps,steps=steps,fxmax=0.0_dp)
-          !call oldIntegration(fastflux(ll,pp),lambdaFast)
-          !fastflux(ll,pp)=fastpot(ll,pp)*fastflux(ll,pp)
-          fastflux(ll,pp)=fastpot(ll,pp)*aFast
+          ! ToDo:COSMIC_bd should not be a constant
+          L3 = calcL3(COSMIC_bd)
+          lambdaHigh = isoimass(ll,pp)/COSMIC_L1 + iwatmass(ll,pp)/COSMIC_L2
+          lambdaFast = isoimass(ll,pp)/L3 + iwatmass(ll,pp)/COSMIC_L4
 
+          hiflux(ll,pp)  = exp(-lambdaHigh)
+          fastpot(ll,pp) = zthick(ll)*(COSMIC_alpha*COSMIC_bd + h2oeffdens(ll,pp))
+
+          call approx_mon_int(fastflux(ll,pp),intgrandFast,lambdaFast,xmin,xmax,eps=eps,steps=steps,fxmax=0.0_dp)
 
           ! After contribution from all directions are taken into account,
           ! need to multiply fastflux by 2/pi
-          fastflux(ll,pp) = (2.0_dp/PI_dp)*fastflux(ll,pp)
+          fastflux(ll,pp)=(2.0_dp/PI_dp)*fastflux(ll,pp)
 
           ! Low energy (fast) neutron upward flux
-          totflux(pp) = totflux(pp) + fastflux(ll,pp)
+          totflux(pp)=totflux(pp)+hiflux(ll,pp)*fastpot(ll,pp)*fastflux(ll,pp)
 
        enddo
+       totflux(pp)=COSMIC_N*totflux(pp)
     enddo
     
     neutrons = totflux(:)
 
     deallocate(totflux, wetsoidens, wetsoimass, iwetsoimass, hiflux,&
-           fastpot, h2oeffdens, h2oeffmass, ih2oeffmass, idegrad, fastflux,&
+           fastpot, h2oeffheight, h2oeffdens, h2oeffmass, ih2oeffmass, idegrad, fastflux,&
            normfast, inormfast, isoimass, iwatmass)
            
   end subroutine COSMIC
+
+  function calcL3(bulkDensity)
+     real(dp),  intent(in) :: bulkDensity
+     real(dp)              :: calcL3
+      calcL3 = bulkDensity*106.194175956 - 40.987888406
+      if (bulkDensity < 0.4) then ! bulkDensity<0.39 yields negative L3, bulkDensity=0.39 yields L3=0
+         calcL3 = 1.0 ! Prevent division by zero later on; added by joost Iwema to COSMIC 1.13, Feb. 2017
+      endif
+  end function
 
   ! integrade a monotonuous function f, dependend on two parameters c and phi
   ! xmin and xmax are the borders for the integration
