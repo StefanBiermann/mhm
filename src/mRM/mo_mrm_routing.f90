@@ -511,7 +511,7 @@ CONTAINS
        qOut) ! Intent INOUT
 
     use mo_kind, only: i4, dp
-    use mo_mrm_constants, only: nodata_dp   !added by yangx 2017-09    
+    !use mo_mrm_constants, only: nodata_dp   !added by yangx 2017-09    
     implicit none
 
     ! input variables
@@ -531,7 +531,7 @@ CONTAINS
     ! discharge for inflow gauges (e.g. for missing upstream catchments) is added here
     ! should be put after UH attenuation because it is measured runoff at this cell 
     if (nInflowGauges .gt. 0) then
-       where (QInflow .eq. nodata_dp) QInflow = 0.0_dp
+       !where (QInflow .eq. nodata_dp) QInflow = 0.0_dp
        do ii = 1, nInflowGauges
           if (InflowHeadwater(ii)) then 
              ! add inflowing water to water produced by upstream/headwater cells
