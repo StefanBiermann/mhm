@@ -186,6 +186,8 @@ CONTAINS
     real(dp) :: aFast
     real(dp) :: lambdaHigh
     real(dp) :: lambdaFast
+    real(dp), dimension(:), allocatable :: integralC
+    integer :: intSize=10000
     real(dp) :: temp=0.0_dp
     real(dp) :: temp1=0.0_dp
     real(dp) :: temp2=0.0_dp
@@ -225,6 +227,7 @@ CONTAINS
              h2oeffdens(profiles,layers),h2oeffmass(profiles,layers),ih2oeffmass(profiles,layers),&
              idegrad(profiles,layers),fastflux(profiles,layers),normfast(profiles,layers),&
              inormfast(profiles,layers),isoimass(profiles,layers),iwatmass(profiles,layers))
+    allocate(integralC(intSize+1))
 
     dz(:)            = 0.0_dp * params(1) ! <-- this multiplication with params(1) is not needed, only to make params USED
     !                                     !     PLEASE remove when possible 
@@ -245,6 +248,7 @@ CONTAINS
     normfast(:,:)    = 0.0_dp
     inormfast(:,:)   = 0.0_dp 
     totflux(:)       = 0.0_dp
+    integralC(:)     = 0.0_dp
     
     !ToDo: do this in global constants, so it is an input paramter
     ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
@@ -254,8 +258,12 @@ CONTAINS
        zthick(ll) = dz(ll) - dz(ll-1)
     enddo
 
+     call FillIntTabular(integralC,intsize,20.0_dp)
+
     !ToDo: include this in the main loop
     !ToDo: add one additional top soil layer with snowpack
+    !call CPU_TIME(temp1)
+    !do temp=1,10000
     do pp = 1,profiles
        do ll = 1,layers
           
@@ -286,7 +294,7 @@ CONTAINS
           hiflux(pp,ll)  = exp(-lambdaHigh)
           fastpot(pp,ll) = zthick(ll)*(COSMIC_alpha*COSMIC_bd + h2oeffdens(pp,ll))
 
-          call approx_mon_int(fastflux(pp,ll),intgrandFast,lambdaFast,xmin,xmax,eps=eps,steps=steps,fxmax=0.0_dp)
+          call lookUpIntegral(fastflux(pp,ll),integralC,intsize,lambdaFast,20.0_dp)
 
           ! After contribution from all directions are taken into account,
           ! need to multiply fastflux by 2/pi
@@ -298,12 +306,16 @@ CONTAINS
        enddo
        totflux(pp)=COSMIC_N*totflux(pp)
     enddo
+    !enddo
+    !call CPU_TIME(temp2)
+    !write(*,*) temp2-temp1
     
     neutrons = totflux(:)
 
     deallocate(totflux, wetsoidens, wetsoimass, iwetsoimass, hiflux,&
            fastpot, h2oeffheight, h2oeffdens, h2oeffmass, ih2oeffmass, idegrad, fastflux,&
            normfast, inormfast, isoimass, iwatmass)
+    deallocate(integralC)
            
   end subroutine COSMIC
 
@@ -327,6 +339,8 @@ CONTAINS
   ! though still has an impact. If the function is interpolated well enough
   ! in a specific flat region regarding the error it can be interpolated better
   ! in a less flat region.
+  !
+  !For the specific given integral it is very precise with steps=1024
   subroutine approx_mon_int(res,f,c,xmin,xmax,eps,steps,fxmin,fxmax)
      real(dp)                                     :: res
      real(dp), external                           :: f
@@ -445,6 +459,40 @@ CONTAINS
         res=res+(xm-xmin)*(fxm+fxmin)/2.0_dp
      endif
   end subroutine
+
+  subroutine FillIntTabular(integralC,intsize,maxC)
+     use mo_constants, only: PI_dp
+     real(dp), dimension(:)              :: integralC
+     integer(i4), intent(in)             :: intsize
+     integer(i4)                         :: i
+     real(dp), intent(in)                :: maxC
+
+     !local variables
+     real(dp)                            :: c
+
+     do i=1,intsize+1
+       c = real(i-1,dp)*maxC/real(intsize,dp)
+       call approx_mon_int(integralC(i),intgrandFast,c,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
+     enddo
+  end subroutine
+
+  subroutine lookUpIntegral(res,integralC,intsize,c,maxC)
+     real(dp)                         :: res
+     real(dp), dimension(:),intent(in):: integralC
+     integer(i4), intent(in)          :: intsize
+     real(dp), intent(in)             :: c
+     real(dp), intent(in)             :: maxC
+
+     !local variables
+     integer(i4) :: place
+     real(dp)    :: mu
+
+     mu=c*real(intsize,dp)/maxC
+     place=int(mu,i4)+1
+     mu=mu-real(place-1,dp)
+     res=(1.0_dp-mu)*integralC(place)+mu*(integralC(place+1))
+  end subroutine
+
 
   subroutine oldIntegration(res,c)
      use mo_constants, only: PI_dp
