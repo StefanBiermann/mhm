@@ -30,11 +30,11 @@ MODULE mo_global_variables
   !           Oldrich Rakovec,    Oct 2015 - added definition of basin averaged TWS data
   !           Rohini Kumar,       Mar 2016 - new variables for handling different soil databases
   !           Johann Brenner,     Feb 2017 - added optional evapotranspiration readin: dirEvapotranspiration, L1_et
-  !           Zink M. Demirel C., Mar 2017 - added Jarvis soil water stress variable for SM process(3) 
+  !           Zink M. Demirel C., Mar 2017 - added Jarvis soil water stress variable for SM process(3)
   !           Demirel M.C.        May 2017 - added L1_petLAIcorFactor for PET correction
 
 
-  
+
   USE mo_kind,             ONLY: i4, i8, dp
   use mo_common_variables, ONLY: period
   USE mo_mhm_constants,    ONLY: nOutFlxState, YearMonths, maxNoBasins, maxNLCovers
@@ -274,7 +274,7 @@ MODULE mo_global_variables
   !                                                                 !           target variable for coupling to mRM
   real(dp), public, dimension(:), allocatable         :: L0_slope    ! [%]      Slope
   real(dp), public, dimension(:), allocatable         :: L0_asp     ! [degree]  Aspect degree
-  integer(i4), public, dimension(:,:), allocatable    :: L0_soilId  !           soil id (iFlag_soilDB = 0)  
+  integer(i4), public, dimension(:,:), allocatable    :: L0_soilId  !           soil id (iFlag_soilDB = 0)
   !  [dim1=number grid cells, dim2=Number of soil horizons] note: for iFlag_soilDB=0, dim2=1
   integer(i4), public, dimension(:), allocatable   :: L0_geoUnit    !      Geologic formation (unit)
 
@@ -402,9 +402,9 @@ MODULE mo_global_variables
   !                                                                         ! dim1 = No cells for basin, dim2 = No of Months in year
   real(dp), public, dimension(:,:), allocatable :: L1_fRoots                ! [1]    Fraction of roots in soil horizons
   real(dp), public, dimension(:), allocatable   :: L1_maxInter              ! [mm]   Maximum interception
-  
 
-  
+
+
   real(dp), public, dimension(:), allocatable   :: L1_kfastFlow             ! [d-1]  Fast interflow recession coefficient
   real(dp), public, dimension(:), allocatable   :: L1_kSlowFlow             ! [d-1]  Slow interflow recession coefficient
   real(dp), public, dimension(:), allocatable   :: L1_kBaseFlow             ! [d-1]  Baseflow recession coefficient
@@ -414,15 +414,15 @@ MODULE mo_global_variables
   real(dp), public, dimension(:,:), allocatable :: L1_soilMoistSat          ! [mm]   Saturation soil moisture for each horizon [mm]
   real(dp), public, dimension(:,:), allocatable :: L1_soilMoistExp          ! [1]    Exponential parameter to how non-linear
   !                                                                         !        is the soil water retention
-  real(dp), public, dimension(:),   allocatable :: L1_jarvis_thresh_c1      ![1] jarvis critical value for normalized soil 
-  !                                                                         !        water content 
+  real(dp), public, dimension(:),   allocatable :: L1_jarvis_thresh_c1      ![1] jarvis critical value for normalized soil
+  !                                                                         !        water content
   real(dp), public, dimension(:), allocatable   :: L1_tempThresh            ! [degC]   Threshold temperature for snow/rain
   real(dp), public, dimension(:), allocatable   :: L1_unsatThresh           ! [mm]  Threshold waterdepth controlling fast interflow
   real(dp), public, dimension(:), allocatable   :: L1_sealedThresh          ! [mm]  Threshold waterdepth for surface runoff
   !                                                                         !       in sealed surfaces
   real(dp), public, dimension(:,:), allocatable :: L1_wiltingPoint          ! [mm]  Permanent wilting point: below which neither
   !                                                                         !       plant can take water nor water can drain in
-            
+
   ! -------------------------------------------------------------------
   ! Monthly day/night variation of Meteorological variables
   ! for temporal disaggregation
@@ -444,5 +444,13 @@ MODULE mo_global_variables
   logical, dimension(nOutFlxState) :: outputFlxState         ! Define model outputs see "mhm_outputs.nml"
   !                                                            dim1 = number of output variables to be written
   !
+
+  ! -------------------------------------------------------------------
+  ! AUXILIARY VARIABLES
+  ! -------------------------------------------------------------------
+  !
+
+  real(dp), public, dimension(:), allocatable :: neutron_integral_AFast ! pre-calculated integrand for
+                                                                        ! vertical projection of isotropic neutron flux
 
 END MODULE mo_global_variables
