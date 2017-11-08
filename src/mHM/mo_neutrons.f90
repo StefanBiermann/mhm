@@ -178,15 +178,10 @@ CONTAINS
     real(dp), dimension(:),          intent(in)  :: params ! 1: N0, 2: N1, 3: N2, 4: alpha0, 5: alpha1, 6: L30, 7. L31
     real(dp), dimension(size(SoilMoisture,1)), intent(out) :: neutrons
 
-    real(dp) :: eps=0.0000001_dp
-    integer(i4) :: steps=100
-    real(dp) :: xmin=0.0_dp
-    real(dp) :: xmax=PI_dp/2.0_dp
     real(dp) :: L3=0.0_dp
-    real(dp) :: aFast
     real(dp) :: lambdaHigh
     real(dp) :: lambdaFast
-    real(dp), dimension(:), allocatable :: integralC
+    real(dp), dimension(:), allocatable :: neutron_integral_AFast
     integer :: intSize=10000
     real(dp) :: temp=0.0_dp
     real(dp) :: temp1=0.0_dp
@@ -227,7 +222,7 @@ CONTAINS
              h2oeffdens(profiles,layers),h2oeffmass(profiles,layers),ih2oeffmass(profiles,layers),&
              idegrad(profiles,layers),fastflux(profiles,layers),normfast(profiles,layers),&
              inormfast(profiles,layers),isoimass(profiles,layers),iwatmass(profiles,layers))
-    allocate(integralC(intSize+1))
+    allocate(neutron_integral_AFast(intSize+1))
 
     dz(:)            = 0.0_dp * params(1) ! <-- this multiplication with params(1) is not needed, only to make params USED
     !                                     !     PLEASE remove when possible 
@@ -248,7 +243,7 @@ CONTAINS
     normfast(:,:)    = 0.0_dp
     inormfast(:,:)   = 0.0_dp 
     totflux(:)       = 0.0_dp
-    integralC(:)     = 0.0_dp
+    neutron_integral_AFast(:)     = 0.0_dp
     
     !ToDo: do this in global constants, so it is an input paramter
     ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
@@ -258,7 +253,7 @@ CONTAINS
        zthick(ll) = dz(ll) - dz(ll-1)
     enddo
 
-     call FillIntTabular(integralC,intsize,20.0_dp)
+    call TabularIntegralAFast(neutron_integral_AFast,intsize,20.0_dp)
 
     !ToDo: include this in the main loop
     !ToDo: add one additional top soil layer with snowpack
@@ -294,7 +289,13 @@ CONTAINS
           hiflux(pp,ll)  = exp(-lambdaHigh)
           fastpot(pp,ll) = zthick(ll)*(COSMIC_alpha*COSMIC_bd + h2oeffdens(pp,ll))
 
-          call lookUpIntegral(fastflux(pp,ll),integralC,intsize,lambdaFast,20.0_dp)
+        !  call approx_mon_int(temp,intgrandFast,lambdaFast,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
+          call lookUpIntegral(fastflux(pp,ll),neutron_integral_AFast,intsize,lambdaFast,20.0_dp)
+        !  call COSMICeffIntegration(fastflux(pp,ll),lambdaFast)
+        !  write(*,*) 'recurse', temp
+        !  write(*,*) 'tabular', fastflux(pp,ll), abs(fastflux(pp,ll)-temp)
+        !  write(*,*) 'polynom', temp1, abs(temp1-temp)
+        !  read(*,*)
 
           ! After contribution from all directions are taken into account,
           ! need to multiply fastflux by 2/pi
@@ -315,7 +316,7 @@ CONTAINS
     deallocate(totflux, wetsoidens, wetsoimass, iwetsoimass, hiflux,&
            fastpot, h2oeffheight, h2oeffdens, h2oeffmass, ih2oeffmass, idegrad, fastflux,&
            normfast, inormfast, isoimass, iwatmass)
-    deallocate(integralC)
+    deallocate(neutron_integral_AFast)
            
   end subroutine COSMIC
 
@@ -342,6 +343,7 @@ CONTAINS
   !
   !For the specific given integral it is very precise with steps=1024
   subroutine approx_mon_int(res,f,c,xmin,xmax,eps,steps,fxmin,fxmax)
+     implicit none
      real(dp)                                     :: res
      real(dp), external                           :: f
      real(dp),                        intent(in)  :: c
@@ -394,6 +396,7 @@ CONTAINS
   end subroutine
 
   recursive subroutine approx_mon_int_steps(res,f,c,xmin,xmax,eps,steps,fxmin,fxmax)
+     implicit none
      real(dp)                                     :: res
      real(dp), external                           :: f
      real(dp),                        intent(in)  :: c
@@ -428,6 +431,7 @@ CONTAINS
   end subroutine
 
   recursive subroutine approx_mon_int_eps(res,f,c,xmin,xmax,eps,fxmin,fxmax)
+     implicit none
      real(dp)                                     :: res
      real(dp), external                           :: f
      real(dp),                        intent(in)  :: c
@@ -460,25 +464,93 @@ CONTAINS
      endif
   end subroutine
 
-  subroutine FillIntTabular(integralC,intsize,maxC)
+
+  ! -----------------------------------------------------------------------------------
+  !     NAME
+  !         TabularIntegralAFast
+  !
+  !     PURPOSE
+  !>        \brief Save approximation data for A_fast
+  !>        \details The COSMIC subroutine needs A_fast to be calculated.
+  !>            A_fast=int_{0}^{pi/2} exp(-Lambda_fast(z)/cos(phi) dphi)
+  !>            This subroutine stores data for intsize values for
+  !>            c:=Lambda_fast(z) between 0 and maxC, and will be written
+  !>            into the global array variable neutron_integral_AFast.
+  !>            The calculation of the values is done with a very precise
+  !>            recursive approximation subroutine. That recursive subroutine
+  !>            should not be used inside the time, cells and layer loops, because
+  !>            it is slow.
+  !>            Inside the loops in the module COSMIC the tabular is used to
+  !>            estimate A_fast, if 0<c<maxC, otherwise the recursive
+  !>            approximation is used.
+  !         ------------------------------------------------------------------
+  !         TabularIntegralAFast: a tabular for calculations with splines                
+  !         ------------------------------------------------------------------
+  !
+  !     CALLING SEQUENCE
+  !         call TabularIntegralAFast(neutron_integral_AFast,intsize,maxC)
+  !
+  !     INTENT(IN)
+  !>        \param[in] "real(dp), dimension(:,:) :: SoilMoisture" Soil Moisture
+  !>        \param[in] "real(dp), dimension(:)   :: Horizons" Horizon depths
+  !>        \param[in] "real(dp), dimension(:)   :: params" ! N0, N1, N2, alpha0, alpha1, L30, L31
+  !>        \param[in] "integer(i4)              :: intsize" ! number of values for the approximation
+  !>        \param[in] "real(dp)                 :: maxC" ! maximum value for A_fast
+  !
+  !     INTENT(INOUT)
+  !>        \param[out] "real(dp), dimension(intsize) :: neutron_integral_AFast" approximation values
+  !
+  !     INTENT(OUT)
+  !         None
+  !
+  !     INTENT(IN), OPTIONAL
+  !         None
+  !
+  !     INTENT(INOUT), OPTIONAL
+  !         None
+  !
+  !     INTENT(OUT), OPTIONAL
+  !         None
+  !
+  !     RETURN
+  !         None
+  !
+  !     RESTRICTIONS
+  !         intsize and maxC must be positive
+  !
+  !     EXAMPLE
+  !         intsize=8000, maxC=20.0_dp
+  !
+  !     LITERATURE
+  !         see splines for example
+  !
+  !     HISTORY
+  !>        \author Maren Kaluza
+  !>        \date Nov 2017
+
+  subroutine TabularIntegralAFast(neutron_integral_AFast,intsize,maxC)
      use mo_constants, only: PI_dp
-     real(dp), dimension(:)              :: integralC
+     implicit none
+     real(dp), dimension(:)              :: neutron_integral_AFast
      integer(i4), intent(in)             :: intsize
-     integer(i4)                         :: i
      real(dp), intent(in)                :: maxC
 
      !local variables
+     integer(i4)                         :: i
      real(dp)                            :: c
 
      do i=1,intsize+1
-       c = real(i-1,dp)*maxC/real(intsize,dp)
-       call approx_mon_int(integralC(i),intgrandFast,c,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
+       c =real(i-1,dp)*maxC/real(intsize,dp)
+       call approx_mon_int(neutron_integral_AFast(i),&
+           intgrandFast,c,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
      enddo
   end subroutine
 
-  subroutine lookUpIntegral(res,integralC,intsize,c,maxC)
+  subroutine lookUpIntegral(res,neutron_integral_AFast,intsize,c,maxC)
+     use mo_constants, only: PI_dp
+      implicit none
      real(dp)                         :: res
-     real(dp), dimension(:),intent(in):: integralC
+     real(dp), dimension(:),intent(in):: neutron_integral_AFast
      integer(i4), intent(in)          :: intsize
      real(dp), intent(in)             :: c
      real(dp), intent(in)             :: maxC
@@ -489,13 +561,78 @@ CONTAINS
 
      mu=c*real(intsize,dp)/maxC
      place=int(mu,i4)+1
-     mu=mu-real(place-1,dp)
-     res=(1.0_dp-mu)*integralC(place)+mu*(integralC(place+1))
+     if (place .gt. intsize) then 
+       call approx_mon_int(res,intgrandFast,c,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
+       write(*,*) 'Warning: Lambda_Fast is huge. Slow integration used.'
+     else
+        mu=mu-real(place-1,dp)
+        res=(1.0_dp-mu)*neutron_integral_AFast(place)+mu*(neutron_integral_AFast(place+1))
+     end if
   end subroutine
 
+  !very bad approximation for the integral from the COSMIC paper. Maybe there is
+  !some copying error? They claim, this function would have an error of less
+  !then 1/1000 (which can not be true anyway, because the integral goes to zero
+  !for c->\infty, and the last if case is a polynome with some coefficients
+  !unequal to zero and therefore tends to \pm \infty), but even in the first 5
+  !cases this approximation has sometimes an error of about 1/3 in case 4.
+  subroutine COSMICeffIntegration(res,x)
+     implicit none
+     real(dp)                                     :: res
+     real(dp),                        intent(in)  :: x
+     !local variables
+     real(dp)  :: a,b,c,d
+
+    ! write(*,*) x
+     if (x .le. 0.05_dp) then
+        a=-347.86105_dp
+        b=41.64233_dp
+        c=-4.018_dp
+        d=-0.00018_dp
+        res=expPolynomDeg3(x,a,b,c,d)
+      !  write(*,*) 'c1'
+     else if (x .le. 0.1_dp) then
+        a=-16.24066_dp
+        b=6.64468_dp
+        c=-2.82003_dp
+        d=-0.01389_dp
+        res=expPolynomDeg3(x,a,b,c,d)
+      !  write(*,*) 'c2'
+     else if (x .le. 0.5_dp) then
+        a=-0.95245_dp
+        b=1.44751_dp
+        c=-2.18933_dp
+        d=-0.04034_dp
+        res=expPolynomDeg3(x,a,b,c,d)
+      !  write(*,*) 'c3'
+     else if (x .le. 1.0_dp) then
+        a=-0.09781_dp
+        b=0.36907_dp
+        c=-1.72912_dp
+        d=-0.10761_dp
+        res=expPolynomDeg3(x,a,b,c,d)
+      !  write(*,*) 'c4'
+     else if (x .le. 5.0_dp) then
+        a=-0.00416_dp
+        b=0.05808_dp
+        c=-1.361482_dp
+        d=-0.25822_dp
+        res=expPolynomDeg3(x,a,b,c,d)
+      !  write(*,*) 'c5'
+     else
+        a=0.0_dp
+        b=0.00061_dp
+        c=-1.04847_dp
+        d=-0.96617_dp
+        res=expPolynomDeg3(x,a,b,c,d)
+      !  write(*,*) 'c6'
+     endif
+     
+  end subroutine
 
   subroutine oldIntegration(res,c)
      use mo_constants, only: PI_dp
+     implicit none
      real(dp)                                     :: res
      real(dp),                        intent(in)  :: c
 
@@ -505,7 +642,7 @@ CONTAINS
      real(dp) :: costheta     
      real(dp) :: dtheta       
 
-     integer(i4) :: angle, angledz, maxangle ! loop indices for an integration interval
+     integer(i4) :: angle ! loop indices for an integration interval
      ! Angle distribution parameters (HARDWIRED)
      ! rr: Using 0.5 deg angle intervals appears to be sufficient
      ! rr: (smaller angles increase the computing time for COSMIC)
@@ -528,10 +665,21 @@ CONTAINS
   end subroutine
 
   function intgrandFast(c,phi)
+     implicit none
      real(dp) :: intgrandFast
      real(dp), intent(in) :: c
      real(dp), intent(in) :: phi
      intgrandFast=exp(-c/cos(phi))
+     return
+  end function
+
+  function expPolynomDeg3(x,a,b,c,d)
+     implicit none
+     real(dp) :: expPolynomDeg3
+     real(dp), intent(in) :: x
+     real(dp), intent(in) :: a,b,c,d
+
+     expPolynomDeg3=exp(a*x**3+b*x**2+c*x+d)
      return
   end function
   
