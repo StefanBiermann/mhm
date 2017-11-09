@@ -168,7 +168,7 @@ CONTAINS
   !>        \author Martin Schroen, originally written by Rafael Rosolem
   !>        \date Mar 2015
   
-  subroutine COSMIC(SoilMoisture, Horizons, params, neutron_integral_AFast, neutrons)
+  subroutine COSMIC(cell,SoilMoisture, Horizons, params, neutron_integral_AFast, neutrons)
     
     use mo_mhm_constants, only: H2Odens, &
         COSMIC_bd, COSMIC_vwclat, COSMIC_N, COSMIC_alpha, &
@@ -177,6 +177,7 @@ CONTAINS
     use mo_message,             ONLY : message, message_text          ! For print out
     implicit none
     
+    integer(i4),                     intent(in)  :: cell
     real(dp), dimension(:,:),        intent(in)  :: SoilMoisture
     real(dp), dimension(:),          intent(in)  :: Horizons
     real(dp), dimension(:),          intent(in)  :: params ! 1: N0, 2: N1, 3: N2, 4: alpha0, 5: alpha1, 6: L30, 7. L31
@@ -233,8 +234,6 @@ CONTAINS
              idegrad(profiles,layers),fastflux(profiles,layers),normfast(profiles,layers),&
              inormfast(profiles,layers),isoimass(profiles,layers),iwatmass(profiles,layers))
 
-    dz(:)            = 0.0_dp * params(1) ! <-- this multiplication with params(1) is not needed, only to make params USED
-    !                                     !     PLEASE remove when possible 
     zthick(:)        = 0.0_dp
     wetsoidens(:,:)  = 0.0_dp
     wetsoimass(:,:)  = 0.0_dp
@@ -253,23 +252,25 @@ CONTAINS
     inormfast(:,:)   = 0.0_dp 
     totflux(:)       = 0.0_dp
     
-    !ToDo: do this in global constants, so it is an input paramter
-    ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
-    dz(:) = Horizons(:)/10.0_dp ! from mm to cm
-    zthick(1) = dz(1) - 0.0_dp
-    do ll = 2,layers
-       zthick(ll) = dz(ll) - dz(ll-1)
-    enddo
-
     !ToDo: include this in the main loop
     !ToDo: add one additional top soil layer with snowpack
     !call CPU_TIME(temp1)
     !do temp=1,10000
-    do pp = 1,profiles
+    !do pp = 1,profiles
+    pp=cell
        do ll = 1,layers
           
           ! High energy neutron downward flux
           ! The integration is now performed at the node of each layer (i.e., center of the layer)
+
+
+          !ToDo: do this in global constants, so it is an input paramter
+          ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
+          if (ll.eq.1) then
+             zthick(ll)=Horizons(ll)/10.0_dp
+          else
+             zthick(ll)=(Horizons(ll)-Horizons(ll-1))/10.0_dp
+          endif
 
           ! The effective water height in each layer in each profile:
           ! ToDo:This should include in future: lattice water, roots, soil organic matter 
@@ -311,12 +312,12 @@ CONTAINS
 
        enddo
        totflux(pp)=COSMIC_N*totflux(pp)
-    enddo
+    !enddo
     !enddo
     !call CPU_TIME(temp2)
     !write(*,*) temp2-temp1
     
-    neutrons = totflux(:)
+    neutrons(pp) = totflux(pp)
 
     deallocate(totflux, wetsoidens, wetsoimass, iwetsoimass, hiflux,&
            fastpot, h2oeffheight, h2oeffdens, h2oeffmass, ih2oeffmass, idegrad, fastflux,&

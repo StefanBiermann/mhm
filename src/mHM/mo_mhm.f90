@@ -699,6 +699,7 @@ CONTAINS
     !$OMP end do
     !$OMP end parallel
 
+    do k=1,nCells1
     !-------------------------------------------------------------------
     ! Nested model: Neutrons state variable, related to soil moisture   
     !-------------------------------------------------------------------
@@ -710,10 +711,11 @@ CONTAINS
                         global_parameters(processMatrix(10,3)-processMatrix(10,2)+1), &
                         neutrons(:))
     if ( processMatrix(10, 1) .eq. 2 ) &
-        call COSMIC( soilMoisture(:,:), horizon_depth(:), &
+        call COSMIC( k, soilMoisture(:,:), horizon_depth(:), &
                     global_parameters(processMatrix(10,3)-processMatrix(10,2)+2:processMatrix(10,3)), &
                     neutron_integral_AFast(:), &
                     neutrons(:))
+    enddo
 
   end subroutine mHM
 
