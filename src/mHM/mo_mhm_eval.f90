@@ -168,7 +168,7 @@ CONTAINS
          nSoilHorizons_sm_input,                                                    & ! no. of mhm soil horizons equivalent to sm input
          nTimeSteps_L1_sm,                                                          & ! total number of timesteps in soil moisture input
          nTimeSteps_L1_neutrons,                                                    & ! total number of timesteps in neutrons input
-         nTimeSteps_L1_et                                                           & ! total number of timesteps in evapotranspiration input
+         nTimeSteps_L1_et,                                                          & ! total number of timesteps in evapotranspiration input
          neutron_integral_AFast                                                       ! pre-calculated integrand for neutron flux projection
     use mo_common_variables, only: &
          optimize, &

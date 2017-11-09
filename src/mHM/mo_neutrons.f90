@@ -182,7 +182,8 @@ CONTAINS
     real(dp) :: lambdaHigh
     real(dp) :: lambdaFast
     real(dp), dimension(:), allocatable :: neutron_integral_AFast
-    integer :: intSize=10000
+    real(dp), dimension(:), allocatable :: neutron_hermite_AFast
+    integer :: intSize=50
     real(dp) :: temp=0.0_dp
     real(dp) :: temp1=0.0_dp
     real(dp) :: temp2=0.0_dp
@@ -223,6 +224,7 @@ CONTAINS
              idegrad(profiles,layers),fastflux(profiles,layers),normfast(profiles,layers),&
              inormfast(profiles,layers),isoimass(profiles,layers),iwatmass(profiles,layers))
     allocate(neutron_integral_AFast(intSize+1))
+    allocate(neutron_hermite_AFast(intSize+2))
 
     dz(:)            = 0.0_dp * params(1) ! <-- this multiplication with params(1) is not needed, only to make params USED
     !                                     !     PLEASE remove when possible 
@@ -244,6 +246,7 @@ CONTAINS
     inormfast(:,:)   = 0.0_dp 
     totflux(:)       = 0.0_dp
     neutron_integral_AFast(:)     = 0.0_dp
+    neutron_hermite_AFast(:)     = 0.0_dp
     
     !ToDo: do this in global constants, so it is an input paramter
     ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
@@ -253,12 +256,22 @@ CONTAINS
        zthick(ll) = dz(ll) - dz(ll-1)
     enddo
 
-    call TabularIntegralAFast(neutron_integral_AFast,intsize,20.0_dp)
+  !  open(unit=391271024,file="integral.txt",action="write",status="replace")
+  !  do temp=1,20000
+  !    temp1=real(temp,dp)*0.001_dp
+  !    call approx_mon_int(temp2,intgrandFast,temp1,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
+  !    write(391271024,*) temp1, temp2
+  !  enddo
+  !  close(391271024)
+  !  read(*,*)
+
+    call TabularIntegralAFast(neutron_integral_AFast,intsize,1.0_dp)
+    !call TabularIntegralHermAFast(neutron_hermite_AFast,intsize,1.0_dp)
 
     !ToDo: include this in the main loop
     !ToDo: add one additional top soil layer with snowpack
-    !call CPU_TIME(temp1)
-    !do temp=1,10000
+    call CPU_TIME(temp1)
+    do temp=1,10000
     do pp = 1,profiles
        do ll = 1,layers
           
@@ -289,13 +302,16 @@ CONTAINS
           hiflux(pp,ll)  = exp(-lambdaHigh)
           fastpot(pp,ll) = zthick(ll)*(COSMIC_alpha*COSMIC_bd + h2oeffdens(pp,ll))
 
-        !  call approx_mon_int(temp,intgrandFast,lambdaFast,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
-          call lookUpIntegral(fastflux(pp,ll),neutron_integral_AFast,intsize,lambdaFast,20.0_dp)
-        !  call COSMICeffIntegration(fastflux(pp,ll),lambdaFast)
-        !  write(*,*) 'recurse', temp
-        !  write(*,*) 'tabular', fastflux(pp,ll), abs(fastflux(pp,ll)-temp)
-        !  write(*,*) 'polynom', temp1, abs(temp1-temp)
-        !  read(*,*)
+         ! call approx_mon_int(temp,intgrandFast,lambdaFast,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
+          call lookUpIntegral(fastflux(pp,ll),neutron_integral_AFast,intsize,lambdaFast,1.0_dp)
+         ! call lookUpHermiteIntegral(temp2,neutron_integral_AFast,intsize,lambdaFast,1.0_dp)
+         ! if (abs(fastflux(pp,ll)-temp).gt.0.005) then
+         ! write(*,*) lambdaFast
+         ! write(*,*) 'recurse', temp
+         ! write(*,*) 'tabular', fastflux(pp,ll), abs(fastflux(pp,ll)-temp)
+         ! write(*,*) 'hermite', temp2, abs(temp2-temp)
+         ! read(*,*)
+         ! endif
 
           ! After contribution from all directions are taken into account,
           ! need to multiply fastflux by 2/pi
@@ -307,9 +323,9 @@ CONTAINS
        enddo
        totflux(pp)=COSMIC_N*totflux(pp)
     enddo
-    !enddo
-    !call CPU_TIME(temp2)
-    !write(*,*) temp2-temp1
+    enddo
+    call CPU_TIME(temp2)
+    write(*,*) temp2-temp1
     
     neutrons = totflux(:)
 
@@ -317,6 +333,7 @@ CONTAINS
            fastpot, h2oeffheight, h2oeffdens, h2oeffmass, ih2oeffmass, idegrad, fastflux,&
            normfast, inormfast, isoimass, iwatmass)
     deallocate(neutron_integral_AFast)
+    deallocate(neutron_hermite_AFast)
            
   end subroutine COSMIC
 
@@ -528,10 +545,10 @@ CONTAINS
   !>        \author Maren Kaluza
   !>        \date Nov 2017
 
-  subroutine TabularIntegralAFast(neutron_integral_AFast,intsize,maxC)
+  subroutine TabularIntegralAFast(integral,intsize,maxC)
      use mo_constants, only: PI_dp
      implicit none
-     real(dp), dimension(:)              :: neutron_integral_AFast
+     real(dp), dimension(:)              :: integral
      integer(i4), intent(in)             :: intsize
      real(dp), intent(in)                :: maxC
 
@@ -541,16 +558,41 @@ CONTAINS
 
      do i=1,intsize+1
        c =real(i-1,dp)*maxC/real(intsize,dp)
-       call approx_mon_int(neutron_integral_AFast(i),&
+       call approx_mon_int(integral(i),&
            intgrandFast,c,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
      enddo
   end subroutine
 
-  subroutine lookUpIntegral(res,neutron_integral_AFast,intsize,c,maxC)
+  ! if c>1.0, the function can be fitted very nice with gnuplot
+  ! pi/2*exp(a*x**b)
+  subroutine TabularIntegralHermAFast(integral,intsize,maxC)
      use mo_constants, only: PI_dp
-      implicit none
+     implicit none
+     real(dp), dimension(:)              :: integral
+     integer(i4), intent(in)             :: intsize
+     real(dp), intent(in)                :: maxC
+
+     !local variables
+     integer(i4)                         :: i
+     real(dp)                            :: c
+
+     do i=1,intsize/2+1
+       c =real(i-1,dp)*maxC/real(intsize/2,dp)
+       call approx_mon_int(integral(2*i-1),&
+           intgrandFast,c,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
+       call approx_mon_int(integral(2*i),&
+           intgrandDerivFast,c,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
+           integral(2*i)=integral(2*i)*maxC/real(intsize/2,dp)
+     enddo
+  end subroutine
+
+  ! if c>1.0, the function can be fitted very nice with gnuplot
+  ! pi/2*exp(a*x**b)
+  subroutine lookUpIntegral(res,integral,intsize,c,maxC)
+     use mo_constants, only: PI_dp
+     implicit none
      real(dp)                         :: res
-     real(dp), dimension(:),intent(in):: neutron_integral_AFast
+     real(dp), dimension(:),intent(in):: integral
      integer(i4), intent(in)          :: intsize
      real(dp), intent(in)             :: c
      real(dp), intent(in)             :: maxC
@@ -562,11 +604,38 @@ CONTAINS
      mu=c*real(intsize,dp)/maxC
      place=int(mu,i4)+1
      if (place .gt. intsize) then 
-       call approx_mon_int(res,intgrandFast,c,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
-       write(*,*) 'Warning: Lambda_Fast is huge. Slow integration used.'
+       !call approx_mon_int(res,intgrandFast,c,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
+       !write(*,*) 'Warning: Lambda_Fast is huge. Slow integration used.'
+       res=(PI_dp/2.0_dp)*exp(-1.57406_dp*c**0.815488_dp)
      else
         mu=mu-real(place-1,dp)
-        res=(1.0_dp-mu)*neutron_integral_AFast(place)+mu*(neutron_integral_AFast(place+1))
+        res=(1.0_dp-mu)*integral(place)+mu*integral(place+1)
+     end if
+  end subroutine
+
+  subroutine lookUpHermiteIntegral(res,integral,intsize,c,maxC)
+     use mo_constants, only: PI_dp
+     implicit none
+     real(dp)                         :: res
+     real(dp), dimension(:),intent(in):: integral
+     integer(i4), intent(in)          :: intsize
+     real(dp), intent(in)             :: c
+     real(dp), intent(in)             :: maxC
+
+     !local variables
+     integer(i4) :: place
+     real(dp)    :: mu
+
+     mu=c*real(intsize/2,dp)/maxC
+     place=int(mu,i4)+1
+     if (place .gt. intsize) then 
+       !call approx_mon_int(res,intgrandFast,c,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
+       !write(*,*) 'Warning: Lambda_Fast is huge. Slow integration used.'
+       res=(PI_dp/2.0_dp)*exp(-1.57406_dp*c**0.815488_dp)
+     else
+        mu=mu-real(place-1,dp)
+        res=h00(mu)*integral(2*place-1)+h01(mu)*integral(2*place+1)+&
+            h10(mu)*integral(2*place  )+h11(mu)*integral(2*place+2)   
      end if
   end subroutine
 
@@ -673,6 +742,15 @@ CONTAINS
      return
   end function
 
+  function intgrandDerivFast(c,phi)
+     implicit none
+     real(dp) :: intgrandDerivFast
+     real(dp), intent(in) :: c
+     real(dp), intent(in) :: phi
+     intgrandDerivFast=(-1.0_dp/cos(phi))*exp(-c/cos(phi))
+     return
+  end function
+
   function expPolynomDeg3(x,a,b,c,d)
      implicit none
      real(dp) :: expPolynomDeg3
@@ -680,6 +758,39 @@ CONTAINS
      real(dp), intent(in) :: a,b,c,d
 
      expPolynomDeg3=exp(a*x**3+b*x**2+c*x+d)
+     return
+  end function
+
+  ! hermite polynoms
+  function h00(t)
+     implicit none
+     real(dp)             :: h00
+     real(dp), intent(in) :: t
+     h00=2.0_dp*t**3-3.0_dp*t**2+1.0_dp
+     return
+  end function
+
+  function h01(t)
+     implicit none
+     real(dp)             :: h01
+     real(dp), intent(in) :: t
+     h01=-2.0_dp*t**3+3.0_dp*t**2
+     return
+  end function
+
+  function h10(t)
+     implicit none
+     real(dp)             :: h10
+     real(dp), intent(in) :: t
+     h10=t**3-2.0_dp*t**2+t
+     return
+  end function
+
+  function h11(t)
+     implicit none
+     real(dp)             :: h11
+     real(dp), intent(in) :: t
+     h11=t**3-t**2
      return
   end function
   
