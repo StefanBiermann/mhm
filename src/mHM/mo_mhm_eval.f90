@@ -545,6 +545,7 @@ CONTAINS
                timeStep_LAI_input, year_counter, month_counter, day_counter,                             & ! IN C
                tt, newTime-0.5_dp, processMatrix, c2TSTu, HorizonDepth_mHM,                              & ! IN C
                nCells, nSoilHorizons_mHM, real(NTSTEPDAY,dp), mask0,                                     & ! IN C
+               neutron_integral_AFast,                                                                   & ! IN C
                iFlag_soilDB,                                                                             & ! IN C
                parameterset,                                                                             & ! IN P
                LCyearId(year,ii), GeoUnitList, GeoUnitKar, LAIUnitList, LAILUT,                          & ! IN L0

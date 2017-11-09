@@ -26,6 +26,9 @@ MODULE mo_neutrons
   
   ! inverse \theta(N) relation based on Desilets et al. 2010
   PUBLIC :: DesiletsN0 
+
+  ! integration tabular for approximating the neutron flux integral 
+  PUBLIC :: TabularIntegralAFast
   
   PRIVATE
 
@@ -123,12 +126,13 @@ CONTAINS
   !
   !     CALLING SEQUENCE
   !         call COSMIC( Moisture(cells,layers), Depths(layers), &
-  !                          COSMIC-parameterset, output(cells) )
+  !                          COSMIC-parameterset, neutron_integral_AFast, output(cells) )
   !
   !     INTENT(IN)
   !>        \param[in] "real(dp), dimension(:,:) :: SoilMoisture" Soil Moisture
   !>        \param[in] "real(dp), dimension(:)   :: Horizons" Horizon depths
   !>        \param[in] "real(dp), dimension(:)   :: params" ! N0, N1, N2, alpha0, alpha1, L30, L31
+  !>        \param[in] "real(dp), dimension(:)   ::  neutron_integral_AFast" Tabular for Int Approx
   !
   !     INTENT(INOUT)
   !         None
@@ -164,7 +168,7 @@ CONTAINS
   !>        \author Martin Schroen, originally written by Rafael Rosolem
   !>        \date Mar 2015
   
-  subroutine COSMIC(SoilMoisture, Horizons, params, neutrons)
+  subroutine COSMIC(SoilMoisture, Horizons, params, neutron_integral_AFast, neutrons)
     
     use mo_mhm_constants, only: H2Odens, &
         COSMIC_bd, COSMIC_vwclat, COSMIC_N, COSMIC_alpha, &
@@ -176,14 +180,14 @@ CONTAINS
     real(dp), dimension(:,:),        intent(in)  :: SoilMoisture
     real(dp), dimension(:),          intent(in)  :: Horizons
     real(dp), dimension(:),          intent(in)  :: params ! 1: N0, 2: N1, 3: N2, 4: alpha0, 5: alpha1, 6: L30, 7. L31
+    real(dp), dimension(:),          intent(in)  :: neutron_integral_AFast
     real(dp), dimension(size(SoilMoisture,1)), intent(out) :: neutrons
 
     real(dp) :: L3=0.0_dp
     real(dp) :: lambdaHigh
     real(dp) :: lambdaFast
-    real(dp), dimension(:), allocatable :: neutron_integral_AFast
-    real(dp), dimension(:), allocatable :: neutron_hermite_AFast
-    integer :: intSize=50
+    integer(i4):: intSize
+    real(dp) :: maxC
     real(dp) :: temp=0.0_dp
     real(dp) :: temp1=0.0_dp
     real(dp) :: temp2=0.0_dp
@@ -215,6 +219,11 @@ CONTAINS
     !
     layers   = size(SoilMoisture,2) ! 2
     profiles = size(SoilMoisture,1) ! 34
+
+     intSize=size(neutron_integral_AFast)-2
+     maxC=neutron_integral_AFast(intSize+2)
+
+
     
     allocate(totflux(profiles))
     allocate(wetsoidens(profiles,layers),wetsoimass(profiles,layers),&
@@ -223,8 +232,6 @@ CONTAINS
              h2oeffdens(profiles,layers),h2oeffmass(profiles,layers),ih2oeffmass(profiles,layers),&
              idegrad(profiles,layers),fastflux(profiles,layers),normfast(profiles,layers),&
              inormfast(profiles,layers),isoimass(profiles,layers),iwatmass(profiles,layers))
-    allocate(neutron_integral_AFast(intSize+1))
-    allocate(neutron_hermite_AFast(intSize+2))
 
     dz(:)            = 0.0_dp * params(1) ! <-- this multiplication with params(1) is not needed, only to make params USED
     !                                     !     PLEASE remove when possible 
@@ -245,8 +252,6 @@ CONTAINS
     normfast(:,:)    = 0.0_dp
     inormfast(:,:)   = 0.0_dp 
     totflux(:)       = 0.0_dp
-    neutron_integral_AFast(:)     = 0.0_dp
-    neutron_hermite_AFast(:)     = 0.0_dp
     
     !ToDo: do this in global constants, so it is an input paramter
     ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
@@ -256,22 +261,10 @@ CONTAINS
        zthick(ll) = dz(ll) - dz(ll-1)
     enddo
 
-  !  open(unit=391271024,file="integral.txt",action="write",status="replace")
-  !  do temp=1,20000
-  !    temp1=real(temp,dp)*0.001_dp
-  !    call approx_mon_int(temp2,intgrandFast,temp1,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
-  !    write(391271024,*) temp1, temp2
-  !  enddo
-  !  close(391271024)
-  !  read(*,*)
-
-    call TabularIntegralAFast(neutron_integral_AFast,intsize,1.0_dp)
-    !call TabularIntegralHermAFast(neutron_hermite_AFast,intsize,1.0_dp)
-
     !ToDo: include this in the main loop
     !ToDo: add one additional top soil layer with snowpack
-    call CPU_TIME(temp1)
-    do temp=1,10000
+    !call CPU_TIME(temp1)
+    !do temp=1,10000
     do pp = 1,profiles
        do ll = 1,layers
           
@@ -302,16 +295,12 @@ CONTAINS
           hiflux(pp,ll)  = exp(-lambdaHigh)
           fastpot(pp,ll) = zthick(ll)*(COSMIC_alpha*COSMIC_bd + h2oeffdens(pp,ll))
 
-         ! call approx_mon_int(temp,intgrandFast,lambdaFast,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
-          call lookUpIntegral(fastflux(pp,ll),neutron_integral_AFast,intsize,lambdaFast,1.0_dp)
-         ! call lookUpHermiteIntegral(temp2,neutron_integral_AFast,intsize,lambdaFast,1.0_dp)
-         ! if (abs(fastflux(pp,ll)-temp).gt.0.005) then
-         ! write(*,*) lambdaFast
-         ! write(*,*) 'recurse', temp
-         ! write(*,*) 'tabular', fastflux(pp,ll), abs(fastflux(pp,ll)-temp)
-         ! write(*,*) 'hermite', temp2, abs(temp2-temp)
-         ! read(*,*)
-         ! endif
+          !call approx_mon_int(temp,intgrandFast,lambdaFast,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
+          call lookUpIntegral(fastflux(pp,ll),neutron_integral_AFast,intsize,lambdaFast,maxC)
+          !write(*,*) lambdaFast
+          !write(*,*) 'recurse', temp
+          !write(*,*) 'tabular', fastflux(pp,ll), abs(fastflux(pp,ll)-temp)
+          !read(*,*)
 
           ! After contribution from all directions are taken into account,
           ! need to multiply fastflux by 2/pi
@@ -323,17 +312,15 @@ CONTAINS
        enddo
        totflux(pp)=COSMIC_N*totflux(pp)
     enddo
-    enddo
-    call CPU_TIME(temp2)
-    write(*,*) temp2-temp1
+    !enddo
+    !call CPU_TIME(temp2)
+    !write(*,*) temp2-temp1
     
     neutrons = totflux(:)
 
     deallocate(totflux, wetsoidens, wetsoimass, iwetsoimass, hiflux,&
            fastpot, h2oeffheight, h2oeffdens, h2oeffmass, ih2oeffmass, idegrad, fastflux,&
            normfast, inormfast, isoimass, iwatmass)
-    deallocate(neutron_integral_AFast)
-    deallocate(neutron_hermite_AFast)
            
   end subroutine COSMIC
 
@@ -560,6 +547,7 @@ CONTAINS
        c =real(i-1,dp)*maxC/real(intsize,dp)
        call approx_mon_int(integral(i),&
            intgrandFast,c,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
+       integral(i)=integral(i)
      enddo
   end subroutine
 
@@ -610,6 +598,7 @@ CONTAINS
      else
         mu=mu-real(place-1,dp)
         res=(1.0_dp-mu)*integral(place)+mu*integral(place+1)
+        res=res
      end if
   end subroutine
 
