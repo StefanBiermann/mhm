@@ -185,34 +185,31 @@ CONTAINS
     real(dp), dimension(size(SoilMoisture,1)), intent(out) :: neutrons
 
     real(dp) :: L3=0.0_dp
-    real(dp) :: lambdaHigh
-    real(dp) :: lambdaFast
-    integer(i4):: intSize
-    real(dp) :: maxC
+    real(dp) :: lambdaHigh=0.0_dp
+    real(dp) :: lambdaFast=0.0_dp
+    real(dp) :: totflux=0.0_dp
     real(dp) :: temp=0.0_dp
     real(dp) :: temp1=0.0_dp
     real(dp) :: temp2=0.0_dp
     real(dp) :: temp3=0.0_dp
 
    
-    real(dp), dimension(size(Horizons))   :: dz          ! Soil layers (cm)
     real(dp), dimension(size(Horizons))   :: zthick      ! Soil layer thickness (cm)
-    real(dp), dimension(:,:), allocatable :: wetsoidens  ! Density of wet soil layer (g/cm3)
-    real(dp), dimension(:,:), allocatable :: wetsoimass  ! Mass of wet soil layer (g)
-    real(dp), dimension(:,:), allocatable :: isoimass    ! Integrated dry soil mass above layer (g)
-    real(dp), dimension(:,:), allocatable :: iwatmass    ! Integrated water mass above layer (g)
-    real(dp), dimension(:,:), allocatable :: iwetsoimass ! Integrated wet soil mass above layer (g)
-    real(dp), dimension(:,:), allocatable :: hiflux      ! High energy neutron flux
-    real(dp), dimension(:,:), allocatable :: fastpot     ! Fast neutron source strength of layer
-    real(dp), dimension(:,:), allocatable :: h2oeffheight! "Effective" height of water in layer (g/cm3)
-    real(dp), dimension(:,:), allocatable :: h2oeffdens  ! "Effective" density of water in layer (g/cm3)
-    real(dp), dimension(:,:), allocatable :: h2oeffmass  ! "Effective" mass of water in layer (g)
-    real(dp), dimension(:,:), allocatable :: ih2oeffmass ! Integrated water mass above layer (g)
-    real(dp), dimension(:,:), allocatable :: idegrad     ! Integrated neutron degradation factor (-)
-    real(dp), dimension(:,:), allocatable :: fastflux    ! Contribution to above-ground neutron flux
-    real(dp), dimension(:)  , allocatable :: totflux     ! Total flux of above-ground fast neutrons
-    real(dp), dimension(:,:), allocatable :: normfast    ! Normalized contribution to neutron flux (-) [weighting factors]
-    real(dp), dimension(:,:), allocatable :: inormfast   ! Cumulative fraction of neutrons (-)
+!    real(dp), dimension(:,:), allocatable :: wetsoidens  ! Density of wet soil layer (g/cm3)
+!    real(dp), dimension(:,:), allocatable :: wetsoimass  ! Mass of wet soil layer (g)
+    real(dp), dimension(:), allocatable :: isoimass    ! Integrated dry soil mass above layer (g)
+    real(dp), dimension(:), allocatable :: iwatmass    ! Integrated water mass above layer (g)
+!    real(dp), dimension(:,:), allocatable :: iwetsoimass ! Integrated wet soil mass above layer (g)
+    real(dp), dimension(:), allocatable :: hiflux      ! High energy neutron flux
+    real(dp), dimension(:), allocatable :: fastpot     ! Fast neutron source strength of layer
+    real(dp), dimension(:), allocatable :: h2oeffheight! "Effective" height of water in layer (g/cm3)
+    real(dp), dimension(:), allocatable :: h2oeffdens  ! "Effective" density of water in layer (g/cm3)
+!    real(dp), dimension(:,:), allocatable :: h2oeffmass  ! "Effective" mass of water in layer (g)
+!    real(dp), dimension(:,:), allocatable :: ih2oeffmass ! Integrated water mass above layer (g)
+!    real(dp), dimension(:,:), allocatable :: idegrad     ! Integrated neutron degradation factor (-)
+    real(dp), dimension(:), allocatable :: fastflux    ! Contribution to above-ground neutron flux
+!    real(dp), dimension(:,:), allocatable :: normfast    ! Normalized contribution to neutron flux (-) [weighting factors]
+!    real(dp), dimension(:,:), allocatable :: inormfast   ! Cumulative fraction of neutrons (-)
     !
     integer(i4) :: layers=1                 ! Total number of soil layers
     integer(i4) :: profiles=1               ! Total number of soil moisture profiles
@@ -221,107 +218,76 @@ CONTAINS
     layers   = size(SoilMoisture,2) ! 2
     profiles = size(SoilMoisture,1) ! 34
 
-     intSize=size(neutron_integral_AFast)-2
-     maxC=neutron_integral_AFast(intSize+2)
+    allocate(hiflux(layers),fastpot(layers),&
+             h2oeffdens(layers),h2oeffheight(layers),fastflux(layers),&
+             isoimass(layers),iwatmass(layers))
 
-
+    zthick(:)      = 0.0_dp
+    isoimass(:)    = 0.0_dp
+    iwatmass(:)    = 0.0_dp
+    hiflux(:)      = 0.0_dp
+    fastpot(:)     = 0.0_dp
+    h2oeffdens(:)  = 0.0_dp
+    h2oeffheight(:)= 0.0_dp
+    fastflux(:)    = 0.0_dp
+    totflux        = 0.0_dp
     
-    allocate(totflux(profiles))
-    allocate(wetsoidens(profiles,layers),wetsoimass(profiles,layers),&
-             iwetsoimass(profiles,layers),hiflux(profiles,layers),fastpot(profiles,layers),&
-             h2oeffheight(profiles,layers),&
-             h2oeffdens(profiles,layers),h2oeffmass(profiles,layers),ih2oeffmass(profiles,layers),&
-             idegrad(profiles,layers),fastflux(profiles,layers),normfast(profiles,layers),&
-             inormfast(profiles,layers),isoimass(profiles,layers),iwatmass(profiles,layers))
-
-    zthick(:)        = 0.0_dp
-    wetsoidens(:,:)  = 0.0_dp
-    wetsoimass(:,:)  = 0.0_dp
-    iwetsoimass(:,:) = 0.0_dp
-    isoimass(:,:)    = 0.0_dp
-    iwatmass(:,:)    = 0.0_dp
-    hiflux(:,:)      = 0.0_dp
-    fastpot(:,:)     = 0.0_dp
-    h2oeffheight(:,:)= 0.0_dp
-    h2oeffdens(:,:)  = 0.0_dp
-    h2oeffmass(:,:)  = 0.0_dp
-    ih2oeffmass(:,:) = 0.0_dp
-    idegrad(:,:)     = 0.0_dp
-    fastflux(:,:)    = 0.0_dp
-    normfast(:,:)    = 0.0_dp
-    inormfast(:,:)   = 0.0_dp 
-    totflux(:)       = 0.0_dp
-    
-    !ToDo: include this in the main loop
     !ToDo: add one additional top soil layer with snowpack
-    !call CPU_TIME(temp1)
-    !do temp=1,10000
-    !do pp = 1,profiles
-    pp=cell
-       do ll = 1,layers
+    do ll = 1,layers
           
-          ! High energy neutron downward flux
-          ! The integration is now performed at the node of each layer (i.e., center of the layer)
+       ! High energy neutron downward flux
+       ! The integration is now performed at the node of each layer (i.e., center of the layer)
 
 
-          !ToDo: do this in global constants, so it is an input paramter
-          ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
-          if (ll.eq.1) then
-             zthick(ll)=Horizons(ll)/10.0_dp
-          else
-             zthick(ll)=(Horizons(ll)-Horizons(ll-1))/10.0_dp
-          endif
+       !ToDo: do this in global constants, so it is an input paramter
+       ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
+       if (ll.eq.1) then
+          zthick(ll)=Horizons(ll)/10.0_dp
+       else
+          zthick(ll)=(Horizons(ll)-Horizons(ll-1))/10.0_dp
+       endif
 
-          ! The effective water height in each layer in each profile:
-          ! ToDo:This should include in future: lattice water, roots, soil organic matter 
-          h2oeffheight(pp,ll) = SoilMoisture(pp,ll)
-          ! divided by the thickness of the layers,we get the effective density
-          ! ToDo:vwclat should be found in another way
-          h2oeffdens(pp,ll) = ((h2oeffheight(pp,ll) / zthick(ll) / 10.0_dp +COSMIC_vwclat)*H2Odens)/1000.0_dp  
+       ! The effective water height in each layer in each profile:
+       ! ToDo:This should include in future: lattice water, roots, soil organic matter 
+       h2oeffheight(ll) = SoilMoisture(cell,ll)
+       ! divided by the thickness of the layers,we get the effective density
+       ! ToDo:vwclat should be found in another way
+       h2oeffdens(ll) = ((h2oeffheight(ll) / zthick(ll) / 10.0_dp +COSMIC_vwclat)*H2Odens)/1000.0_dp  
 
-          ! Assuming an area of 1 cm2
-          isoimass(pp,ll) = COSMIC_bd*(0.5_dp*zthick(ll))*1.0_dp 
-          iwatmass(pp,ll) = h2oeffdens(pp,ll)*(0.5_dp*zthick(ll))*1.0_dp
-          if (ll>1) then
-            isoimass(pp,ll) = isoimass(pp,ll)+isoimass(pp,ll-1)+COSMIC_bd*(0.5_dp*zthick(ll-1))*1.0_dp
-            iwatmass(pp,ll) = iwatmass(pp,ll)+iwatmass(pp,ll-1)+h2oeffdens(pp,ll-1)*(0.5_dp*zthick(ll-1))*1.0_dp
-          endif
+       ! Assuming an area of 1 cm2
+       isoimass(ll) = COSMIC_bd*(0.5_dp*zthick(ll))*1.0_dp 
+       iwatmass(ll) = h2oeffdens(ll)*(0.5_dp*zthick(ll))*1.0_dp
+       if (ll>1) then
+         isoimass(ll) = isoimass(ll)+isoimass(ll-1)+COSMIC_bd*(0.5_dp*zthick(ll-1))*1.0_dp
+         iwatmass(ll) = iwatmass(ll)+iwatmass(ll-1)+h2oeffdens(ll-1)*(0.5_dp*zthick(ll-1))*1.0_dp
+       endif
 
 
-          ! ToDo:COSMIC_bd should not be a constant
-          L3 = calcL3(COSMIC_bd)
-          lambdaHigh = isoimass(pp,ll)/COSMIC_L1 + iwatmass(pp,ll)/COSMIC_L2
-          lambdaFast = isoimass(pp,ll)/L3 + iwatmass(pp,ll)/COSMIC_L4
+       ! ToDo:COSMIC_bd should not be a constant
+       L3 = calcL3(COSMIC_bd)
+       lambdaHigh = isoimass(ll)/COSMIC_L1 + iwatmass(ll)/COSMIC_L2
+       lambdaFast = isoimass(ll)/L3 + iwatmass(ll)/COSMIC_L4
 
-          hiflux(pp,ll)  = exp(-lambdaHigh)
-          fastpot(pp,ll) = zthick(ll)*(COSMIC_alpha*COSMIC_bd + h2oeffdens(pp,ll))
+       hiflux(ll)  = exp(-lambdaHigh)
+       fastpot(ll) = zthick(ll)*(COSMIC_alpha*COSMIC_bd + h2oeffdens(ll))
 
-          !call approx_mon_int(temp,intgrandFast,lambdaFast,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
-          call lookUpIntegral(fastflux(pp,ll),neutron_integral_AFast,intsize,lambdaFast,maxC)
-          !write(*,*) lambdaFast
-          !write(*,*) 'recurse', temp
-          !write(*,*) 'tabular', fastflux(pp,ll), abs(fastflux(pp,ll)-temp)
-          !read(*,*)
+       call lookUpIntegral(fastflux(ll),neutron_integral_AFast,lambdaFast)
 
-          ! After contribution from all directions are taken into account,
-          ! need to multiply fastflux by 2/pi
-          fastflux(pp,ll)=(2.0_dp/PI_dp)*fastflux(pp,ll)
+       ! After contribution from all directions are taken into account,
+       ! need to multiply fastflux by 2/pi
+       fastflux(ll)=(2.0_dp/PI_dp)*fastflux(ll)
 
-          ! Low energy (fast) neutron upward flux
-          totflux(pp)=totflux(pp)+hiflux(pp,ll)*fastpot(pp,ll)*fastflux(pp,ll)
+       ! Low energy (fast) neutron upward flux
+       totflux=totflux+hiflux(ll)*fastpot(ll)*fastflux(ll)
 
-       enddo
-       totflux(pp)=COSMIC_N*totflux(pp)
-    !enddo
-    !enddo
-    !call CPU_TIME(temp2)
-    !write(*,*) temp2-temp1
+    enddo
+    totflux=COSMIC_N*totflux
     
-    neutrons(pp) = totflux(pp)
+    neutrons(cell) = totflux
 
-    deallocate(totflux, wetsoidens, wetsoimass, iwetsoimass, hiflux,&
-           fastpot, h2oeffheight, h2oeffdens, h2oeffmass, ih2oeffmass, idegrad, fastflux,&
-           normfast, inormfast, isoimass, iwatmass)
+    deallocate( hiflux,&
+           fastpot, h2oeffheight, h2oeffdens, fastflux,&
+           isoimass, iwatmass)
            
   end subroutine COSMIC
 
@@ -533,16 +499,18 @@ CONTAINS
   !>        \author Maren Kaluza
   !>        \date Nov 2017
 
-  subroutine TabularIntegralAFast(integral,intsize,maxC)
+  subroutine TabularIntegralAFast(integral,maxC)
      use mo_constants, only: PI_dp
      implicit none
      real(dp), dimension(:)              :: integral
-     integer(i4), intent(in)             :: intsize
      real(dp), intent(in)                :: maxC
 
      !local variables
      integer(i4)                         :: i
      real(dp)                            :: c
+     integer(i4)                         :: intsize
+
+     intsize=size(integral)-2
 
      do i=1,intsize+1
        c =real(i-1,dp)*maxC/real(intsize,dp)
@@ -550,6 +518,7 @@ CONTAINS
            intgrandFast,c,0.0_dp,PI_dp/2.0_dp,steps=1024,fxmax=0.0_dp)
        integral(i)=integral(i)
      enddo
+     integral(intsize+2)=maxC
   end subroutine
 
   ! if c>1.0, the function can be fitted very nice with gnuplot
@@ -577,19 +546,21 @@ CONTAINS
 
   ! if c>1.0, the function can be fitted very nice with gnuplot
   ! pi/2*exp(a*x**b)
-  subroutine lookUpIntegral(res,integral,intsize,c,maxC)
+  subroutine lookUpIntegral(res,integral,c)
      use mo_constants, only: PI_dp
      implicit none
      real(dp)                         :: res
      real(dp), dimension(:),intent(in):: integral
-     integer(i4), intent(in)          :: intsize
      real(dp), intent(in)             :: c
-     real(dp), intent(in)             :: maxC
 
      !local variables
      integer(i4) :: place
      real(dp)    :: mu
+     integer(i4) :: intsize
+     real(dp)    :: maxC
 
+     intsize=size(integral)-2
+     maxC=integral(intsize+2)
      mu=c*real(intsize,dp)/maxC
      place=int(mu,i4)+1
      if (place .gt. intsize) then 

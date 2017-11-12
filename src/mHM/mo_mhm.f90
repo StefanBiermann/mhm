@@ -695,27 +695,25 @@ CONTAINS
             runoff_sealed(k),                                                                  & ! Intent IN
             total_runoff(k) )                                                                    ! Intent OUT
 
+
+       !-------------------------------------------------------------------
+       ! Nested model: Neutrons state variable, related to soil moisture   
+       !-------------------------------------------------------------------
+
+       ! based on soilMoisture
+       if ( processMatrix(10, 1) .eq. 1 ) &
+           call DesiletsN0( soilMoisture(:,:), horizon_depth(:), &
+                           global_parameters(processMatrix(10,3)-processMatrix(10,2)+1), &
+                           neutrons(:))
+       if ( processMatrix(10, 1) .eq. 2 ) &
+           call COSMIC( k, soilMoisture(:,:), horizon_depth(:), &
+                       global_parameters(processMatrix(10,3)-processMatrix(10,2)+2:processMatrix(10,3)), &
+                       neutron_integral_AFast(:), &
+                       neutrons(:))
+
     end do
     !$OMP end do
     !$OMP end parallel
-
-    do k=1,nCells1
-    !-------------------------------------------------------------------
-    ! Nested model: Neutrons state variable, related to soil moisture   
-    !-------------------------------------------------------------------
-
-    ! based on soilMoisture
-    ! TODO they again loop over all cells. Maybe move this to line 680 in the loop used above?
-    if ( processMatrix(10, 1) .eq. 1 ) &
-        call DesiletsN0( soilMoisture(:,:), horizon_depth(:), &
-                        global_parameters(processMatrix(10,3)-processMatrix(10,2)+1), &
-                        neutrons(:))
-    if ( processMatrix(10, 1) .eq. 2 ) &
-        call COSMIC( k, soilMoisture(:,:), horizon_depth(:), &
-                    global_parameters(processMatrix(10,3)-processMatrix(10,2)+2:processMatrix(10,3)), &
-                    neutron_integral_AFast(:), &
-                    neutrons(:))
-    enddo
 
   end subroutine mHM
 

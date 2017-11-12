@@ -214,8 +214,7 @@ CONTAINS
     !Fill Tabular for neutron flux integral
     if ( processMatrix(10, 1) .eq. 2 ) then
        allocate(neutron_integral_AFast(10000+2))
-       call TabularIntegralAFast(neutron_integral_AFast,10000,20.0_dp)
-       neutron_integral_AFast(10000+2)=20.0_dp
+       call TabularIntegralAFast(neutron_integral_AFast,20.0_dp)
     else
        allocate(neutron_integral_AFast(1))
        neutron_integral_AFast(:)=0.0_dp
