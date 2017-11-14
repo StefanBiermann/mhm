@@ -216,8 +216,8 @@ CONTAINS
     integer(i4) :: profiles=1               ! Total number of soil moisture profiles
     integer(i4) :: ll=1,pp=0
     !
-    layers   = size(SoilMoisture,2) ! 2
-    profiles = size(SoilMoisture,1) ! 34
+    layers   = size(SoilMoisture,2)+1 ! 3, one additional snowpack layer
+    profiles = size(SoilMoisture,1)   ! 34
 
     allocate(hiflux(layers),fastpot(layers),&
              h2oeffdens(layers),h2oeffheight(layers),fastflux(layers),&
@@ -243,22 +243,38 @@ CONTAINS
        !ToDo: do this in global constants, so it is an input paramter
        ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
        if (ll.eq.1) then
-          zthick(ll)=Horizons(ll)/10.0_dp
+          zthick(ll)=0.0_dp  !TODO: Derive zthick(1) by snowPack and interception
+       else if (ll.eq.2) then
+          zthick(ll)=Horizons(ll-1)/10.0_dp
        else
-          zthick(ll)=(Horizons(ll)-Horizons(ll-1))/10.0_dp
+          zthick(ll)=(Horizons(ll-1)-Horizons(ll))/10.0_dp
        endif
 
-       ! The effective water height in each layer in each profile:
-       ! ToDo:This should include in future: lattice water, roots, soil organic matter 
-       h2oeffheight(ll) = SoilMoisture(cell,ll)
+       if (ll.eq.1) then
+          h2oeffheight(ll)=0.0_dp !ToDo: Later derived via snowPack and Interception
+       else
+          ! The effective water height in each layer in each profile:
+          ! ToDo:This should include in future: lattice water, roots, soil organic matter 
+          h2oeffheight(ll) = SoilMoisture(cell,ll-1)
+       end if
+
        ! divided by the thickness of the layers,we get the effective density
        ! ToDo:vwclat should be found in another way
-       h2oeffdens(ll) = ((h2oeffheight(ll) / zthick(ll) / 10.0_dp +COSMIC_vwclat)*H2Odens)/1000.0_dp  
+       if (zthick(ll).gt.0.0_dp) then
+          h2oeffdens(ll) = ((h2oeffheight(ll) / zthick(ll) / 10.0_dp +COSMIC_vwclat)*H2Odens)/1000.0_dp  
+       else
+          h2oeffdens(ll) = 1.0_dp !does this make sense?
+       endif
 
        ! Assuming an area of 1 cm2
-       isoimass(ll) = COSMIC_bd*(0.5_dp*zthick(ll))*1.0_dp 
-       iwatmass(ll) = h2oeffdens(ll)*(0.5_dp*zthick(ll))*1.0_dp
-       if (ll>1) then
+       ! ToDo:COSMIC_bd should not be a constant
+       ! we integrate the bulkdensity/h2oeffdens down to the middle of the layer ll:
+       if (ll.eq.1) then
+         isoimass(ll) = 0.0_dp !bulk density in the surface layer is zero
+         iwatmass(ll) = h2oeffdens(ll)*(0.5_dp*zthick(ll))*1.0_dp
+       else
+         isoimass(ll) = COSMIC_bd*(0.5_dp*zthick(ll))*1.0_dp 
+         iwatmass(ll) = h2oeffdens(ll)*(0.5_dp*zthick(ll))*1.0_dp
          isoimass(ll) = isoimass(ll)+isoimass(ll-1)+COSMIC_bd*(0.5_dp*zthick(ll-1))*1.0_dp
          iwatmass(ll) = iwatmass(ll)+iwatmass(ll-1)+h2oeffdens(ll-1)*(0.5_dp*zthick(ll-1))*1.0_dp
        endif
