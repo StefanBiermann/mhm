@@ -159,6 +159,7 @@ CONTAINS
          L1_jarvis_thresh_c1,                                                       &
          L1_tempThresh, L1_unsatThresh, L1_sealedThresh,                            &
          L1_wiltingPoint, L1_neutrons,                                              &
+         L1_bulkDens, L1_latticeWater, L1_COSMICL3,                                 &
          basin_avg_TWS_sim,                                                         &
          warmingDays,                                                               &
          timeStep_LAI_input,                                                        & ! flag on how LAI data has to be read
@@ -559,6 +560,9 @@ CONTAINS
                L1_upBound_L0(s1:e1), L1_downBound_L0(s1:e1),                                             & ! IN L1
                L1_leftBound_L0(s1:e1), L1_rightBound_L0(s1:e1),                                          & ! IN L1
                L1_latitude(s_p5(1):e_p5(1)),                                                             & ! IN L1
+               L1_bulkDens,                                                                              & ! IN L1
+               L1_latticeWater,                                                                          & ! IN L1
+               L1_COSMICL3,                                                                              & ! IN L1
                evap_coeff, fday_prec, fnight_prec, fday_pet, fnight_pet,                                 & ! IN F
                fday_temp, fnight_temp,                                                                   & ! IN F
                L1_temp_weights(s1:e1,:,:),                                                               & ! IN F

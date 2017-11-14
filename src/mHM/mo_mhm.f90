@@ -179,6 +179,9 @@ CONTAINS
       L0leftBound_inL1    , & ! left column of L0 block within L1 cell
       L0rightBound_inL1   , & ! right column of L0 block within L1 cell
       latitude            , & ! latitude on level 1
+      L1_bulkDens         , & ! bulk density on level 1
+      L1_latticeWater     , & ! lattice water on level 1
+      L1_COSMICL3         , & ! COSMIC L3 coefficient on level 1
       ! Forcings
       evap_coeff          , & ! Evaporation coefficent for free-water surface of that current month
       fday_prec           , & ! [-] day ratio precipitation < 1
@@ -332,6 +335,9 @@ CONTAINS
     integer(i4), dimension(:),     intent(in) :: L0leftBound_inL1
     integer(i4), dimension(:),     intent(in) :: L0rightBound_inL1
     real(dp),    dimension(:),     intent(in) :: latitude
+    real(dp),    dimension(:,:),   intent(inout) :: L1_bulkDens !ToDo: later this is only in
+    real(dp),    dimension(:,:),   intent(inout) :: L1_latticeWater !ToDo: later this is only in
+    real(dp),    dimension(:,:),   intent(inout) :: L1_COSMICL3 !ToDo: later this is only in
 
     ! Forcings
     real(dp),    dimension(:),     intent(in) :: evap_coeff
@@ -709,6 +715,11 @@ CONTAINS
            call COSMIC( k, soilMoisture(:,:), horizon_depth(:), &
                        global_parameters(processMatrix(10,3)-processMatrix(10,2)+2:processMatrix(10,3)), &
                        neutron_integral_AFast(:), &
+                       L1_bulkDens, &
+                       L1_latticeWater, &
+                       L1_COSMICL3, &
+                       interc              , & ! Interception
+                       snowpack            , & ! Snowpack
                        neutrons(:))
 
     end do

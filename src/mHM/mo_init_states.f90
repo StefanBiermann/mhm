@@ -94,7 +94,7 @@ CONTAINS
          L1_fRoots, L1_maxInter, L1_kfastFlow, L1_kSlowFlow, L1_kBaseFlow,                       &
          L1_kPerco, L1_soilMoistFC, L1_soilMoistSat, L1_soilMoistExp,                            &
          L1_jarvis_thresh_c1, L1_tempThresh, L1_unsatThresh, L1_sealedThresh, L1_wiltingPoint,   &
-         L1_neutrons
+         L1_neutrons, L1_bulkDens, L1_latticeWater, L1_COSMICL3
 
     use mo_mhm_constants,    only: YearMonths_i4
     use mo_append,           only: append                      ! append vector
@@ -156,6 +156,18 @@ CONTAINS
     ! ground albedo neutrons
     dummy_Vector(:) = 0.0_dp
     call append( L1_neutrons,  dummy_Vector )
+
+    ! bulk density
+    dummy_Matrix(:,:) = 0.0_dp
+    call append( L1_bulkDens, dummy_Matrix )
+
+    ! lattice water
+    dummy_Matrix(:,:) = 0.0_dp
+    call append( L1_latticeWater, dummy_Matrix )
+
+    ! COSMIC L3 coefficient
+    dummy_Matrix(:,:) = 0.0_dp
+    call append( L1_COSMICL3, dummy_Matrix )
 
     !-------------------------------------------
     ! FLUXES

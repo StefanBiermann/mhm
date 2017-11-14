@@ -169,7 +169,13 @@ CONTAINS
   !>        \author Martin Schroen, originally written by Rafael Rosolem
   !>        \date Mar 2015
   
-  subroutine COSMIC(cell,SoilMoisture, Horizons, params, neutron_integral_AFast, neutrons)
+  subroutine COSMIC(cell,SoilMoisture, Horizons, params, neutron_integral_AFast, &
+                       L1_bulkDens, &
+                       L1_latticeWater, &
+                       L1_COSMICL3, &
+                       interc              , & ! Interception
+                       snowpack            , & ! Snowpack
+                       neutrons)
     
     use mo_mhm_constants, only: H2Odens, &
         COSMIC_bd, COSMIC_vwclat, COSMIC_N, COSMIC_alpha, &
@@ -183,6 +189,11 @@ CONTAINS
     real(dp), dimension(:),          intent(in)  :: Horizons
     real(dp), dimension(:),          intent(in)  :: params ! 1: N0, 2: N1, 3: N2, 4: alpha0, 5: alpha1, 6: L30, 7. L31
     real(dp), dimension(:),          intent(in)  :: neutron_integral_AFast
+    real(dp), dimension(:,:),        intent(inout)  :: L1_bulkDens ! ToDo: these will only be in
+    real(dp), dimension(:,:),        intent(inout)  :: L1_latticeWater ! ToDo: these will only be in
+    real(dp), dimension(:,:),        intent(inout)  :: L1_COSMICL3 ! ToDo: these will only be in
+    real(dp), dimension(:),          intent(in)  :: interc
+    real(dp), dimension(:),          intent(in)  :: snowpack
     real(dp), dimension(size(SoilMoisture,1)), intent(out) :: neutrons
 
     real(dp) :: L3=0.0_dp
@@ -233,6 +244,7 @@ CONTAINS
     fastflux(:)    = 0.0_dp
     totflux        = 0.0_dp
     
+    call wildSetOfParams(L1_bulkDens,L1_latticeWater,L1_COSMICL3)
     !layer 1 is the surface layer. layer 2 up to layers are the usual layers
     do ll = 1,layers
           
@@ -297,6 +309,18 @@ CONTAINS
            isoimass, iwatmass)
            
   end subroutine COSMIC
+
+  subroutine wildSetOfParams(L1_bulkDens,L1_latticeWater,L1_COSMICL3)
+    use mo_mhm_constants, only: COSMIC_bd, COSMIC_vwclat
+     implicit none
+     real(dp), dimension(:,:),        intent(inout)  :: L1_bulkDens ! ToDo: these will only be in
+     real(dp), dimension(:,:),        intent(inout)  :: L1_latticeWater ! ToDo: these will only be in
+     real(dp), dimension(:,:),        intent(inout)  :: L1_COSMICL3 ! ToDo: these will only be in
+
+     L1_bulkDens(:,:)=COSMIC_bd
+     L1_latticeWater(:,:)=COSMIC_vwclat
+     L1_COSMICL3(:,:)=COSMIC_bd*106.194175956 - 40.987888406
+  end subroutine
 
   function calcL3(bulkDensity)
      implicit none
