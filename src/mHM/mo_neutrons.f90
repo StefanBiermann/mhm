@@ -233,30 +233,20 @@ CONTAINS
     fastflux(:)    = 0.0_dp
     totflux        = 0.0_dp
     
-    !ToDo: add one additional top soil layer with snowpack
+    !layer 1 is the surface layer. layer 2 up to layers are the usual layers
     do ll = 1,layers
           
        ! High energy neutron downward flux
        ! The integration is now performed at the node of each layer (i.e., center of the layer)
 
 
-       !ToDo: do this in global constants, so it is an input paramter
+       !ToDo: maybe put zthick into global constants, so it is an input paramter
        ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
-       if (ll.eq.1) then
-          zthick(ll)=0.0_dp  !TODO: Derive zthick(1) by snowPack and interception
-       else if (ll.eq.2) then
-          zthick(ll)=Horizons(ll-1)/10.0_dp
-       else
-          zthick(ll)=(Horizons(ll-1)-Horizons(ll))/10.0_dp
-       endif
+       ! except the top layer thickness, which is dependend on the snow for example
+       call layerThickness(ll,Horizons,zthick)
 
-       if (ll.eq.1) then
-          h2oeffheight(ll)=0.0_dp !ToDo: Later derived via snowPack and Interception
-       else
-          ! The effective water height in each layer in each profile:
-          ! ToDo:This should include in future: lattice water, roots, soil organic matter 
-          h2oeffheight(ll) = SoilMoisture(cell,ll-1)
-       end if
+       ! calculate the effective height of water in each layer
+       call layerWaterHeight(ll,SoilMoisture(cell,:),h2oeffheight)
 
        ! divided by the thickness of the layers,we get the effective density
        ! ToDo:vwclat should be found in another way
@@ -309,6 +299,7 @@ CONTAINS
   end subroutine COSMIC
 
   function calcL3(bulkDensity)
+     implicit none
      real(dp),  intent(in) :: bulkDensity
      real(dp)              :: calcL3
       calcL3 = bulkDensity*106.194175956 - 40.987888406
@@ -316,6 +307,34 @@ CONTAINS
          calcL3 = 1.0 ! Prevent division by zero later on; added by joost Iwema to COSMIC 1.13, Feb. 2017
       endif
   end function
+
+  subroutine layerThickness(ll,Horizons,zthick)
+     implicit none
+     integer(i4), intent(in)              :: ll
+     real(dp),dimension(:),    intent(in) :: Horizons
+     real(dp),dimension(:)                :: zthick
+       if (ll.eq.1) then
+          zthick(ll)=0.0_dp  !TODO: Derive zthick(1) by snowPack and interception
+       else if (ll.eq.2) then
+          zthick(ll)=Horizons(ll-1)/10.0_dp
+       else
+          zthick(ll)=(Horizons(ll-1)-Horizons(ll))/10.0_dp
+       endif
+  end subroutine
+
+  subroutine layerWaterHeight(ll,SoilMoisture,h2oeffheight)
+     implicit none
+     integer(i4), intent(in)              :: ll
+     real(dp),dimension(:),    intent(in) :: SoilMoisture
+     real(dp),dimension(:)                :: h2oeffheight
+       if (ll.eq.1) then
+          h2oeffheight(ll)=0.0_dp !ToDo: Later derived via snowPack and Interception
+       else
+          ! The effective water height in each layer in each profile:
+          ! ToDo:This should include in future: lattice water, roots, soil organic matter 
+          h2oeffheight(ll) = SoilMoisture(ll-1)
+       end if
+  end subroutine
 
   ! integrade a monotonuous function f, dependend on two parameters c and phi
   ! xmin and xmax are the borders for the integration
