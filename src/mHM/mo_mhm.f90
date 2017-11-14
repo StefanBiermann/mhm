@@ -702,7 +702,7 @@ CONTAINS
 
        ! based on soilMoisture
        if ( processMatrix(10, 1) .eq. 1 ) &
-           call DesiletsN0( soilMoisture(:,:), horizon_depth(:), &
+           call DesiletsN0( k,soilMoisture(:,:), horizon_depth(:), &
                            global_parameters(processMatrix(10,3)-processMatrix(10,2)+1), &
                            neutrons(:))
        if ( processMatrix(10, 1) .eq. 2 ) &

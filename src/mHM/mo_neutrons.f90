@@ -93,18 +93,19 @@ CONTAINS
   !>        \author Martin Schroen
   !>        \date Mar 2015
 
-  subroutine DesiletsN0(SoilMoisture, Horizons, N0, neutrons)
+  subroutine DesiletsN0(cell,SoilMoisture, Horizons, N0, neutrons)
 
     use mo_mhm_constants, only: Desilets_a0, Desilets_a1, Desilets_a2
     implicit none
     
+    integer(i4),                     intent(in)  :: cell
     real(dp), dimension(:,:),        intent(in)  :: SoilMoisture
     real(dp), dimension(:),          intent(in)  :: Horizons
     real(dp),                        intent(in)  :: N0          ! from global parameters
     real(dp), dimension(size(SoilMoisture,1)), intent(out) :: neutrons
     
     ! only use first soil layer
-    neutrons(:) = N0 * ( Desilets_a1 + Desilets_a0 / (SoilMoisture(:,1)/Horizons(1) + Desilets_a2))
+    neutrons(cell) = N0 * ( Desilets_a1 + Desilets_a0 / (SoilMoisture(cell,1)/Horizons(1) + Desilets_a2))
   
   end subroutine DesiletsN0
 
