@@ -702,6 +702,13 @@ CONTAINS
             total_runoff(k) )                                                                    ! Intent OUT
 
 
+
+    end do
+    !$OMP end do
+    !$OMP end parallel
+
+
+    do k=1,nCells1
        !-------------------------------------------------------------------
        ! Nested model: Neutrons state variable, related to soil moisture   
        !-------------------------------------------------------------------
@@ -721,10 +728,7 @@ CONTAINS
                        interc              , & ! Interception
                        snowpack            , & ! Snowpack
                        neutrons(:))
-
-    end do
-    !$OMP end do
-    !$OMP end parallel
+    enddo
 
   end subroutine mHM
 

@@ -196,10 +196,13 @@ CONTAINS
     real(dp), dimension(:),          intent(in)  :: snowpack
     real(dp), dimension(size(SoilMoisture,1)), intent(out) :: neutrons
 
-    real(dp) :: L3=0.0_dp
     real(dp) :: lambdaHigh=0.0_dp
     real(dp) :: lambdaFast=0.0_dp
     real(dp) :: totflux=0.0_dp
+    real(dp) :: sm=0.0_dp  ! SoilMoisture
+    real(dp) :: lw=0.0_dp  ! lattice water
+    real(dp) :: bd=0.0_dp  ! bulk density
+    real(dp) :: L3=0.0_dp
     real(dp) :: temp=0.0_dp
     real(dp) :: temp1=0.0_dp
     real(dp) :: temp2=0.0_dp
@@ -251,54 +254,52 @@ CONTAINS
        ! High energy neutron downward flux
        ! The integration is now performed at the node of each layer (i.e., center of the layer)
 
-
        !ToDo: maybe put zthick into global constants, so it is an input paramter
        ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
        ! except the top layer thickness, which is dependend on the snow for example
        call layerThickness(ll,Horizons,zthick)
 
-       ! calculate the effective height of water in each layer
-       call layerWaterHeight(ll,SoilMoisture(cell,:),h2oeffheight)
-
-       ! divided by the thickness of the layers,we get the effective density
-       ! ToDo:vwclat should be found in another way
        if (zthick(ll).gt.0.0_dp) then
-          h2oeffdens(ll) = ((h2oeffheight(ll) / zthick(ll) / 10.0_dp +COSMIC_vwclat)*H2Odens)/1000.0_dp  
-       else
-          h2oeffdens(ll) = 1.0_dp !does this make sense?
+          call loopConstants(ll,&
+                    SoilMoisture(cell,:),L1_bulkDens(cell,:),L1_latticeWater(cell,:),&
+                    L1_COSMICL3(cell,:),sm,bd,lw,L3)
+
+          ! divided by the thickness of the layers,we get the effective density
+          ! ToDo:vwclat should be found in another way
+          ! calculate the effective height of water in each layer
+          call layerWaterHeight(ll,sm,lw,h2oeffheight)
+
+          h2oeffdens(ll) = ((h2oeffheight(ll) / zthick(ll) / 10.0_dp +lw)*H2Odens)/1000.0_dp  
+
+          ! Assuming an area of 1 cm2
+          ! ToDo:COSMIC_bd should not be a constant
+          ! we integrate the bulkdensity/h2oeffdens down to the middle of the layer ll:
+          isoimass(ll) = bd*(0.5_dp*zthick(ll))*1.0_dp 
+          iwatmass(ll) = h2oeffdens(ll)*(0.5_dp*zthick(ll))*1.0_dp
+          if (ll.gt.1) then
+            isoimass(ll) = isoimass(ll)+isoimass(ll-1)+bd*(0.5_dp*zthick(ll-1))*1.0_dp
+            iwatmass(ll) = iwatmass(ll)+iwatmass(ll-1)+h2oeffdens(ll-1)*(0.5_dp*zthick(ll-1))*1.0_dp
+          endif
+
+
+          ! ToDo:COSMIC_bd should not be a constant
+!          L3 = calcL3(COSMIC_bd)
+          lambdaHigh = isoimass(ll)/COSMIC_L1 + iwatmass(ll)/COSMIC_L2
+          lambdaFast = isoimass(ll)/L3 + iwatmass(ll)/COSMIC_L4
+
+          hiflux(ll)  = exp(-lambdaHigh)
+          fastpot(ll) = zthick(ll)*(COSMIC_alpha*bd + h2oeffdens(ll))
+
+          call lookUpIntegral(fastflux(ll),neutron_integral_AFast,lambdaFast)
+
+          ! After contribution from all directions are taken into account,
+          ! need to multiply fastflux by 2/pi
+          fastflux(ll)=(2.0_dp/PI_dp)*fastflux(ll)
+
+          ! Low energy (fast) neutron upward flux
+          totflux=totflux+hiflux(ll)*fastpot(ll)*fastflux(ll)
+
        endif
-
-       ! Assuming an area of 1 cm2
-       ! ToDo:COSMIC_bd should not be a constant
-       ! we integrate the bulkdensity/h2oeffdens down to the middle of the layer ll:
-       if (ll.eq.1) then
-         isoimass(ll) = 0.0_dp !bulk density in the surface layer is zero
-         iwatmass(ll) = h2oeffdens(ll)*(0.5_dp*zthick(ll))*1.0_dp
-       else
-         isoimass(ll) = COSMIC_bd*(0.5_dp*zthick(ll))*1.0_dp 
-         iwatmass(ll) = h2oeffdens(ll)*(0.5_dp*zthick(ll))*1.0_dp
-         isoimass(ll) = isoimass(ll)+isoimass(ll-1)+COSMIC_bd*(0.5_dp*zthick(ll-1))*1.0_dp
-         iwatmass(ll) = iwatmass(ll)+iwatmass(ll-1)+h2oeffdens(ll-1)*(0.5_dp*zthick(ll-1))*1.0_dp
-       endif
-
-
-       ! ToDo:COSMIC_bd should not be a constant
-       L3 = calcL3(COSMIC_bd)
-       lambdaHigh = isoimass(ll)/COSMIC_L1 + iwatmass(ll)/COSMIC_L2
-       lambdaFast = isoimass(ll)/L3 + iwatmass(ll)/COSMIC_L4
-
-       hiflux(ll)  = exp(-lambdaHigh)
-       fastpot(ll) = zthick(ll)*(COSMIC_alpha*COSMIC_bd + h2oeffdens(ll))
-
-       call lookUpIntegral(fastflux(ll),neutron_integral_AFast,lambdaFast)
-
-       ! After contribution from all directions are taken into account,
-       ! need to multiply fastflux by 2/pi
-       fastflux(ll)=(2.0_dp/PI_dp)*fastflux(ll)
-
-       ! Low energy (fast) neutron upward flux
-       totflux=totflux+hiflux(ll)*fastpot(ll)*fastflux(ll)
-
     enddo
     totflux=COSMIC_N*totflux
     
@@ -319,14 +320,42 @@ CONTAINS
 
      L1_bulkDens(:,:)=COSMIC_bd
      L1_latticeWater(:,:)=COSMIC_vwclat
-     L1_COSMICL3(:,:)=COSMIC_bd*106.194175956 - 40.987888406
+     L1_COSMICL3(:,:)=COSMIC_bd*106.194175956_dp - 40.987888406_dp
+  end subroutine
+
+  subroutine loopConstants(ll,&
+                    SoilMoisture,L1_bulkDens,L1_latticeWater,&
+                    L1_COSMICL3,sm,bd,lw,L3)
+     implicit none
+     integer(i4), intent(in)                    :: ll
+     real(dp), dimension(:),        intent(in)  :: SoilMoisture
+     real(dp), dimension(:),        intent(in)  :: L1_bulkDens
+     real(dp), dimension(:),        intent(in)  :: L1_latticeWater
+     real(dp), dimension(:),        intent(in)  :: L1_COSMICL3
+     real(dp) :: sm  ! SoilMoisture
+     real(dp) :: bd  ! bulk density
+     real(dp) :: lw  ! lattice water
+     real(dp) :: L3
+
+     if (ll.eq.1) then
+       !ToDo
+       sm=1.0_dp
+       bd=0.0_dp
+       lw=0.0_dp
+       L3=calcL3(bd)
+     else
+       sm=SoilMoisture(ll-1)
+       bd=L1_bulkDens(ll-1)
+       lw=L1_latticeWater(ll-1)
+       L3=L1_COSMICL3(ll-1)
+     endif
   end subroutine
 
   function calcL3(bulkDensity)
      implicit none
      real(dp),  intent(in) :: bulkDensity
      real(dp)              :: calcL3
-      calcL3 = bulkDensity*106.194175956 - 40.987888406
+      calcL3 = bulkDensity*106.194175956_dp - 40.987888406_dp
       if (bulkDensity < 0.4) then ! bulkDensity<0.39 yields negative L3, bulkDensity=0.39 yields L3=0
          calcL3 = 1.0 ! Prevent division by zero later on; added by joost Iwema to COSMIC 1.13, Feb. 2017
       endif
@@ -346,18 +375,15 @@ CONTAINS
        endif
   end subroutine
 
-  subroutine layerWaterHeight(ll,SoilMoisture,h2oeffheight)
+  subroutine layerWaterHeight(ll,sm,lw,h2oeffheight)
      implicit none
-     integer(i4), intent(in)              :: ll
-     real(dp),dimension(:),    intent(in) :: SoilMoisture
-     real(dp),dimension(:)                :: h2oeffheight
-       if (ll.eq.1) then
-          h2oeffheight(ll)=0.0_dp !ToDo: Later derived via snowPack and Interception
-       else
-          ! The effective water height in each layer in each profile:
-          ! ToDo:This should include in future: lattice water, roots, soil organic matter 
-          h2oeffheight(ll) = SoilMoisture(ll-1)
-       end if
+     integer(i4), intent(in) :: ll
+     real(dp),    intent(in) :: sm
+     real(dp),    intent(in) :: lw
+     real(dp),dimension(:)   :: h2oeffheight
+    ! The effective water height in each layer in each profile:
+    ! ToDo:This should include in future: lattice water, roots, soil organic matter 
+    h2oeffheight(ll) = sm
   end subroutine
 
   ! integrade a monotonuous function f, dependend on two parameters c and phi
