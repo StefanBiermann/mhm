@@ -417,7 +417,8 @@ CONTAINS
          L1_fRoots, L1_maxInter, L1_kfastFlow, L1_kSlowFlow, L1_kBaseFlow,                                   &
          L1_kPerco, L1_soilMoistFC, L1_soilMoistSat, L1_soilMoistExp,                                        &
          L1_jarvis_thresh_c1,L1_tempThresh, L1_unsatThresh, L1_sealedThresh, L1_wiltingPoint,                &
-         L1_neutrons
+         L1_neutrons, L1_bulkDens, L1_latticeWater, L1_COSMICL3
+
 
     use mo_mhm_constants,    only:               &
          P1_InitStateFluxes, P2_InitStateFluxes, &
@@ -467,6 +468,17 @@ CONTAINS
 
     ! ground albedo neutrons, initially zero
     L1_neutrons = P1_InitStateFluxes
+
+    ! bulk density
+    L1_bulkDens = P1_InitStateFluxes
+
+    ! lattice water
+    L1_latticeWater = P1_InitStateFluxes
+
+    ! COSMIC L3 coefficient
+    L1_COSMICL3 = P1_InitStateFluxes
+
+
 
     !-------------------------------------------
     ! FLUXES

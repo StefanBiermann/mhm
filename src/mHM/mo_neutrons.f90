@@ -209,7 +209,7 @@ CONTAINS
     real(dp) :: temp3=0.0_dp
 
    
-    real(dp), dimension(size(Horizons))   :: zthick      ! Soil layer thickness (cm)
+    real(dp), dimension(size(Horizons)+1)   :: zthick      ! Soil layer thickness (cm)
 !    real(dp), dimension(:,:), allocatable :: wetsoidens  ! Density of wet soil layer (g/cm3)
 !    real(dp), dimension(:,:), allocatable :: wetsoimass  ! Mass of wet soil layer (g)
     real(dp), dimension(:), allocatable :: isoimass    ! Integrated dry soil mass above layer (g)
@@ -257,19 +257,23 @@ CONTAINS
        !ToDo: maybe put zthick into global constants, so it is an input paramter
        ! Soil Layers and Thicknesses are constant in mHM, they could be defined outside of this function
        ! except the top layer thickness, which is dependend on the snow for example
-       call layerThickness(ll,Horizons,zthick)
+       call layerThickness(ll,Horizons,interc(cell),snowpack(cell),zthick)
 
        if (zthick(ll).gt.0.0_dp) then
           call loopConstants(ll,&
                     SoilMoisture(cell,:),L1_bulkDens(cell,:),L1_latticeWater(cell,:),&
                     L1_COSMICL3(cell,:),sm,bd,lw,L3)
 
-          ! divided by the thickness of the layers,we get the effective density
-          ! ToDo:vwclat should be found in another way
-          ! calculate the effective height of water in each layer
-          call layerWaterHeight(ll,sm,lw,h2oeffheight)
 
-          h2oeffdens(ll) = ((h2oeffheight(ll) / zthick(ll) / 10.0_dp +lw)*H2Odens)/1000.0_dp  
+          if (ll.eq.1) then
+             h2oeffdens(ll) = 1.0_dp ! ToDo:or devided by 10?
+          else
+             ! ToDo:vwclat should be found in another way
+             ! calculate the effective height of water in each layer
+             call layerWaterHeight(ll,sm,lw,h2oeffheight)
+             ! divided by the thickness of the layers,we get the effective density
+             h2oeffdens(ll) = ((h2oeffheight(ll) / zthick(ll) / 10.0_dp +lw)*H2Odens)/1000.0_dp  
+          endif
 
           ! Assuming an area of 1 cm2
           ! ToDo:COSMIC_bd should not be a constant
@@ -281,9 +285,6 @@ CONTAINS
             iwatmass(ll) = iwatmass(ll)+iwatmass(ll-1)+h2oeffdens(ll-1)*(0.5_dp*zthick(ll-1))*1.0_dp
           endif
 
-
-          ! ToDo:COSMIC_bd should not be a constant
-!          L3 = calcL3(COSMIC_bd)
           lambdaHigh = isoimass(ll)/COSMIC_L1 + iwatmass(ll)/COSMIC_L2
           lambdaFast = isoimass(ll)/L3 + iwatmass(ll)/COSMIC_L4
 
@@ -339,10 +340,10 @@ CONTAINS
 
      if (ll.eq.1) then
        !ToDo
-       sm=1.0_dp
+       sm=0.0_dp
        bd=0.0_dp
        lw=0.0_dp
-       L3=calcL3(bd)
+       L3=1.0_dp
      else
        sm=SoilMoisture(ll-1)
        bd=L1_bulkDens(ll-1)
@@ -361,17 +362,19 @@ CONTAINS
       endif
   end function
 
-  subroutine layerThickness(ll,Horizons,zthick)
+  subroutine layerThickness(ll,Horizons,interc,snowpack,zthick)
      implicit none
      integer(i4), intent(in)              :: ll
      real(dp),dimension(:),    intent(in) :: Horizons
+     real(dp),                 intent(in) :: interc
+     real(dp),                 intent(in) :: snowpack
      real(dp),dimension(:)                :: zthick
        if (ll.eq.1) then
-          zthick(ll)=0.0_dp  !TODO: Derive zthick(1) by snowPack and interception
+          zthick(ll)=(snowpack+interc)/10.0_dp  !TODO: check if good
        else if (ll.eq.2) then
           zthick(ll)=Horizons(ll-1)/10.0_dp
        else
-          zthick(ll)=(Horizons(ll-1)-Horizons(ll))/10.0_dp
+          zthick(ll)=(Horizons(ll-1)-Horizons(ll-2))/10.0_dp
        endif
   end subroutine
 
@@ -383,7 +386,7 @@ CONTAINS
      real(dp),dimension(:)   :: h2oeffheight
     ! The effective water height in each layer in each profile:
     ! ToDo:This should include in future: lattice water, roots, soil organic matter 
-    h2oeffheight(ll) = sm
+    h2oeffheight(ll) = sm+lw
   end subroutine
 
   ! integrade a monotonuous function f, dependend on two parameters c and phi
