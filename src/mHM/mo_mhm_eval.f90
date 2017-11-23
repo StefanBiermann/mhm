@@ -560,9 +560,9 @@ CONTAINS
                L1_upBound_L0(s1:e1), L1_downBound_L0(s1:e1),                                             & ! IN L1
                L1_leftBound_L0(s1:e1), L1_rightBound_L0(s1:e1),                                          & ! IN L1
                L1_latitude(s_p5(1):e_p5(1)),                                                             & ! IN L1
-               L1_bulkDens,                                                                              & ! IN L1
-               L1_latticeWater,                                                                          & ! IN L1
-               L1_COSMICL3,                                                                              & ! IN L1
+               L1_bulkDens(s1:e1,:),                                                                     & ! IN L1
+               L1_latticeWater(s1:e1,:),                                                                 & ! IN L1
+               L1_COSMICL3(s1:e1,:),                                                                     & ! IN L1
                evap_coeff, fday_prec, fnight_prec, fday_pet, fnight_pet,                                 & ! IN F
                fday_temp, fnight_temp,                                                                   & ! IN F
                L1_temp_weights(s1:e1,:,:),                                                               & ! IN F

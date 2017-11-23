@@ -207,10 +207,11 @@ CONTAINS
     real(dp) :: lw             ! lattice water
     real(dp) :: bd             ! bulk density
     real(dp) :: L3
-   ! real(dp) :: temp=0.0_dp
-   ! real(dp) :: temp1=0.0_dp
-   ! real(dp) :: temp2=0.0_dp
-   ! real(dp) :: temp3=0.0_dp
+    integer(i4):: snowlayer    ! 1 if snowlayer is active, 0 else
+    real(dp) :: temp=0.0_dp
+    real(dp) :: temp1=0.0_dp
+    real(dp) :: temp2=0.0_dp
+    real(dp) :: temp3=0.0_dp
 
    
     real(dp), dimension(size(Horizons)+1)   :: zthick      ! Soil layer thickness (cm)
@@ -248,6 +249,8 @@ CONTAINS
     lw             = 0.0_dp
     bd             = 0.0_dp
     L3             = 1.0_dp
+
+    snowlayer=1
     
     call wildSetOfParams(L1_bulkDens,L1_latticeWater,L1_COSMICL3)
     !layer 1 is the surface layer. layer 2 up to layers are the usual layers
@@ -262,7 +265,7 @@ CONTAINS
        ! zthick will be in cm, as all heigths are in cm in this module
        call layerThickness(ll,Horizons,interc(cell),snowpack(cell),zthick)
 
-       if (zthick(ll).gt.0.0_dp) then
+       if (zthick(ll).gt.0.0_dp .and. (snowlayer.gt.0 .or. ll.ne.1)) then
           call loopConstants(ll,&
                     SoilMoisture(cell,:),L1_bulkDens(cell,:),L1_latticeWater(cell,:),&
                     L1_COSMICL3(cell,:),sm,bd,lw,L3)
@@ -300,6 +303,7 @@ CONTAINS
           fastflux(ll)=(2.0_dp/PI_dp)*fastflux(ll)
 
           ! Low energy (fast) neutron upward flux
+          temp1=totflux
           totflux=totflux+hiflux(ll)*xeff(ll)*fastflux(ll)
 
        endif
