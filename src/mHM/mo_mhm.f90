@@ -702,34 +702,29 @@ CONTAINS
             runoff_sealed(k),                                                                  & ! Intent IN
             total_runoff(k) )                                                                    ! Intent OUT
 
-
-
-    end do
-    !$OMP end do
-    !$OMP end parallel
-
-
-    do k=1,nCells1
        !-------------------------------------------------------------------
        ! Nested model: Neutrons state variable, related to soil moisture   
        !-------------------------------------------------------------------
 
        ! based on soilMoisture
        if ( processMatrix(10, 1) .eq. 1 ) &
-           call DesiletsN0( k,soilMoisture(:,:), horizon_depth(:), &
+           call DesiletsN0(soilMoisture(k,:), horizon_depth(:), &
                            global_parameters(processMatrix(10,3)-processMatrix(10,2)+1), &
-                           neutrons(:))
+                           neutrons(k))
        if ( processMatrix(10, 1) .eq. 2 ) &
-           call COSMIC( k, soilMoisture(:,:), horizon_depth(:), &
+           call COSMIC( soilMoisture(k,:), horizon_depth(:), &
                        global_parameters(processMatrix(10,3)-processMatrix(10,2)+2:processMatrix(10,3)), &
                        neutron_integral_AFast(:), &
-                       L1_bulkDens, &
-                       L1_latticeWater, &
-                       L1_COSMICL3, &
-                       interc              , & ! Interception
-                       snowpack            , & ! Snowpack
-                       neutrons(:))
-    enddo
+                       L1_bulkDens(k,:), &
+                       L1_latticeWater(k,:), &
+                       L1_COSMICL3(k,:), &
+                       interc(k)              , & ! Interception
+                       snowpack(k)            , & ! Snowpack
+                       neutrons(k))
+    end do
+    !$OMP end do
+    !$OMP end parallel
+
 
   end subroutine mHM
 
