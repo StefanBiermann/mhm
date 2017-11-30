@@ -472,7 +472,63 @@ nSoilHorizons_mHM =2
 !>    Also check your tillage layer depth. It should conform with one of the below specified soil_Depth.
 !
 !> Soil_Horizon   Depth[mm]      ! depth of soil horizons w.r.t. ground surface (positive downwards)
-soil_Depth(1) = 200
+!soil_Depth(1)  = 50
+!soil_Depth(2)  = 100
+!soil_Depth(3)  = 150
+!soil_Depth(4)  = 200
+!soil_Depth(5)  = 250
+!soil_Depth(6)  = 300
+!soil_Depth(7)  = 350
+!soil_Depth(8)  = 400
+!soil_Depth(9)  = 450
+!soil_Depth(10)  = 500
+!soil_Depth(11)  = 550
+!soil_Depth(12)  = 600
+!soil_Depth(13)  = 650
+!soil_Depth(14)  = 700
+!soil_Depth(15)  = 750
+!
+!soil_Depth(1)  = 100
+!soil_Depth(2)  = 200
+!soil_Depth(3)  = 300
+!soil_Depth(4)  = 400
+!soil_Depth(5)  = 500
+!soil_Depth(6)  = 600
+!soil_Depth(7)  = 700
+!
+soil_Depth(1)  = 200
+!
+!soil_Depth(1)  = 25
+!soil_Depth(2)  = 50
+!soil_Depth(3)  = 75
+!soil_Depth(4)  = 100
+!soil_Depth(5)  = 125
+!soil_Depth(6)  = 150
+!soil_Depth(7)  = 175
+!soil_Depth(8)  = 200
+!soil_Depth(9)  = 225
+!soil_Depth(10)  = 250
+!soil_Depth(11)  = 275
+!soil_Depth(12)  = 300
+!soil_Depth(13)  = 325
+!soil_Depth(14)  = 350
+!soil_Depth(15)  = 375
+!soil_Depth(16)  = 400
+!soil_Depth(17)  = 425
+!soil_Depth(18)  = 450
+!soil_Depth(19)  = 475
+!soil_Depth(20)  = 500
+!soil_Depth(21)  = 525
+!soil_Depth(22)  = 550
+!soil_Depth(23)  = 575
+!soil_Depth(24)  = 600
+!soil_Depth(25)  = 625
+!soil_Depth(26)  = 650
+!soil_Depth(27)  = 675
+!soil_Depth(28)  = 700
+!soil_Depth(29)  = 725
+!soil_Depth(30)  = 750
+!soil_Depth(31)  = 775
 /
 
 !******************************************************************************************

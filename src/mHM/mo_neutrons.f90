@@ -54,7 +54,7 @@ CONTAINS
   !                          N0-parameter, output(cells) )
   !
   !     INTENT(IN)
-  !>        \param[in] "real(dp), dimension(:,:) :: SoilMoisture" Soil Moisture
+  !>        \param[in] "real(dp), dimension(:)   :: SoilMoisture" Soil Moisture
   !>        \param[in] "real(dp), dimension(:)   :: Horizons" Horizon depths
   !>        \param[in] "real(dp)                 :: N0" dry neutron counts
   !
@@ -129,21 +129,21 @@ CONTAINS
   !                          COSMIC-parameterset, neutron_integral_AFast, output(cells) )
   !
   !     INTENT(IN)
-  !>        \param[in] "real(dp), dimension(:,:) :: SoilMoisture" Soil Moisture
+  !>        \param[in] "real(dp), dimension(:)   :: SoilMoisture" Soil Moisture
   !>        \param[in] "real(dp), dimension(:)   :: Horizons" Horizon depths
   !>        \param[in] "real(dp), dimension(:)   :: params" ! N0, N1, N2, alpha0, alpha1, L30, L31
   !>        \param[in] "real(dp), dimension(:)   :: neutron_integral_AFast" Tabular for Int Approx
-  !>        \param[in] "real(dp), dimension(:,:) :: L1_bulkDens" Bulk Density
-  !>        \param[in] "real(dp), dimension(:,:) :: L1_latticeWater" Lattice Water
-  !>        \param[in] "real(dp), dimension(:,:) :: L1_COSMICL3" L3 from the COSMIC module 
-  !>        \param[in] "real(dp), dimension(:)   :: interc" interception 
-  !>        \param[in] "real(dp), dimension(:)   :: snowpack" snowpack 
+  !>        \param[in] "real(dp), dimension(:)   :: L1_bulkDens" Bulk Density
+  !>        \param[in] "real(dp), dimension(:)   :: L1_latticeWater" Lattice Water
+  !>        \param[in] "real(dp), dimension(:)   :: L1_COSMICL3" L3 from the COSMIC module 
+  !>        \param[in] "real(dp)                 :: interc" interception 
+  !>        \param[in] "real(dp)                 :: snowpack" snowpack 
   !
   !     INTENT(INOUT)
-  !         None
+  !>        \param[inout] "real(dp)              :: neutrons" Neutron counts
   !
   !     INTENT(OUT)
-  !>        \param[out] "real(dp), dimension(size(SoilMoisture,1)) :: neutrons" Neutron counts
+  !         None
   !
   !     INTENT(IN), OPTIONAL
   !         None
