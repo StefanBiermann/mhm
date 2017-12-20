@@ -251,7 +251,10 @@ contains
        HL1_1,               & ! INOUT: [10^-3 m] Threshhold water depth in upper reservoir 
        !                      !                  (for Runoff  contribution)
        HL3,                 & ! INOUT:           threshold parameter for runoff generation on impervious Layer
-       PW1                  & ! INOUT: [10^-3 m] permanent wilting point 
+       PW1,                 & ! INOUT: [10^-3 m] permanent wilting point 
+       L1_bulkDens,         & ! INOUT: bulk density
+       L1_latticeWater,     & ! L1 lattice water content
+       L1_COSMICL3          & ! L1 COSMIC L3 parameter from neutron module
        )
 
     use mo_message,             only: message
@@ -330,6 +333,9 @@ contains
     real(dp), dimension(:),                  intent(inout) :: IDDP1             ! [d-1 degreeC-1]  Increase of the 
     !                                                                           ! Degree-day factor per mm of
     !                                                                           ! increase in precipitation
+    real(dp), dimension(:,:),                intent(inout) :: L1_bulkDens       ! L1 bulk density
+    real(dp), dimension(:,:),                intent(inout) :: L1_latticeWater   ! L1 lattice water content
+    real(dp), dimension(:,:),                intent(inout) :: L1_COSMICL3       ! L1 COSMIC L3 parameter from neutron module
 
     ! Output for PET parameterization
     real(dp), dimension(:),                  intent(inout) :: fAsp1             ! [1]     PET correction for Aspect at level 1
@@ -360,11 +366,15 @@ contains
     real(dp), dimension(:,:,:), allocatable :: thetaS_till
     real(dp), dimension(:,:,:), allocatable :: thetaFC_till
     real(dp), dimension(:,:,:), allocatable :: thetaPW_till
+    real(dp), dimension(:,:,:), allocatable :: latWat_till
+    real(dp), dimension(:,:,:), allocatable :: COSMIC_L3_till
     real(dp), dimension(:,:,:), allocatable :: Ks       ! saturated hydraulic conductivity
     real(dp), dimension(:,:,:), allocatable :: Db       ! Bulk density
     real(dp), dimension(:,:), allocatable   :: thetaS
     real(dp), dimension(:,:), allocatable   :: thetaFC
     real(dp), dimension(:,:), allocatable   :: thetaPW
+    real(dp), dimension(:,:), allocatable   :: latWat   ! lattice water
+    real(dp), dimension(:,:), allocatable   :: COSMIC_L3! COSMIC parameter L3
     real(dp), dimension(:),   allocatable   :: KsVar_H0 ! relative variability of saturated
     !                                                   ! hydraulic cound. for Horizantal flow
     real(dp), dimension(:),   allocatable   :: KsVar_V0 ! relative variability of saturated
@@ -427,9 +437,13 @@ contains
     allocate(  thetaS_till(msoil, mtill, mLC) ) 
     allocate( thetaFC_till(msoil, mtill, mLC) ) 
     allocate( thetaPW_till(msoil, mtill, mLC) ) 
+    allocate(  latWat_till(msoil, mtill, mLC) ) 
+    allocate(COSMIC_L3_till(msoil, mtill, mLC)) 
     allocate(       thetaS(msoil, mHor      ) ) 
     allocate(      thetaFC(msoil, mHor      ) ) 
     allocate(      thetaPW(msoil, mHor      ) )
+    allocate(       latWat(msoil, mHor      ) ) 
+    allocate(    COSMIC_L3(msoil, mHor      ) ) 
     allocate(           Ks(msoil, mHor, mLC ) )
     allocate(           Db(msoil, mHor, mLC ) )       
 
@@ -481,28 +495,45 @@ contains
        stop
     end select
 
+    ! call mpr subroutines which calculate variables on L0 with
+    ! parameters
     call mpr_sm( param(iStart:iEnd),  nodata, iFlag_soil,    &
         SDB_is_present, SDB_nHorizons, SDB_nTillHorizons,    &
         SDB_sand, SDB_clay, SDB_DbM,                         &
         cell_id0, soilId0, LCOVER0,                          &
-        thetaS_till, thetaFC_till, thetaPW_till, thetaS,     &
-        thetaFC, thetaPW, Ks, Db, KsVar_H0, KsVar_V0, SMs_FC0)
-        
+        thetaS_till, thetaFC_till, thetaPW_till, latWat_till,&
+        COSMIC_L3_till,                                      &
+        thetaS,                                              &
+        thetaFC, thetaPW, latWat, COSMIC_L3,                 &
+        Ks, Db, KsVar_H0, KsVar_V0, SMs_FC0)
+
+    ! call mpr subroutines which upscale variables from L0, calculated
+    ! before, to variables on L1
     call mpr_SMhorizons( param(iStart2:iEnd2), proc_Mat, nodata,    &
         iFlag_soil, nHorizons_mHM, horizon_depth, LCOVER0, soilId0, &
         SDB_nHorizons, SDB_nTillHorizons,                           &
-        thetaS_till,thetaFC_till, thetaPW_till,                     &
-        thetaS, thetaFC, thetaPW, SDB_Wd, Db, SDB_DbM, SDB_RZdepth, &
+        thetaS_till,thetaFC_till, thetaPW_till, latWat_till,        &
+        COSMIC_L3_till,                                             &
+        thetaS, thetaFC, thetaPW, latWat, COSMIC_L3,                &
+        SDB_Wd, Db, SDB_DbM, SDB_RZdepth,                           &
         mask0, cell_id0,                                            &
         Upp_row_L1, Low_row_L1, Lef_col_L1, Rig_col_L1, nL0_in_L1,  &
-        beta1, SMs1, FC1, PW1, fRoots1 )
+        beta1, SMs1, FC1, PW1, fRoots1,                             & 
+        L1_bulkDens,                                                &
+        L1_latticeWater,                                            &
+        L1_COSMICL3                                                 &
+        )
    
     deallocate( thetaS_till ) 
     deallocate( thetaFC_till ) 
     deallocate( thetaPW_till ) 
+    deallocate( latWat_till ) 
+    deallocate( COSMIC_L3_till ) 
     deallocate( thetaS  ) 
     deallocate( thetaFC ) 
     deallocate( thetaPW )
+    deallocate( latWat  ) 
+    deallocate( COSMIC_L3  ) 
     deallocate( Ks )
     deallocate( Db )
 

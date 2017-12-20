@@ -560,9 +560,6 @@ CONTAINS
                L1_upBound_L0(s1:e1), L1_downBound_L0(s1:e1),                                             & ! IN L1
                L1_leftBound_L0(s1:e1), L1_rightBound_L0(s1:e1),                                          & ! IN L1
                L1_latitude(s_p5(1):e_p5(1)),                                                             & ! IN L1
-               L1_bulkDens(s1:e1,:),                                                                     & ! IN L1
-               L1_latticeWater(s1:e1,:),                                                                 & ! IN L1
-               L1_COSMICL3(s1:e1,:),                                                                     & ! IN L1
                evap_coeff, fday_prec, fnight_prec, fday_pet, fnight_pet,                                 & ! IN F
                fday_temp, fnight_temp,                                                                   & ! IN F
                L1_temp_weights(s1:e1,:,:),                                                               & ! IN F
@@ -597,7 +594,10 @@ CONTAINS
                L1_soilMoistFC(s1:e1,:), L1_soilMoistSat(s1:e1,:), L1_soilMoistExp(s1:e1,:),              & ! INOUT E1
                L1_jarvis_thresh_c1(s1:e1),                                                               & ! INOUT E1
                L1_tempThresh(s1:e1), L1_unsatThresh(s1:e1), L1_sealedThresh(s1:e1),                      & ! INOUT E1
-               L1_wiltingPoint(s1:e1,:)                                                                  ) ! INOUT E1
+               L1_wiltingPoint(s1:e1,:),                                                                 & ! INOUT E1
+               L1_bulkDens(s1:e1,:),                                                                     & ! INOUT L1
+               L1_latticeWater(s1:e1,:),                                                                 & ! INOUT L1
+               L1_COSMICL3(s1:e1,:)                                                                      ) ! INOUT E1
 
           ! call mRM routing
 #ifdef MRM2MHM

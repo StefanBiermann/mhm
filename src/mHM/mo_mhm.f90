@@ -179,9 +179,6 @@ CONTAINS
       L0leftBound_inL1    , & ! left column of L0 block within L1 cell
       L0rightBound_inL1   , & ! right column of L0 block within L1 cell
       latitude            , & ! latitude on level 1
-      L1_bulkDens         , & ! bulk density on level 1
-      L1_latticeWater     , & ! lattice water on level 1
-      L1_COSMICL3         , & ! COSMIC L3 coefficient on level 1
       ! Forcings
       evap_coeff          , & ! Evaporation coefficent for free-water surface of that current month
       fday_prec           , & ! [-] day ratio precipitation < 1
@@ -260,7 +257,10 @@ CONTAINS
       temp_thresh         , & ! Threshold temperature for snow/rain
       unsat_thresh        , & ! Threshold water depth in upper reservoir
       water_thresh_sealed , & ! Threshold water depth in impervious areas
-      wilting_point         ) ! Permanent wilting point for each horizon
+      wilting_point       , & ! Permanent wilting point for each horizon
+      L1_bulkDens         , & ! bulk density on level 1
+      L1_latticeWater     , & ! lattice water on level 1
+      L1_COSMICL3         )   ! COSMIC L3 coefficient on level 1
     ! subroutines required to estimate variables prior to the MPR call
     use mo_upscaling_operators,     only: L0_fractionalCover_in_Lx         ! land cover fraction
     use mo_multi_param_reg,         only: mpr,canopy_intercept_param       ! reg. and scaling
@@ -335,9 +335,6 @@ CONTAINS
     integer(i4), dimension(:),     intent(in) :: L0leftBound_inL1
     integer(i4), dimension(:),     intent(in) :: L0rightBound_inL1
     real(dp),    dimension(:),     intent(in) :: latitude
-    real(dp),    dimension(:,:),   intent(inout) :: L1_bulkDens !ToDo: later this is only in
-    real(dp),    dimension(:,:),   intent(inout) :: L1_latticeWater !ToDo: later this is only in
-    real(dp),    dimension(:,:),   intent(inout) :: L1_COSMICL3 !ToDo: later this is only in
 
     ! Forcings
     real(dp),    dimension(:),     intent(in) :: evap_coeff
@@ -422,6 +419,9 @@ CONTAINS
     real(dp), dimension(:),        intent(inout) ::  unsat_thresh
     real(dp), dimension(:),        intent(inout) ::  water_thresh_sealed
     real(dp), dimension(:,:),      intent(inout) ::  wilting_point
+    real(dp), dimension(:,:),      intent(inout) ::  L1_bulkDens
+    real(dp), dimension(:,:),      intent(inout) ::  L1_latticeWater
+    real(dp), dimension(:,:),      intent(inout) ::  L1_COSMICL3
 
     ! local
     logical                :: isday       ! is day or night
@@ -521,7 +521,11 @@ CONTAINS
                 fAsp, HarSamCoeff(:), PrieTayAlpha(:,:), aeroResist(:,:),                 &
                 surfResist(:,:), frac_roots, k0, k1, k2, kp, karst_loss,                  &
                 soil_moist_FC, soil_moist_sat, soil_moist_exponen, jarvis_thresh_c1(:),   &
-                temp_thresh, unsat_thresh, water_thresh_sealed, wilting_point            )
+                temp_thresh, unsat_thresh, water_thresh_sealed, wilting_point,            & 
+                L1_bulkDens,                                                              &
+                L1_latticeWater,                                                          &
+                L1_COSMICL3                                                               &
+          )
         end if
     
         !-------------------------------------------------------------------

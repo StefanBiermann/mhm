@@ -314,9 +314,14 @@ CONTAINS
      real(dp), dimension(:),        intent(inout)  :: L1_latticeWater ! ToDo: these will only be in
      real(dp), dimension(:),        intent(inout)  :: L1_COSMICL3 ! ToDo: these will only be in
 
-     L1_bulkDens(:)=COSMIC_bd
-     L1_latticeWater(:)=COSMIC_vwclat
-     L1_COSMICL3(:)=COSMIC_bd*106.194175956_dp - 40.987888406_dp
+     !L1_latticeWater(:)=COSMIC_vwclat
+     !L1_COSMICL3(:)=COSMIC_bd*106.194175956_dp - 40.987888406_dp
+     !write(*,*) 'L3'
+     !write(*,*) L1_COSMICL3
+     !write(*,*) COSMIC_bd*106.194175956_dp - 40.987888406_dp
+   !  write(*,*) 'LW'
+   !  write(*,*) L1_latticeWater
+   !  write(*,*) COSMIC_vwclat
   end subroutine
 
   subroutine loopConstants(ll,&

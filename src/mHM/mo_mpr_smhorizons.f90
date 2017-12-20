@@ -137,9 +137,13 @@ contains
        thetaS_till   , & ! saturated water content of soil horizons upto tillage depth
        thetaFC_till  , & ! Field capacity of tillage layer 
        thetaPW_till  , & ! Permament wilting point of tillage layer 
+       latWat_till   , & ! lattice water upto tillage depth
+       COSMIC_L3_till, & ! COSMIC parameter L3 upto tillage depth
        thetaS        , & ! saturated water content
        thetaFC       , & ! Field capacity of deeper layers
        thetaPW       , & ! Permanent wilting point
+       latWat        , & ! lattice water
+       COSMIC_L3     , & ! COSMIC paramter L3
        Wd            , & ! weights of mHM Horizons according to horizons provided in soil database
        Db            , & ! Bulk density
        DbM           , & ! mineral Bulk density
@@ -156,7 +160,10 @@ contains
        L1_SMs        , & ! [10^-3 m] depth of saturated SM cont
        L1_FC         , & ! [10^-3 m] field capacity
        L1_PW         , & ! [10^-3 m] permanent wilting point
-       L1_fRoots )       ! fraction of roots in soil horizons
+       L1_fRoots     , & ! fraction of roots in soil horizons
+       L1_bulkDens   , & ! INOUT: bulk density
+       L1_latticeWater,& ! L1 lattice water content
+       L1_COSMICL3   )   ! L1 COSMIC L3 parameter from neutron module
 
     use mo_upscaling_operators, only: upscale_harmonic_mean
     use mo_message,             only: message
@@ -187,10 +194,14 @@ contains
     real(dp),    dimension(:,:,:), intent(in) :: thetaPW_till  ! Permament wilting point of
     !                                                          ! tillage layers; LUC dependent,
     !                                                          ! f(OM, management)
+    real(dp),    dimension(:,:,:), intent(in) :: latWat_till   ! lattice water
+    real(dp),    dimension(:,:,:), intent(in) :: COSMIC_L3_till! COSMIC parameter L3
     real(dp),    dimension(:,:),   intent(in) :: thetaS       ! saturated water content of soil
     !                                                         ! horizons after tillage depth
     real(dp),    dimension(:,:),   intent(in) :: thetaFC      ! Field capacity of deeper layers
     real(dp),    dimension(:,:),   intent(in) :: thetaPW      ! Permanent wilting point of
+    real(dp),    dimension(:,:),   intent(in) :: latWat       ! lattice water
+    real(dp),    dimension(:,:),   intent(in) :: COSMIC_L3    ! COSMIC paramter L3
     !                                                         ! deeper layers
     real(dp),    dimension(:,:,:), intent(in) :: Wd           ! weights of mHM Horizons
     !                                                         ! according to horizons provided
@@ -217,6 +228,9 @@ contains
     real(dp),   dimension(:,:), intent(inout) :: L1_FC     ! [10^-3 m] field capacity
     real(dp),   dimension(:,:), intent(inout) :: L1_PW     ! [10^-3 m] permanent wilting point
     real(dp),   dimension(:,:), intent(inout) :: L1_fRoots ! fraction of roots in soil horizons
+    real(dp),   dimension(:,:), intent(inout) :: L1_bulkDens
+    real(dp),   dimension(:,:), intent(inout) :: L1_latticeWater
+    real(dp),   dimension(:,:), intent(inout) :: L1_COSMICL3
 
     ! Local Variables
     integer(i4)                             :: h         ! loop index
@@ -231,6 +245,8 @@ contains
     real(dp), dimension(size(LCOVER0,1))    :: SMs0    ! [10^-3 m] depth of saturated SM cont
     real(dp), dimension(size(LCOVER0,1))    :: FC0     ! [10^-3 m] field capacity
     real(dp), dimension(size(LCOVER0,1))    :: PW0     ! [10^-3 m] permanent wilting point
+    real(dp), dimension(size(LCOVER0,1))    :: LW0     ! [10^-3 m] TODO:check einheit lattice water
+    real(dp), dimension(size(LCOVER0,1))    :: L30     ! [10^-3 m] TODO:check einheit COSMIC parameter L3
     real(dp), dimension(size(LCOVER0,1))    :: fRoots0 ! fraction of roots in soil horizons
 
     real(dp)                                :: tmp_rootFractionCoefficient_forest
@@ -272,6 +288,8 @@ contains
           SMs0    = nodata
           FC0     = nodata
           PW0     = nodata
+          LW0     = nodata
+          L30     = nodata
           fRoots0 = nodata
           tmp_rootFractionCoefficient_perviousFC = nodata
           ! Initalise mHM horizon depth
@@ -317,6 +335,19 @@ contains
                   + sum( thetaPW(S,nTillHorizons(S)+1-minval(nTillHorizons(:)) :nHorizons(s)-minval(nTillHorizons(:))) &
                   * Wd(S, H, nTillHorizons(S)+1:nHorizons(S)), &
                   Wd(S, H, nTillHorizons(S)+1:nHorizons(S)) > 0.0_dp )
+             ! depth weightage LW
+             LW0(k) = sum( latWat_till(S, :nTillHorizons(s), L) &
+                  * Wd(S, H, 1:nTillHorizons(S) ), &
+                  Wd(S, H, 1:nTillHorizons(S)) > 0.0_dp ) &
+                  + sum( latWat(S,nTillHorizons(S)+1-minval(nTillHorizons(:)) :nHorizons(s)-minval(nTillHorizons(:))) &
+                  * Wd(S, H, nTillHorizons(S)+1:nHorizons(S)), &
+                  Wd(S, H, nTillHorizons(S)+1:nHorizons(S)) > 0.0_dp )
+             L30(k) = sum( COSMIC_L3_till(S, :nTillHorizons(s), L) &
+                  * Wd(S, H, 1:nTillHorizons(S) ), &
+                  Wd(S, H, 1:nTillHorizons(S)) > 0.0_dp ) &
+                  + sum( COSMIC_L3(S,nTillHorizons(S)+1-minval(nTillHorizons(:)) :nHorizons(s)-minval(nTillHorizons(:))) &
+                  * Wd(S, H, nTillHorizons(S)+1:nHorizons(S)), &
+                  Wd(S, H, nTillHorizons(S)+1:nHorizons(S)) > 0.0_dp )
              ! Horizon depths: last soil horizon is varying, and thus the depth
              ! of the horizon too...
              if(H .eq. nHorizons_mHM) then
@@ -327,6 +358,8 @@ contains
              SMs0(k) = SMs0(k) * (dpth_t - dpth_f)
              FC0(k)  = FC0(k)  * (dpth_t - dpth_f)
              PW0(k)  = PW0(k)  * (dpth_t - dpth_f)
+             LW0(k)  = LW0(k)  * (dpth_t - dpth_f)
+             L30(k)  = L30(k)  * (dpth_t - dpth_f)
           end do cellloop0
           !$OMP END DO
           !$OMP END PARALLEL    
@@ -430,8 +463,14 @@ contains
                Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, SMs0 )
           L1_beta(:,h) = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
                Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, beta0 )
+          L1_bulkDens(:,h) = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
+               Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, Bd0 )
           L1_PW(:,h) = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
                Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, PW0 )
+          L1_latticeWater(:,h) = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
+               Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, LW0 )
+          L1_COSMICL3(:,h) = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
+               Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, L30 )
           L1_FC(:,h) = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
                Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, FC0 )
           L1_fRoots(:,h) = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
@@ -446,6 +485,8 @@ contains
           SMs0    = nodata
           FC0     = nodata
           PW0     = nodata
+          LW0     = nodata
+          L30     = nodata
           fRoots0 = nodata
           tmp_rootFractionCoefficient_perviousFC = nodata
           ! initalise mHM horizon depth
@@ -465,14 +506,18 @@ contains
              s =  soilID0(k,h)
              if ( h .le. nTillHorizons(1) ) then
                 Bd0(k)  = Db(s,1,L)
-                SMs0(k) = thetaS_till (s,1,L) * (dpth_t - dpth_f) ! in mm
-                FC0(k)  = thetaFC_till(s,1,L) * (dpth_t - dpth_f) ! in mm
-                PW0(k)  = thetaPW_till(s,1,L) * (dpth_t - dpth_f) ! in mm
+                SMs0(k) = thetaS_till   (s,1,L) * (dpth_t - dpth_f) ! in mm
+                FC0(k)  = thetaFC_till  (s,1,L) * (dpth_t - dpth_f) ! in mm
+                PW0(k)  = thetaPW_till  (s,1,L) * (dpth_t - dpth_f) ! in mm
+                LW0(k)  = latWat_till   (s,1,L) * (dpth_t - dpth_f) ! in mm
+                L30(k)  = COSMIC_L3_till(s,1,L) * (dpth_t - dpth_f) ! in mm
              else
                 Bd0(k)  = DbM(s,1)
-                SMs0(k) = thetaS (s,1) * (dpth_t - dpth_f) ! in mm
-                FC0(k)  = thetaFC(s,1) * (dpth_t - dpth_f) ! in mm
-                PW0(k)  = thetaPW(s,1) * (dpth_t - dpth_f) ! in mm          
+                SMs0(k) = thetaS   (s,1) * (dpth_t - dpth_f) ! in mm
+                FC0(k)  = thetaFC  (s,1) * (dpth_t - dpth_f) ! in mm
+                PW0(k)  = thetaPW  (s,1) * (dpth_t - dpth_f) ! in mm          
+                LW0(k)  = latWat   (s,1) * (dpth_t - dpth_f) ! in mm          
+                L30(k)  = COSMIC_L3(s,1) * (dpth_t - dpth_f) ! in mm          
              end if
           end do cellloop1
           !$OMP END DO
@@ -550,8 +595,14 @@ contains
                Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, SMs0 )
           L1_beta(:,h) = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
                Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, beta0)
+          L1_bulkDens(:,h) = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
+               Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, Bd0 )
           L1_PW(:,h)   = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
                Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, PW0  )
+          L1_latticeWater(:,h)   = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
+               Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, LW0  )
+          L1_COSMICL3(:,h)   = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
+               Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, L30  )
           L1_FC(:,h)   = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
                Lef_col_L1, Rig_col_L1, cell_id0, mask0, nodata, FC0  )
           L1_fRoots(:,h) = upscale_harmonic_mean( nL0_in_L1, Upp_row_L1, Low_row_L1, &
