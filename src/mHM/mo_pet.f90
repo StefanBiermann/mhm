@@ -591,7 +591,7 @@ CONTAINS
   ! ------------------------------------------------------------------
 
   !     NAME
-  !         nusselt_number
+  !         h_c
 
   !>        \brief calculation of average one-sided convective transfer coefficient (h_c)
 
@@ -645,9 +645,81 @@ CONTAINS
     real(dp), intent(in) :: nusselt_number  ! Nusselt number [1]
     real(dp)             :: h_c             ! average one-sided convective transfer coefficient [J K-1 m-2 s-1]
 
-    h_c = 6.84e-5_dp * (tavg + T0_dp) + 5.62e-3 * nusselt_number / L_l
+    h_c = 6.84e-5_dp * (tavg + T0_dp) + 5.62e-3_dp * nusselt_number / L_l
 
   END FUNCTION h_c
 
+  ! ------------------------------------------------------------------
+
+  !     NAME
+  !         g_bw
+
+  !>        \brief calculation of boundary layer conductance to water vapour (g_bw)
+
+  !>        \details calculation of boundary layer conductance to water vapour (g_bw)
+  !>
   !
+
+  !     INTENT(IN)
+  !>        \param[in] "real(dp), intent(in) :: tavg" temperature [degC]
+  !>
+
+  !     INTENT(INOUT)
+  !         None
+
+  !     INTENT(OUT)
+  !         None
+
+  !     INTENT(IN), OPTIONAL
+  !         None
+
+  !     INTENT(INOUT), OPTIONAL
+  !         None
+
+  !     INTENT(OUT), OPTIONAL
+  !         None
+
+  !     RETURN
+  !>        \return real(dp) :: g_bw &mdash; boundary layer conductance to water vapour [m s-1]
+
+  !     RESTRICTIONS
+  !         None
+
+  !     EXAMPLE
+  !         None
+
+  !     LITERATURE
+  !>         \note
+
+  !     HISTORY
+  !>        \author  Johannes Brenner
+  !>        \date    Jan 2018
+  !
+
+  elemental pure FUNCTION g_bw(tavg, act_vap_pressure, h_c, a_s)
+
+    use mo_constants, only: T0_dp, MN2_dp, MO2_dp, MH2O_dp, Rmol_dp, TWOTHIRD_dp, cp0_dp
+
+    implicit none
+
+    real(dp), intent(in) :: tavg             ! temperature [degC]
+    real(dp), intent(in) :: act_vap_pressure ! actual vapore pressure [kPa]
+    real(dp), intent(in) :: h_c              ! average one-sided convective transfer coefficient [J K-1 m-2 s-1]
+    real(dp), intent(in) :: a_s              ! fraction of one-sided leaf area covered by stomata [1]
+    real(dp)             :: g_bw             ! boundary layer conductance to water vapour [m s-1]
+    real(dp)             :: d_wa, alpha_a, rho_a
+
+    d_wa = 1.49e-7_dp * (tavg + T0_dp) + 1.96e-5_dp
+
+    alpha_a = 1.3e-7_dp * (tavg + T0_dp) - 1.73e-5_dp
+
+    rho_a = (79.0_dp * MN2_dp * (sat_vap_pressure(tavg) - act_vap_pressure ) * 100.0_dp + &
+            21.0_dp * MO2_dp * (sat_vap_pressure(tavg) - act_vap_pressure ) * 100.0_dp + &
+            100.0_dp * MH2O_dp * act_vap_pressure * 100.0_dp) / &
+            (100.0_dp * Rmol_dp * (tavg + T0_dp))
+
+    g_bw = a_s * h_c / ((alpha_a / d_wa) ** TWOTHIRD_dp * cp0_dp * rho_a)
+
+  END FUNCTION g_bw
+
 END MODULE mo_pet

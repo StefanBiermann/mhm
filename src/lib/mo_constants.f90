@@ -1,4 +1,4 @@
-!> \file mo_constants.f90
+  !> \file mo_constants.f90
 
 !> \brief Provides computational, mathematical, physical, and file constants
 
@@ -129,6 +129,22 @@ MODULE mo_constants
   REAL(dp), PARAMETER :: cp0_dp        = 1005.0_dp                   ! Standard specific heat of air
   !> specific heat capacity of air [J kg^-1 K^-1] in single precision
   REAL(sp), PARAMETER :: cp0_sp        = 1005.0_sp
+  !> molar mass of nitrogen [kg mol^-1] in double precision
+  REAL(dp), PARAMETER :: MN2_dp        = 0.028_dp
+  !> molar mass of nitrogen [kg mol^-1] in single precision
+  REAL(sp), PARAMETER :: MN2_sp        = 0.028_sp
+  !> molar mass of oxygen [kg mol^-1] in double precision
+  REAL(dp), PARAMETER :: MO2_dp        = 0.032_dp
+  !> molar mass of oxygen [kg mol^-1] in single precision
+  REAL(sp), PARAMETER :: MO2_sp        = 0.032_sp
+  !> molar mass of water [kg mol^-1] in double precision
+  REAL(dp), PARAMETER :: MH2O_dp        = 0.018_dp
+  !> molar mass of water [kg mol^-1] in single precision
+  REAL(sp), PARAMETER :: MH2O_sp        = 0.018_sp
+  !> molar gas constant [J K^-1 mol^-1] in double precision
+  REAL(dp), PARAMETER :: Rmol_dp        = 8.314472_dp
+  !> molar gas constant [J K^-1 mol^-1] in single precision
+  REAL(sp), PARAMETER :: Rmol_sp        = 8.314472_sp
 
   ! Numerical Recipes
   !> Pi in double precision
