@@ -526,10 +526,12 @@ CONTAINS
 
   !>        \details Calculation of the Nusselt number
   !>
-  !>
+  !
 
   !     INTENT(IN)
   !>        \param[in] "real(dp), intent(in) :: tavg" temperature [degC]
+  !>        \param[in] "real(dp), intent(in) :: ws" wind speed [m s-1]
+  !>        \param[in] "real(dp), intent(in) :: L_l" characteristic length scale of convection (size of leave) [m]
 
   !     INTENT(INOUT)
   !         None
@@ -561,6 +563,7 @@ CONTAINS
   !     HISTORY
   !>        \author  Johannes Brenner
   !>        \date    Jan 2018
+
   elemental pure FUNCTION nusselt_number(tavg, ws, L_l)
 
     use mo_constants, only: T0_dp
@@ -584,5 +587,67 @@ CONTAINS
          0.5_dp * abs(reynolds_N - reynolds_Nc))))
 
   END FUNCTION nusselt_number
+
+  ! ------------------------------------------------------------------
+
+  !     NAME
+  !         nusselt_number
+
+  !>        \brief calculation of average one-sided convective transfer coefficient (h_c)
+
+  !>        \details calculation of average one-sided convective transfer coefficient (h_c)
+  !>
+  !
+
+  !     INTENT(IN)
+  !>        \param[in] "real(dp), intent(in) :: tavg" temperature [degC]
+  !>        \param[in] "real(dp), intent(in) :: L_l" characteristic length scale of convection (size of leave) [m]
+
+  !     INTENT(INOUT)
+  !         None
+
+  !     INTENT(OUT)
+  !         None
+
+  !     INTENT(IN), OPTIONAL
+  !         None
+
+  !     INTENT(INOUT), OPTIONAL
+  !         None
+
+  !     INTENT(OUT), OPTIONAL
+  !         None
+
+  !     RETURN
+  !>        \return real(dp) :: h_c &mdash; average one-sided convective transfer coefficient [J K-1 m-2 s-1]
+
+  !     RESTRICTIONS
+  !         None
+
+  !     EXAMPLE
+  !         None
+
+  !     LITERATURE
+  !>         \note
+
+  !     HISTORY
+  !>        \author  Johannes Brenner
+  !>        \date    Jan 2018
+
+  elemental pure FUNCTION h_c(tavg, L_l, nusselt_number)
+
+    use mo_constants, only: T0_dp
+
+    implicit none
+
+    real(dp), intent(in) :: tavg            ! temperature [degC]
+    real(dp), intent(in) :: L_l             ! characteristic length scale of convection (size of leave) [m]
+    real(dp), intent(in) :: nusselt_number  ! Nusselt number [1]
+    real(dp)             :: h_c             ! average one-sided convective transfer coefficient [J K-1 m-2 s-1]
+
+    h_c = 6.84e-5_dp * (tavg + T0_dp) + 5.62e-3 * nusselt_number / L_l
+
+  END FUNCTION h_c
+
   !
 END MODULE mo_pet
