@@ -126,4 +126,8 @@ MODULE mo_mhm_constants
   real(dp),    public, parameter :: COSMIC_L3     = 107.82204562_dp   ! Fast Neutron Soil Attenuation Length (g/cm2)
   real(dp),    public, parameter :: COSMIC_L4     =   3.1627190566_dp ! Fast Neutron Water Attenuation Length (g/cm2)
 
+  !> Analytical solution leave energy budget, Schymanski and Or 2017
+  real(dp),    public, parameter :: prandtl_N     =   0.71_dp       ! Prandtl number (1)
+  real(dp),    public, parameter :: reynolds_Nc   =   3000_dp       ! critical Reynolds number for the onset of turbulence (1)
+
 END MODULE mo_mhm_constants
