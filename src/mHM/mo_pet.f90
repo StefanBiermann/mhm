@@ -22,6 +22,9 @@ MODULE mo_pet
   PRIVATE :: slope_satpressure
   PRIVATE :: sat_vap_pressure
   PRIVATE :: nusselt_number
+  PRIVATE :: h_c
+  PRIVATE :: g_bw
+  PRIVATE :: P_a
 
   PUBLIC :: pet_hargreaves ! Hargreaves-Samani
   PUBLIC :: pet_priestly   ! Priestley-Taylor
@@ -714,12 +717,74 @@ CONTAINS
     alpha_a = 1.3e-7_dp * (tavg + T0_dp) - 1.73e-5_dp
 
     rho_a = (79.0_dp * MN2_dp * (sat_vap_pressure(tavg) - act_vap_pressure ) * 100.0_dp + &
-            21.0_dp * MO2_dp * (sat_vap_pressure(tavg) - act_vap_pressure ) * 100.0_dp + &
-            100.0_dp * MH2O_dp * act_vap_pressure * 100.0_dp) / &
+             21.0_dp * MO2_dp * (sat_vap_pressure(tavg) - act_vap_pressure ) * 100.0_dp + &
+             100.0_dp * MH2O_dp * act_vap_pressure * 100.0_dp) / &
             (100.0_dp * Rmol_dp * (tavg + T0_dp))
 
     g_bw = a_s * h_c / ((alpha_a / d_wa) ** TWOTHIRD_dp * cp0_dp * rho_a)
 
   END FUNCTION g_bw
+
+  ! ------------------------------------------------------------------
+
+  !     NAME
+  !         P_a
+
+  !>        \brief calculation of air pressure (P_a)
+
+  !>        \details calculation of air pressure (P_a)
+  !>
+  !
+
+  !     INTENT(IN)
+  !>        \param[in] "real(dp), intent(in) :: tavg" temperature [degC]
+  !>        \param[in] "real(dp), intent(in) :: h" elevation a.s.l. [m]
+
+  !     INTENT(INOUT)
+  !         None
+
+  !     INTENT(OUT)
+  !         None
+
+  !     INTENT(IN), OPTIONAL
+  !         None
+
+  !     INTENT(INOUT), OPTIONAL
+  !         None
+
+  !     INTENT(OUT), OPTIONAL
+  !         None
+
+  !     RETURN
+  !>        \return real(dp) :: P_a &mdash; air pressure [Pa]
+
+  !     RESTRICTIONS
+  !         None
+
+  !     EXAMPLE
+  !         None
+
+  !     LITERATURE
+  !>         \note
+
+  !     HISTORY
+  !>        \author  Johannes Brenner
+  !>        \date    Jan 2018
+  !
+  elemental pure FUNCTION P_a(tavg, h)
+
+    use mo_constants, only: MN2_dp, MO2_dp, MAr_dp, MCO2_dp, P0_dp, Gravity_dp, Rmol_dp, T0_dp
+
+    implicit none
+
+    real(dp), intent(in) :: tavg             ! temperature [degC]
+    real(dp), intent(in) :: h                ! height a.s.l. [m]
+    real(dp)             :: P_a              ! air pressure [Pa]
+    real(dp)             :: M                ! mass of one molecule [kg mol^-1]
+
+    M = 0.7808_dp * MN2_dp + 0.2095_dp * MO2_dp + 0.0093_dp * MAr_dp + 0.0003_dp * MCO2_dp
+    P_a = P0_dp * exp(-(M * Gravity_dp) / (Rmol_dp * (tavg + T0_dp)) * h)
+
+  END FUNCTION P_a
 
 END MODULE mo_pet

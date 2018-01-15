@@ -141,6 +141,14 @@ MODULE mo_constants
   REAL(dp), PARAMETER :: MH2O_dp        = 0.018_dp
   !> molar mass of water [kg mol^-1] in single precision
   REAL(sp), PARAMETER :: MH2O_sp        = 0.018_sp
+  !> molar mass of Argon [kg mol^-1] in double precision
+  REAL(dp), PARAMETER :: MAr_dp        = 0.040_dp
+  !> molar mass of Argon [kg mol^-1] in single precision
+  REAL(sp), PARAMETER :: MAr_sp        = 0.040_sp
+  !> molar mass of CO2 [kg mol^-1] in double precision
+  REAL(dp), PARAMETER :: MCO2_dp        = 0.044_dp
+  !> molar mass of CO2 [kg mol^-1] in single precision
+  REAL(sp), PARAMETER :: MCO2_sp        = 0.044_sp
   !> molar gas constant [J K^-1 mol^-1] in double precision
   REAL(dp), PARAMETER :: Rmol_dp        = 8.314472_dp
   !> molar gas constant [J K^-1 mol^-1] in single precision
