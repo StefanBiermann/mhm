@@ -120,10 +120,10 @@ CONTAINS
   !                  Rohini Kumar,                    Mar 2016 - changes for handling multiple soil database options
   !                  Rohini Kumar,                    Dec 2016 - changes for reading gridded mean monthly LAI fields
   !                  Stephan Thober,                  Jan 2017 - added prescribed weights for tavg and pet
-  !                  Zink M. Demirel C.,              Mar 2017 - added Jarvis soil water stress function at SM process(3)  
+  !                  Zink M. Demirel C.,              Mar 2017 - added Jarvis soil water stress function at SM process(3)
   !                  M.Cuneyd Demirel & Simon Stisen  May 2017 - added FC dependency on root fraction coef. at SM process(3)
   !                  M.Cuneyd Demirel & Simon Stisen  Jun 2017 - added PET correction based on LAI at PET process(5)
-  !                                                  
+  !
   ! ------------------------------------------------------------------
 
   subroutine mHM(  &
@@ -146,7 +146,7 @@ CONTAINS
       ntimesteps_day      , & ! number of time intervals per day, transformed in dp
       mask0               , & ! mask 0 for MPR
       neutron_integral_AFast,&! tabular for neutron flux approximation
-      iflag_soil_option   , & ! flags for handling multiple soil databases      
+      iflag_soil_option   , & ! flags for handling multiple soil databases
       global_parameters   , & ! global mHM parameters
       ! LUT
       LCyearId            , & ! mapping of landcover scenes
@@ -238,7 +238,7 @@ CONTAINS
       deg_day_noprec      , & ! Degree-day factor with no precipitation
       deg_day             , & ! Degree-day factor
       fAsp                , & ! [1]     PET correction for Aspect at level 1
-      petLAIcorFactorL1   , & ! PET correction factor based on LAI at level 1    
+      petLAIcorFactorL1   , & ! PET correction factor based on LAI at level 1
       HarSamCoeff         , & ! [1]     PET Hargreaves Samani coefficient at level 1
       PrieTayAlpha        , & ! [1]     PET Priestley Taylor coefficient at level 1
       aeroResist          , & ! [s m-1] PET aerodynamical resitance at level 1
@@ -295,7 +295,7 @@ CONTAINS
     real(dp),                    intent(in) :: ntimesteps_day
     logical,     dimension(:,:), intent(in) :: mask0
     real(dp),    dimension(:),   intent(in) :: neutron_integral_AFast
-    integer(i4),                 intent(in) :: iflag_soil_option                
+    integer(i4),                 intent(in) :: iflag_soil_option
     real(dp),    dimension(:),   intent(in) :: global_parameters
 
     ! LUT
@@ -425,7 +425,7 @@ CONTAINS
     integer(i4)            :: year        ! year
     integer(i4)            :: doy         ! doy of the year [1-365 or 1-366]
     integer(i4)            :: k           ! cell index
-    integer(i4)            :: iStart, iEnd 
+    integer(i4)            :: iStart, iEnd
     real(dp)               :: pet         !
     real(dp)               :: prec        !
     real(dp)               :: temp        !
@@ -517,7 +517,7 @@ CONTAINS
                 soil_moist_FC, soil_moist_sat, soil_moist_exponen, jarvis_thresh_c1(:),   &
                 temp_thresh, unsat_thresh, water_thresh_sealed, wilting_point            )
         end if
-    
+
         !-------------------------------------------------------------------
         ! Update the inital states of soil water content for the first time
         ! step and when perform_mpr = FALSE
@@ -545,9 +545,9 @@ CONTAINS
                L0rightBound_inL1, cellId0, mask0,   &
                nodata_dp,  interc_max               )
 
-          if (processMatrix(5,1) == -1) then 
+          if (processMatrix(5,1) == -1) then
              iStart = processMatrix(5,3) - processMatrix(5,2) + 1
-             iEnd   = processMatrix(5,3)  
+             iEnd   = processMatrix(5,3)
 
              call pet_correctbyLAI(global_parameters(iStart:iEnd), nodata_dp, LCOVER0, LAI0, mask0, cellId0, &
                   L0upBound_inL1, L0downBound_inL1, L0leftBound_inL1, L0rightBound_inL1, nTCells0_inL1, petLAIcorFactorL1)
@@ -562,9 +562,9 @@ CONTAINS
                L0rightBound_inL1, cellId0, mask0,   &
                nodata_dp,  interc_max               )
 
-          if (processMatrix(5,1) == -1) then 
+          if (processMatrix(5,1) == -1) then
              iStart = processMatrix(5,3) - processMatrix(5,2) + 1
-             iEnd   = processMatrix(5,3)  
+             iEnd   = processMatrix(5,3)
 
              call pet_correctbyLAI(global_parameters(iStart:iEnd), nodata_dp, LCOVER0, LAI0, mask0, cellId0, &
                   L0upBound_inL1, L0downBound_inL1, L0leftBound_inL1, L0rightBound_inL1, nTCells0_inL1, petLAIcorFactorL1)
@@ -578,9 +578,9 @@ CONTAINS
                L0rightBound_inL1, cellId0, mask0,   &
                nodata_dp,  interc_max               )
 
-          if (processMatrix(5,1) == -1) then 
+          if (processMatrix(5,1) == -1) then
              iStart = processMatrix(5,3) - processMatrix(5,2) + 1
-             iEnd   = processMatrix(5,3)  
+             iEnd   = processMatrix(5,3)
 
              call pet_correctbyLAI(global_parameters(iStart:iEnd), nodata_dp, LCOVER0, LAI0, mask0, cellId0, &
                   L0upBound_inL1, L0downBound_inL1, L0leftBound_inL1, L0rightBound_inL1, nTCells0_inL1, petLAIcorFactorL1)
@@ -596,8 +596,8 @@ CONTAINS
 
           if (processMatrix(5,1) == -1) then
              iStart = processMatrix(5,3) - processMatrix(5,2) + 1
-             iEnd   = processMatrix(5,3)  
-             
+             iEnd   = processMatrix(5,3)
+
              call pet_correctbyLAI(global_parameters(iStart:iEnd), nodata_dp, LCOVER0, LAI0, mask0, cellId0, &
                   L0upBound_inL1, L0downBound_inL1, L0leftBound_inL1, L0rightBound_inL1, nTCells0_inL1, petLAIcorFactorL1)
           end if
@@ -632,7 +632,7 @@ CONTAINS
        case(1) ! Hargreaves-Samani
           ! estimate day of the year (doy) for approximation of the extraterrestrial radiation
           doy = nint(date2dec(day,month,year,12) - date2dec(1,1,year,12) ) + 1
-          
+
           if (tmax_in(k) .lt. tmin_in(k)) call message('WARNING: tmax smaller than tmin at doy ', &
                num2str(doy), ' in year ', num2str(year),' at cell', num2str(k),'!')
 
@@ -644,9 +644,9 @@ CONTAINS
           pet = pet_priestly( PrieTayAlpha(k,month), max(netrad_in(k), 0.0_dp), temp_in(k))
 
        case(3) ! Penman-Monteith
-          pet = pet_penman  (max(netrad_in(k), 0.0_dp), temp_in(k), absvappres_in(k)/1000.0_dp, &
+          pet = pet_penman  (max(netrad_in(k), 0.0_dp), 0.0_dp, temp_in(k), absvappres_in(k)/1000.0_dp, &
                aeroResist(k,month) / windspeed_in(k), surfResist(k,month), 1.0_dp, 1.0_dp)
-  
+
        end select
 
        ! temporal disaggreagtion of forcing variables
@@ -670,7 +670,7 @@ CONTAINS
 
        tmp_soilMoisture(:) = soilMoisture(k,:)
        tmp_infiltration(:) = infiltration(k,:)
-       
+
        call soil_moisture(processMatrix(3,1),                                                  & ! Intent IN
             fSealed1(k), water_thresh_sealed(k),                                               & ! Intent IN
             pet_calc(k), evap_coeff(month), soil_moist_sat(k,:), frac_roots(k,:),              & ! Intent IN
@@ -697,7 +697,7 @@ CONTAINS
             total_runoff(k) )                                                                    ! Intent OUT
 
        !-------------------------------------------------------------------
-       ! Nested model: Neutrons state variable, related to soil moisture   
+       ! Nested model: Neutrons state variable, related to soil moisture
        !-------------------------------------------------------------------
 
        ! based on soilMoisture

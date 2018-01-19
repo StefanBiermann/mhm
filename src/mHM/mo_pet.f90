@@ -25,6 +25,7 @@ MODULE mo_pet
   PRIVATE :: h_c
   PRIVATE :: g_bw
   PRIVATE :: P_a
+  PRIVATE :: T_l
 
   PUBLIC :: pet_hargreaves ! Hargreaves-Samani
   PUBLIC :: pet_priestly   ! Priestley-Taylor
@@ -230,13 +231,14 @@ CONTAINS
   !>                 equals the absorbed short-wave radiation, i.e. \f$ R_N = R_s \f$ (p.79 in Monteith and Unsworth, 2013).
 
   !     INTENT(IN)
-  !>        \param[in] "real(dp), intent(in) :: net_rad"                net radiation \f$[W m^{-2}]\f$
+  !>        \param[in] "real(dp), intent(in) :: net_rad"                net solar radiation \f$[W m^{-2}]\f$
+  !>        \param[in] "real(dp), intent(in) :: lw_rad_up"              long-wave radiation away from soil/leaf \f$[W m^{-2}]\f$
   !>        \param[in] "real(dp), intent(in) :: tavg"                   average daily temperature \f$[^{\circ}C]\f$
   !>        \param[in] "real(dp), intent(in) :: act_vap_pressure"       actual vapur pressure \f$[kPa]\f$
   !>        \param[in] "real(dp), intent(in) :: aerodyn_resistance"     aerodynmaical resistance \f$s\;m^{-1}\f$
   !>        \param[in] "real(dp), intent(in) :: bulksurface_resistance" bulk surface resistance  \f$s\;m^{-1}\f$
   !>        \param[in] "real(dp), intent(in) :: a_s"                    fraction of one-sided leaf area covered by stomata \f$1\f$
-  !>        \param[in] "real(dp), intent(in) :: a_sh"     fraction of projected area exchanging sensible heat with the air \f$1\f$
+  !>        \param[in] "real(dp), intent(in) :: a_sh"                   fraction of projected area exchanging sensible heat with the air \f$1\f$
   !>        \param[in] "real(dp)             :: pet_penman"             reference evapotranspiration \f$[mm\;s^{-1}]\f$
 
   !     INTENT(INOUT)
@@ -277,24 +279,25 @@ CONTAINS
   ! Modified,
   ! Johannes Brenner, Nov 2017 - include arguments a_s and a_sh to enable corrected MU approach
 
-  elemental pure FUNCTION pet_penman(net_rad, tavg, act_vap_pressure, aerodyn_resistance, bulksurface_resistance, a_s, a_sh)
+  elemental pure FUNCTION pet_penman(net_rad, lw_rad_up, tavg, act_vap_pressure, aerodyn_resistance, bulksurface_resistance, a_s, a_sh)
 
     use mo_mhm_constants, only: DaySecs
     use mo_constants,     only: Psychro_dp, SpecHeatET_dp, rho0_dp, cp0_dp
 
     implicit none
 
-    real(dp), intent(in) :: net_rad                ! net radiation
+    real(dp), intent(in) :: net_rad                ! net solar radiation
+    real(dp), intent(in) :: lw_rad_up              ! long-wave radiation away from soil/leaf
     real(dp), intent(in) :: tavg                   ! average daily temperature
     real(dp), intent(in) :: act_vap_pressure       ! actual vapur pressure
     real(dp), intent(in) :: aerodyn_resistance     ! aerodynmaical resistance
     real(dp), intent(in) :: bulksurface_resistance ! bulk surface resistance
     real(dp), intent(in) :: a_s                    ! fraction of one-sided leaf area covered by stomata
-    real(dp), intent(in) :: a_sh                   ! bulk surface resistance
+    real(dp), intent(in) :: a_sh                   ! fraction of projected area exchanging sensible heat with the air
     real(dp)             :: pet_penman             ! reference evapotranspiration in [mm s-1]
 
     pet_penman =  DaySecs / SpecHeatET_dp  *           & ! conversion factor [W m-2] to [mm d-1]
-                  (slope_satpressure(tavg) * net_rad + &
+                  (slope_satpressure(tavg) * (net_rad - lw_rad_up) + &
                   rho0_dp * cp0_dp * (sat_vap_pressure(tavg) - act_vap_pressure ) * a_sh / aerodyn_resistance) / &
                   (slope_satpressure(tavg) + Psychro_dp * a_sh / a_s * (1.0_dp + bulksurface_resistance/aerodyn_resistance))
 
@@ -786,5 +789,91 @@ CONTAINS
     P_a = P0_dp * exp(-(M * Gravity_dp) / (Rmol_dp * (tavg + T0_dp)) * h)
 
   END FUNCTION P_a
+
+  ! ------------------------------------------------------------------
+
+  !     NAME
+  !         T_l
+
+  !>        \brief calculation of leaf surace temperature (T_l)
+
+  !>        \details calculation of leaf surace temperature (T_l)
+  !>
+  !
+
+  !     INTENT(IN)
+  !>        \param[in] "real(dp), intent(in) :: Rs" solar short-wave flux [W m^-2]
+  !>        \param[in] "real(dp), intent(in) :: tavg" temperature [degC]
+  !>        \param[in] "real(dp), intent(in) :: delta_e" slope of saturation vapor pressure curve [kPa K^-1]
+  !>        \param[in] "real(dp), intent(in) :: act_vap_pressure"    actual vapur pressure [kPa]
+  !>        \param[in] "real(dp), intent(in) :: a_sh"     fraction of projected area exchanging sensible heat with the air \f$1\f$
+  !>        \param[in] "real(dp), intent(in) :: g_bw"     boundary layer conductance to water vapour [m s-1]
+  !     INTENT(INOUT)
+  !         None
+
+  !     INTENT(OUT)
+  !         None
+
+  !     INTENT(IN), OPTIONAL
+  !         None
+
+  !     INTENT(INOUT), OPTIONAL
+  !         None
+
+  !     INTENT(OUT), OPTIONAL
+  !         None
+
+  !     RETURN
+  !>        \return real(dp) :: T_l &mdash; leaf surace temperature [degC]
+
+  !     RESTRICTIONS
+  !         None
+
+  !     EXAMPLE
+  !         None
+
+  !     LITERATURE
+  !>         \note
+
+  !     HISTORY
+  !>        \author  Johannes Brenner
+  !>        \date    Jan 2018
+  !
+  elemental pure FUNCTION T_l(Rs, tavg, delta_e, act_vap_pressure, a_sh, g_bw, g_sw, P_a, h_c, eta1)
+
+    use mo_constants, only: MH2O_dp, sigma_dp, Rmol_dp, SpecHeatET_dp, T0_dp
+
+    implicit none
+
+    real(dp), intent(in) :: Rs               ! solar short-wave flux [W m^-2]
+    real(dp), intent(in) :: tavg             ! temperature [degC]
+    real(dp), intent(in) :: delta_e          ! slope of saturation vapor pressure curve [kPa K^-1]
+    real(dp), intent(in) :: act_vap_pressure ! actual vapur pressure [kPa]
+    real(dp), intent(in) :: a_sh             ! fraction of projected area exchanging sensible heat with the air [1]
+    real(dp), intent(in) :: g_bw             ! boundary layer conductance to water vapour [m s-1]
+    real(dp), intent(in) :: g_sw             ! stomatal conductance to water vapour [m s-1]
+    real(dp), intent(in) :: P_a              ! air pressure [Pa]
+    real(dp), intent(in) :: h_c              ! average one-sided convective transfer coefficient [J K-1 m-2 s-1]
+    real(dp), intent(in) :: eta1             ! long-wave emissivity of the leaf surface [1]
+    real(dp)             :: g_tw             ! total leaf layer conductance to water vapour [m s^-1]
+    real(dp)             :: g_tw_mol         ! total leaf layer conductance to water vapour [mol m^-2 s^-1]
+    real(dp)             :: c_e              ! latent heat tranfer coefficient [J Pa^-1 m^-2 s^-1]
+    real(dp)             :: c_h              ! sensible heat tranfer coefficient [J Pa^-1 m^-2 s^-1]
+    real(dp)             :: T_l              ! leaf surace temperature [degC]
+
+    g_tw = 1.0_dp / (1.0_dp/g_bw + 1.0_dp/g_sw)
+
+    g_tw_mol = g_tw * P_a / (Rmol_dp * tavg)
+
+    c_e = MH2O_dp * SpecHeatET_dp * g_tw_mol / P_a
+
+    c_h = a_sh * h_c
+
+    T_l = (Rs + c_h * (tavg + T0_dp) + c_e * (delta_e * (tavg + T0_dp) +&
+     act_vap_pressure * 1000.0_dp - sat_vap_pressure(tavg) * 1000.0_dp) +&
+     a_sh * eta1 * sigma_dp * (4.0_dp * (tavg + T0_dp)**4)) /&
+     (c_h + c_e * delta_e + 4.0_dp * eta1 * sigma_dp * (tavg + T0_dp)**3)
+
+  END FUNCTION T_l
 
 END MODULE mo_pet
