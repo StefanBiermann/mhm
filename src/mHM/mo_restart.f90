@@ -5,7 +5,7 @@
 !> \details routines are seperated for reading and writing variables for:\n
 !>          - states and fluxes, and \n
 !>          - configuration.\n
-!>          Reading of L11 configuration is also seperated from the rest, 
+!>          Reading of L11 configuration is also seperated from the rest,
 !>          since it is only required when routing is activated.
 
 !> \authors Stephan Thober
@@ -27,7 +27,7 @@ MODULE mo_restart
 
 CONTAINS
   ! ------------------------------------------------------------------
-  
+
   !      NAME
   !         write_restart
 
@@ -35,7 +35,7 @@ CONTAINS
   !>        \brief write restart files for each basin
 
   !>        \details write restart files for each basin. For each basin
-  !>        three restart files are written. These are xxx_states.nc, 
+  !>        three restart files are written. These are xxx_states.nc,
   !>        xxx_L11_config.nc, and xxx_config.nc (xxx being the three digit
   !>        basin index). If a variable is added here, it should also be added
   !>        in the read restart routines below.
@@ -60,7 +60,7 @@ CONTAINS
 
   !     RETURN
 
-  !     RESTRICTIONS 
+  !     RESTRICTIONS
   !         None
 
   !     EXAMPLE
@@ -76,9 +76,9 @@ CONTAINS
   !                   Stephan Thober  Aug  2015  - moved write of routing states to mRM
   !                   David Schaefer  Nov  2015  - mo_netcdf
   !                   Stephan Thober  Nov  2016  - moved processMatrix to common variables
-  !                   Zink M. Demirel C.,Mar 2017 - Added Jarvis soil water stress function at SM process(3)  
+  !                   Zink M. Demirel C.,Mar 2017 - Added Jarvis soil water stress function at SM process(3)
 
-  ! ------------------------------------------------------------------ 
+  ! ------------------------------------------------------------------
   subroutine write_restart_files( OutPath )
 
     use mo_kind,             only: i4, dp
@@ -139,14 +139,14 @@ CONTAINS
         L1_sealedThresh, &
         L1_wiltingPoint, &
         basin, &
-        L0_cellCoor    ,          & 
-        L0_Id         ,           & ! Ids of grid at level-0 
+        L0_cellCoor    ,          &
+        L0_Id         ,           & ! Ids of grid at level-0
         L0_slope_emp  ,           & ! Empirical quantiles of slope
         L0_areaCell,              & ! Ids of grid at level-0
         L1_areaCell,              & ! [km2] Effective area of cell at this level
         L1_Id         ,           & ! Ids of grid at level-1
         L1_cellCoor    ,          &
-        L1_upBound_L0 ,           & ! Row start at finer level-0 scale 
+        L1_upBound_L0 ,           & ! Row start at finer level-0 scale
         L1_downBound_L0,          & ! Row end at finer level-0 scale
         L1_leftBound_L0,          & ! Col start at finer level-0 scale
         L1_rightBound_L0,         & ! Col end at finer level-0 scale
@@ -175,7 +175,7 @@ CONTAINS
     type(NcDataset)                          :: nc
     type(NcDimension)                        :: rows0, cols0, rows1, cols1, soil1, months
     type(NcVariable)                         :: var
-    
+
     basin_loop: do iBasin = 1, size(OutPath)
 
        ! get Level0 information about the basin
@@ -206,7 +206,7 @@ CONTAINS
        call var%setFillValue(nodata_dp)
        call var%setData(unpack(L1_fForest(s1:e1), mask1, nodata_dp))
        call var%setAttribute("long_name","fraction of Forest area at level 1")
-      
+
        var = nc%setVariable("L1_fPerm","f64",(/rows1,cols1/))
        call var%setFillValue(nodata_dp)
        call var%setData(unpack(L1_fPerm(s1:e1), mask1, nodata_dp))
@@ -304,7 +304,7 @@ CONTAINS
        call var%setFillValue(nodata_dp)
        call var%setData(unpack(L1_rain(s1:e1), mask1, nodata_dp))
        call var%setAttribute("long_name","rain (liquid water) at level 1")
-       
+
        var = nc%setVariable("L1_runoffSeal","f64",(/rows1,cols1/))
        call var%setFillValue(nodata_dp)
        call var%setData(unpack(L1_runoffSeal(s1:e1), mask1, nodata_dp))
@@ -420,20 +420,20 @@ CONTAINS
        call var%setData(dummy_d3)
        call var%setAttribute("long_name","Exponential parameter to how non-linear is the soil water retention at level 1")
 
-       if (processMatrix(3,1) == 2) then    
+       if (processMatrix(3,1) == 2) then
             var = nc%setVariable("L1_jarvis_thresh_c1","f64",(/rows1,cols1/))
             call var%setFillValue(nodata_dp)
             call var%setData(unpack(L1_jarvis_thresh_c1(s1:e1), mask1, nodata_dp))
             call var%setAttribute("long_name","jarvis critical value for normalized soil water content")
        end if
-       
-       if (processMatrix(5,1) == -1) then 
+
+       if (processMatrix(5,1) == -1) then
             var = nc%setVariable("L1_petLAIcorFactor","f64",(/rows1,cols1/))
             call var%setFillValue(nodata_dp)
             call var%setData(unpack(L1_petLAIcorFactor(s1:e1), mask1, nodata_dp))
             call var%setAttribute("long_name","PET correction factor based on LAI")
        end if
-     
+
        var = nc%setVariable("L1_tempThresh","f64",(/rows1,cols1/))
        call var%setFillValue(nodata_dp)
        call var%setData(unpack(L1_tempThresh(s1:e1), mask1, nodata_dp))
@@ -493,7 +493,7 @@ CONTAINS
 
           deallocate( dummy_d3 )
 
-       case(3) ! Penman-Monteith
+       case(3:4) ! Penman-Monteith
 
           allocate( dummy_d3( nrows1, ncols1, size( L1_aeroResist, 2) ) )
           do ii = 1, size( dummy_d3, 3 )
@@ -532,7 +532,7 @@ CONTAINS
        call var%setFillValue(nodata_i4)
        call var%setData(unpack(L0_Id(s0:e0), mask0, nodata_i4))
        call var%setAttribute("long_name","cell IDs at level 0")
-       
+
        var = nc%setVariable("L0_areaCell","f64",(/rows0,cols0/))
        call var%setFillValue(nodata_dp)
        call var%setData(unpack(L0_areaCell(s0:e0), mask0, nodata_dp))
@@ -596,9 +596,9 @@ CONTAINS
        call var%setAttribute("long_name","Effective area of cell at this level [km2]")
 
        call nc%close()
-       
+
     end do basin_loop
-    
+
   end subroutine write_restart_files
 
   ! ------------------------------------------------------------------
@@ -636,7 +636,7 @@ CONTAINS
 
   !     RETURN
 
-  !     RESTRICTIONS 
+  !     RESTRICTIONS
   !>        \note Restart Files must have the format, as if
   !>        it would have been written by subroutine write_restart_files
 
@@ -650,7 +650,7 @@ CONTAINS
   !>        \author Stephan Thober
   !>        \date Apr 2013
   !         Modified  David Schaefer   Nov 2015 - mo_netcdf
-  !                   Zink M. Demirel C.,Mar 2017 - Added Jarvis soil water stress function at SM process(3)  
+  !                   Zink M. Demirel C.,Mar 2017 - Added Jarvis soil water stress function at SM process(3)
 
   subroutine read_restart_config( iBasin, soilId_isPresent, InPath )
 
@@ -666,11 +666,11 @@ CONTAINS
          perform_mpr,       & ! switch that controls whether mpr is performed or not
          L0_soilId,         & ! soil IDs at lower level
          iFlag_soilDB,      & ! options to handle different types of soil databases
-         nSoilHorizons_mHM, & ! soil horizons info for mHM         
-         L0_cellCoor      , & 
-         L0_Id            , & ! Ids of grid at level-0 
+         nSoilHorizons_mHM, & ! soil horizons info for mHM
+         L0_cellCoor      , &
+         L0_Id            , & ! Ids of grid at level-0
          L0_slope_emp     , & ! Empirical quantiles of slope
-         basin,             & 
+         basin,             &
          nBasins,           &
          level1,            &
          L0_nCells,         &
@@ -681,7 +681,7 @@ CONTAINS
          L1_nCells,           &
          L1_Id         ,      & ! Ids of grid at level-1
          L1_cellCoor   ,      &
-         L1_upBound_L0 ,      & ! Row start at finer level-0 scale 
+         L1_upBound_L0 ,      & ! Row start at finer level-0 scale
          L1_downBound_L0,     & ! Row end at finer level-0 scale
          L1_leftBound_L0,     & ! Col start at finer level-0 scale
          L1_rightBound_L0,    & ! Col end at finer level-0 scale
@@ -696,7 +696,7 @@ CONTAINS
 
     !
     integer(i4)                                          :: nrows0   ! Number of rows at level 0
-    integer(i4)                                          :: ncols0   ! Number of cols at level 
+    integer(i4)                                          :: ncols0   ! Number of cols at level
     integer(i4)                                          :: iStart0, iEnd0
     logical, dimension(:,:), allocatable                 :: mask0    ! Mask at Level 0
     integer(i4)                                          :: nrows1   ! Number of rows at level 1
@@ -709,17 +709,17 @@ CONTAINS
     integer(i4)                                          :: ii, kk, nH
     integer(i4), dimension(:,:),   allocatable           :: dummyI2  ! dummy, 2 dimension I4
     integer(i4), dimension(:,:),   allocatable           :: dummyI22 ! 2nd dummy, 2 dimension I4
-    real(dp),    dimension(:,:),   allocatable           :: dummyD2  ! dummy, 2 dimension DP 
+    real(dp),    dimension(:,:),   allocatable           :: dummyD2  ! dummy, 2 dimension DP
 
     ! local variables
     character(256)   :: Fname
     type(NcDataset)  :: nc
     type(NcVariable) :: var
-    
+
     ! read config
     Fname = trim(InPath) // 'mHM_restart_' // trim(num2str(iBasin, '(i3.3)')) // '.nc' ! '_restart.nc'
     call message('    Reading config from     ', trim(adjustl(Fname)),' ...')
- 
+
     !
     ! level-0 information
     call get_basin_info( iBasin, 0, nrows0, ncols0, iStart= iStart0, iEnd=iEnd0, mask=mask0, &
@@ -843,7 +843,7 @@ CONTAINS
        allocate(basin%L1_iStart(nBasins))
        allocate(basin%L1_iEnd  (nBasins))
        allocate(basin%L1_iStartMask(nBasins))
-       allocate(basin%L1_iEndMask   (nBasins))    
+       allocate(basin%L1_iEndMask   (nBasins))
 
        ! basin information
        basin%L1_iStart(iBasin) = 1
@@ -878,7 +878,7 @@ CONTAINS
     dummyI22(:,2) = pack( dummyI2, mask1 )
     call append( L1_cellCoor, dummyI22)
     deallocate( dummyI22 )
-    ! 
+    !
     var = nc%getVariable("L1_upBound_L0")
     call var%getData(dummyI2)
     call append( L1_upBound_L0   , pack( dummyI2, mask1) )
@@ -917,7 +917,7 @@ CONTAINS
   !     PURPOSE
   !>        \brief reads fluxes and state variables from file
 
-  !>        \details read fluxes and state variables from given 
+  !>        \details read fluxes and state variables from given
   !>        restart directory and initialises all state variables
   !>        that are initialized in the subroutine initialise,
   !>        contained in module mo_startup.
@@ -943,7 +943,7 @@ CONTAINS
 
   !     RETURN
 
-  !     RESTRICTIONS 
+  !     RESTRICTIONS
   !>        \note Restart Files must have the format, as if
   !>        it would have been written by subroutine write_restart_files
 
@@ -1044,11 +1044,11 @@ CONTAINS
 
     type(NcDataset) :: nc
     type(NcVariable) :: var
-    
+
     Fname = trim(InPath) // 'mHM_restart_' // trim(num2str(iBasin, '(i3.3)')) // '.nc'
     ! call message('    Reading states from ', trim(adjustl(Fname)),' ...')
 
-    
+
     ! get basin information at level 1
     call get_basin_info( iBasin, 1, nrows1, ncols1, ncells=ncells1, &
          iStart=s1, iEnd=e1, mask=mask1 )
@@ -1099,7 +1099,7 @@ CONTAINS
     var = nc%getVariable("L1_satSTW")
     call var%getData(dummyD2)
     L1_satSTW(s1:e1) = pack( dummyD2, mask1 )
-    
+
     ! Soil moisture of each horizon
     var = nc%getVariable("L1_soilMoist")
     call var%getData(dummyD3)
@@ -1109,7 +1109,7 @@ CONTAINS
 
     !-------------------------------------------
     ! FLUXES
-    !-------------------------------------------   
+    !-------------------------------------------
 
     !  soil actual ET
     var = nc%getVariable("L1_aETSoil")
@@ -1121,17 +1121,17 @@ CONTAINS
     ! canopy actual ET
     var = nc%getVariable("L1_aETCanopy")
     call var%getData(dummyD2)
-    L1_aETCanopy(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_aETCanopy(s1:e1) = pack( dummyD2, mask1 )
 
     ! sealed area actual ET
     var = nc%getVariable("L1_aETSealed")
     call var%getData(dummyD2)
-    L1_aETSealed(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_aETSealed(s1:e1) = pack( dummyD2, mask1 )
 
     ! baseflow
     var = nc%getVariable("L1_baseflow")
     call var%getData(dummyD2)
-    L1_baseflow(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_baseflow(s1:e1) = pack( dummyD2, mask1 )
 
     ! soil in-exfiltration
     var = nc%getVariable("L1_infilSoil")
@@ -1153,7 +1153,7 @@ CONTAINS
     ! percolation
     var = nc%getVariable("L1_percol")
     call var%getData(dummyD2)
-    L1_percol(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_percol(s1:e1) = pack( dummyD2, mask1 )
 
     ! effective precip. depth (snow melt + rain)
     var = nc%getVariable("L1_preEffect")
@@ -1163,7 +1163,7 @@ CONTAINS
     ! rain (liquid water)
     var = nc%getVariable("L1_rain")
     call var%getData(dummyD2)
-    L1_rain(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_rain(s1:e1) = pack( dummyD2, mask1 )
 
     ! runoff from impervious area
     var = nc%getVariable("L1_runoffSeal")
@@ -1173,14 +1173,14 @@ CONTAINS
     ! slow runoff
     var = nc%getVariable("L1_slowRunoff")
     call var%getData(dummyD2)
-    L1_slowRunoff(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_slowRunoff(s1:e1) = pack( dummyD2, mask1 )
 
     ! snow (solid water)
     var = nc%getVariable("L1_snow")
     call var%getData(dummyD2)
     L1_snow(s1:e1) = pack( dummyD2, mask1 )
 
-    ! throughfall 
+    ! throughfall
     var = nc%getVariable("L1_Throughfall")
     call var%getData(dummyD2)
     L1_Throughfall(s1:e1) = pack( dummyD2, mask1 )
@@ -1197,64 +1197,64 @@ CONTAINS
     ! exponent for the upper reservoir
     var = nc%getVariable("L1_alpha")
     call var%getData(dummyD2)
-    L1_alpha(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_alpha(s1:e1) = pack( dummyD2, mask1 )
 
     ! increase of the Degree-day factor per mm of increase in precipitation
     var = nc%getVariable("L1_degDayInc")
     call var%getData(dummyD2)
-    L1_degDayInc(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_degDayInc(s1:e1) = pack( dummyD2, mask1 )
 
-    ! maximum degree-day factor 
+    ! maximum degree-day factor
     var = nc%getVariable("L1_degDayMax")
     call var%getData(dummyD2)
-    L1_degDayMax(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_degDayMax(s1:e1) = pack( dummyD2, mask1 )
 
     ! degree-day factor with no precipitation
     var = nc%getVariable("L1_degDayNoPre")
     call var%getData(dummyD2)
-    L1_degDayNoPre(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_degDayNoPre(s1:e1) = pack( dummyD2, mask1 )
 
     ! degree-day factor
     var = nc%getVariable("L1_degDay")
     call var%getData(dummyD2)
-    L1_degDay(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_degDay(s1:e1) = pack( dummyD2, mask1 )
 
     ! Karstic percolation loss
     var = nc%getVariable("L1_karstLoss")
     call var%getData(dummyD2)
-    L1_karstLoss(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_karstLoss(s1:e1) = pack( dummyD2, mask1 )
 
-    ! Fraction of roots in soil horizons    
+    ! Fraction of roots in soil horizons
     var = nc%getVariable("L1_fRoots")
     call var%getData(dummyD3)
     do ii = 1, nSoilHorizons_mHM
        L1_fRoots(s1:e1, ii) = pack( dummyD3( :,:,ii), mask1)
     end do
 
-    ! Maximum interception 
+    ! Maximum interception
     var = nc%getVariable("L1_maxInter")
     call var%getData(dummyD2)
-    L1_maxInter(s1:e1) = pack(dummyD2, mask1) 
+    L1_maxInter(s1:e1) = pack(dummyD2, mask1)
 
-    ! fast interflow recession coefficient 
+    ! fast interflow recession coefficient
     var = nc%getVariable("L1_kfastFlow")
     call var%getData(dummyD2)
-    L1_kfastFlow(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_kfastFlow(s1:e1) = pack( dummyD2, mask1 )
 
-    ! slow interflow recession coefficient 
+    ! slow interflow recession coefficient
     var = nc%getVariable("L1_kSlowFlow")
     call var%getData(dummyD2)
-    L1_kSlowFlow(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_kSlowFlow(s1:e1) = pack( dummyD2, mask1 )
 
-    ! baseflow recession coefficient 
+    ! baseflow recession coefficient
     var = nc%getVariable("L1_kBaseFlow")
     call var%getData(dummyD2)
-    L1_kBaseFlow(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_kBaseFlow(s1:e1) = pack( dummyD2, mask1 )
 
     ! percolation coefficient
     var = nc%getVariable("L1_kPerco")
     call var%getData(dummyD2)
-    L1_kPerco(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_kPerco(s1:e1) = pack( dummyD2, mask1 )
 
     ! Soil moisture below which actual ET is reduced linearly till PWP
     ! for processCase(3) = 1
@@ -1278,24 +1278,24 @@ CONTAINS
        L1_soilMoistExp(s1:e1, ii) = pack( dummyD3( :,:,ii), mask1)
     end do
 
-    if (processMatrix(3,1) == 2) then 
+    if (processMatrix(3,1) == 2) then
         ! jarvis critical value for normalized soil water content
         var = nc%getVariable("L1_jarvis_thresh_c1")
         call var%getData(dummyD2)
-        L1_jarvis_thresh_c1(s1:e1) = pack( dummyD2, mask1 ) 
+        L1_jarvis_thresh_c1(s1:e1) = pack( dummyD2, mask1 )
     end if
-  
-    if (processMatrix(5,1) == -1) then 
+
+    if (processMatrix(5,1) == -1) then
         ! PET correction factor based on LAI
         var = nc%getVariable("L1_petLAIcorFactor")
         call var%getData(dummyD2)
-        L1_petLAIcorFactor(s1:e1) = pack( dummyD2, mask1 ) 
+        L1_petLAIcorFactor(s1:e1) = pack( dummyD2, mask1 )
     end if
-     
-    ! Threshold temperature for snow/rain 
+
+    ! Threshold temperature for snow/rain
     var = nc%getVariable("L1_tempThresh")
     call var%getData(dummyD2)
-    L1_tempThresh(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_tempThresh(s1:e1) = pack( dummyD2, mask1 )
 
     ! Threshhold water depth controlling fast interflow
     var = nc%getVariable("L1_unsatThresh")
@@ -1305,7 +1305,7 @@ CONTAINS
     ! Threshhold water depth for surface runoff in sealed surfaces
     var = nc%getVariable("L1_sealedThresh")
     call var%getData(dummyD2)
-    L1_sealedThresh(s1:e1) = pack( dummyD2, mask1 ) 
+    L1_sealedThresh(s1:e1) = pack( dummyD2, mask1 )
 
     ! Permanent wilting point
     var = nc%getVariable("L1_wiltingPoint")
@@ -1321,26 +1321,26 @@ CONTAINS
        ! PET correction factor due to LAI
        var = nc%getVariable("L1_petLAIcorFactor")
        call var%getData(dummyD2)
-       L1_petLAIcorFactor(s1:e1) = pack( dummyD2, mask1 ) 
-       
+       L1_petLAIcorFactor(s1:e1) = pack( dummyD2, mask1 )
+
     case(0) ! PET is input
 
        ! PET correction factor due to terrain aspect
        var = nc%getVariable("L1_fAsp")
        call var%getData(dummyD2)
-       L1_fAsp(s1:e1) = pack( dummyD2, mask1 ) 
+       L1_fAsp(s1:e1) = pack( dummyD2, mask1 )
 
     case(1) ! Hargreaves-Samani
 
        ! PET correction factor due to terrain aspect
        var = nc%getVariable("L1_fAsp")
        call var%getData(dummyD2)
-       L1_fAsp(s1:e1) = pack( dummyD2, mask1 ) 
+       L1_fAsp(s1:e1) = pack( dummyD2, mask1 )
 
        ! Hargreaves Samani coeffiecient
        var = nc%getVariable("L1_HarSamCoeff")
        call var%getData(dummyD2)
-       L1_HarSamCoeff(s1:e1) = pack( dummyD2, mask1 ) 
+       L1_HarSamCoeff(s1:e1) = pack( dummyD2, mask1 )
 
     case(2) ! Priestely-Taylor
 

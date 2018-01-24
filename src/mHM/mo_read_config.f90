@@ -76,11 +76,11 @@ CONTAINS
   !>        \author Matthias Zink
   !>        \date Dec 2012
   !         Modified Luis Samaniego,              Jan 2013 - messages
-  !                  Rohini Kumar              
+  !                  Rohini Kumar
   !                  Matthias Cuntz,              Jan  2013 - namelist consolidation and positioning
   !                  Matthias Zink,               Jan  2013 - bug fix, added gaugeinfo reading
   !                  Rohini Kumar,                Jun  2013 - added restart flags
-  !                  R. Kumar &            
+  !                  R. Kumar &
   !                  S. Thober,                   Aug. 2013 - code change to incorporate output timestep
   !                                                           during writing of the netcdf file
   !                  Rohini Kumar,                Aug  2013 - name changed from "inputFormat" to inputFormat_meteo_forcings
@@ -106,8 +106,8 @@ CONTAINS
   !                  Rohini Kumar,                Mar  2016 - options to handle different soil databases
   !                  Stephan Thober,              Nov  2016 - moved nProcesses and processMatrix to common variables
   !                  Rohini Kumar,                Dec  2016 - option to handle monthly mean gridded fields of LAI
-  !                  M.Zink & M. Cuneyd Demirel   Mar  2017 - Added Jarvis soil water stress function at SM process(3)  
-  !                  M.C. Demirel & Simon Stisen  Apr  2017 - Added FC dependency on root fraction coefficient (ET) at SM process(3)  
+  !                  M.Zink & M. Cuneyd Demirel   Mar  2017 - Added Jarvis soil water stress function at SM process(3)
+  !                  M.C. Demirel & Simon Stisen  Apr  2017 - Added FC dependency on root fraction coefficient (ET) at SM process(3)
   !                  Robert Schweppe              Dec  2017 - switched from fractional julian day to integer
 
 
@@ -119,7 +119,7 @@ CONTAINS
     use mo_utils,            only: EQ
     use mo_string_utils,     only: num2str
     use mo_nml,              only: open_nml, close_nml, position_nml
-    use mo_constants,        only: eps_dp                     ! epsilon(1.0) in double precision 
+    use mo_constants,        only: eps_dp                     ! epsilon(1.0) in double precision
     use mo_mhm_constants,    only:                          &
          nodata_i4, nodata_dp,                              & ! nodata values
          nColPars,                                          & ! number of properties of the global variables
@@ -179,13 +179,13 @@ CONTAINS
          timeStep_LAI_input,                                & ! time step of gridded LAI input
          iFlag_cordinate_sys,                               & ! model run cordinate system
          project_details,                                   & ! project including funding instituion., PI, etc.
-         setup_description,                                 & ! any specific description of simulation 
+         setup_description,                                 & ! any specific description of simulation
          simulation_type,                                   & ! e.g. seasonal forecast, climate projection, ...
          Conventions,                                       & ! convention used for dataset
          contact,                                           & ! contact details, incl. PI name, modellers
          mHM_details,                                       & ! developing institution, version, specific mHM revision
          history                                              ! details on version/creation date
-    
+
     use mo_common_variables, only: &
          nProcesses, processMatrix,                         & ! process configuration
          global_parameters,                                 & ! global parameters
@@ -242,15 +242,15 @@ CONTAINS
     real(dp), dimension(nColPars)                   :: jarvis_sm_threshold_c1
     real(dp), dimension(nColPars)                   :: rootFractionCoefficient_sand
     real(dp), dimension(nColPars)                   :: rootFractionCoefficient_clay
-    
+
     ! directRunoff
     real(dp), dimension(nColPars)                   :: imperviousStorageCapacity
-    ! PET0   
+    ! PET0
     real(dp), dimension(nColPars)                   :: PET_a_forest
     real(dp), dimension(nColPars)                   :: PET_a_impervious
     real(dp), dimension(nColPars)                   :: PET_a_pervious
     real(dp), dimension(nColPars)                   :: PET_b
-    real(dp), dimension(nColPars)                   :: PET_c 
+    real(dp), dimension(nColPars)                   :: PET_c
     real(dp), dimension(nColPars)                   :: minCorrectionFactorPET
     real(dp), dimension(nColPars)                   :: maxCorrectionFactorPET
     real(dp), dimension(nColPars)                   :: aspectTresholdPET
@@ -333,7 +333,7 @@ CONTAINS
     ! define namelists
     ! namelist directories
     namelist /project_description/ project_details, setup_description, simulation_type, &
-         Conventions, contact, mHM_details, history    
+         Conventions, contact, mHM_details, history
     namelist /directories_general/ dirConfigOut, dirCommonFiles, &
          dir_Morpho, dir_LCover,                                 &
          dir_Out, dir_RestartOut,                                &
@@ -396,7 +396,7 @@ CONTAINS
 
          namelist /directRunoff1/ imperviousStorageCapacity
     ! PET is input, LAI driven correction
-    namelist /PETminus1/  PET_a_forest, PET_a_impervious, PET_a_pervious, PET_b, PET_c            
+    namelist /PETminus1/  PET_a_forest, PET_a_impervious, PET_a_pervious, PET_b, PET_c
     ! PET is input, aspect driven correction
     namelist /PET0/  minCorrectionFactorPET, maxCorrectionFactorPET, aspectTresholdPET
     ! Hargreaves-Samani
@@ -405,6 +405,8 @@ CONTAINS
     namelist /PET2/  PriestleyTaylorCoeff, PriestleyTaylorLAIcorr
     ! Penman-Monteith
     namelist /PET3/  canopyheigth_forest, canopyheigth_impervious, canopyheigth_pervious, displacementheight_coeff, &
+         roughnesslength_momentum_coeff, roughnesslength_heat_coeff, stomatal_resistance
+    namelist /PET4/  canopyheigth_forest, canopyheigth_impervious, canopyheigth_pervious, displacementheight_coeff, &
          roughnesslength_momentum_coeff, roughnesslength_heat_coeff, stomatal_resistance
     namelist /interflow1/ interflowStorageCapacityFactor, interflowRecession_slope, fastInterflowRecession_forest, &
          slowInterflowRecession_Ks, exponentSlowInterflow
@@ -427,7 +429,7 @@ CONTAINS
     !===============================================================
     call position_nml('project_description', unamelist)
     read(unamelist, nml=project_description)
-    
+
     !===============================================================
     !  Read namelist specifying the model configuration
     !===============================================================
@@ -573,7 +575,7 @@ CONTAINS
     dirRestartIn      = dir_RestartIn(1:nBasins)
     fileLatLon        = file_LatLon(1:nBasins)
     dirgridded_LAI    = dir_gridded_LAI(1:nBasins)
-    
+
     ! counter checks -- soil horizons
     if (nSoilHorizons_mHM .GT. maxNoSoilHorizons) then
        call message()
@@ -589,7 +591,7 @@ CONTAINS
 
     allocate( HorizonDepth_mHM(nSoilHorizons_mHM) )
     HorizonDepth_mHM(:) = 0.0_dp
-   
+
     if( iFlag_soilDB .eq. 0 ) then
        ! classical mhm soil database
        HorizonDepth_mHM(1:nSoilHorizons_mHM-1) = soil_Depth(1:nSoilHorizons_mHM-1)
@@ -610,7 +612,7 @@ CONTAINS
           stop
        end if
     end if
-   
+
     !===============================================================
     !  Read namelist of optional input data
     !===============================================================
@@ -637,7 +639,7 @@ CONTAINS
 
     allocate(basin_avg_TWS_obs%basinId(nBasins)); basin_avg_TWS_obs%basinId = nodata_i4
     allocate(basin_avg_TWS_obs%fName  (nBasins)); basin_avg_TWS_obs%fName(:)= num2str(nodata_i4)
-    
+
     do iBasin = 1, nBasins
        if (trim(fileTWS(iBasin)) .EQ. trim(num2str(nodata_i4))) then
           call message()
@@ -647,7 +649,7 @@ CONTAINS
           call message('          Error occured in namelist: evaluation_tws')
           stop
        end if
-       
+
        basin_avg_TWS_obs%basinId(iBasin) = iBasin
        basin_avg_TWS_obs%fname(iBasin)   = trim(file_TWS(iBasin))
     end do
@@ -882,7 +884,7 @@ CONTAINS
 
     ! Process 3 - soilmoisture
     select case (processCase(3))
-    
+
     ! 1 - Feddes equation for PET reduction, bucket approach, Brooks-Corey like
     case(1)
        call position_nml('soilmoisture1', unamelist_param)
@@ -980,7 +982,7 @@ CONTAINS
             'infiltrationShapeFactor           ', &
             'jarvis_sm_threshold_c1            '/))
 
-            
+
     ! 3- Jarvis equation for ET reduction and FC dependency on root fraction coefficient
     case(3)
        call position_nml('soilmoisture3', unamelist_param)
@@ -1028,16 +1030,16 @@ CONTAINS
             'rootFractionCoefficient_pervious  ', &
             'infiltrationShapeFactor           ', &
             'rootFractionCoefficient_sand      ', &
-            'rootFractionCoefficient_clay      ', &      
-            'jarvis_sm_threshold_c1            '/))            
-            
+            'rootFractionCoefficient_clay      ', &
+            'jarvis_sm_threshold_c1            '/))
+
        ! check if parameter are in range
        if ( .not. in_bound(global_parameters) ) then
           call message('***ERROR: parameter in namelist "soilmoisture1" out of bound in ', &
                trim(adjustl(file_namelist_param)))
           stop
        end if
-       
+
     case DEFAULT
        call message()
        call message('***ERROR: Process description for process "soilmoisture" does not exist!')
@@ -1083,37 +1085,37 @@ CONTAINS
        call append(global_parameters, reshape(PET_a_pervious,   (/1, nColPars/)))
        call append(global_parameters, reshape(PET_b,            (/1, nColPars/)))
        call append(global_parameters, reshape(PET_c,            (/1, nColPars/)))
-                                                                 
-       call append(global_parameters_name, (/ &                                  
-            'PET_a_forest     ', &                                                   
-            'PET_a_impervious ', &                                               
-            'PET_a_pervious   ', &                                             
-            'PET_b            ', &                                             
-            'PET_c            '/))                                                   
-                                                                                 
-       ! check if parameter are in range                                         
-       if ( .not. in_bound(global_parameters) ) then                             
+
+       call append(global_parameters_name, (/ &
+            'PET_a_forest     ', &
+            'PET_a_impervious ', &
+            'PET_a_pervious   ', &
+            'PET_b            ', &
+            'PET_c            '/))
+
+       ! check if parameter are in range
+       if ( .not. in_bound(global_parameters) ) then
           call message('***ERROR: parameter in namelist "PETminus1" out of bound  n ', &
-               trim(adjustl(file_namelist_param)))                               
-          stop                                                                   
-       end if                                                                    
-                                                                                 
-                                                                                 
-    case(0) ! 0 - PET is input, correct PET by aspect                            
-       call position_nml('PET0', unamelist_param)                                
-       read(unamelist_param, nml=PET0)                                           
-       processMatrix(5, 1) = processCase(5)                                      
-       processMatrix(5, 2) = 3_i4                                                
-       processMatrix(5, 3) = sum(processMatrix(1:5, 2))                          
+               trim(adjustl(file_namelist_param)))
+          stop
+       end if
+
+
+    case(0) ! 0 - PET is input, correct PET by aspect
+       call position_nml('PET0', unamelist_param)
+       read(unamelist_param, nml=PET0)
+       processMatrix(5, 1) = processCase(5)
+       processMatrix(5, 2) = 3_i4
+       processMatrix(5, 3) = sum(processMatrix(1:5, 2))
        call append(global_parameters, reshape(minCorrectionFactorPET,             (/1, nColPars/)))
        call append(global_parameters, reshape(maxCorrectionFactorPET,             (/1, nColPars/)))
        call append(global_parameters, reshape(aspectTresholdPET,                  (/1, nColPars/)))
-                                                                                 
-       call append(global_parameters_name, (/ &                                  
-            'minCorrectionFactorPET ', &                                         
-            'maxCorrectionFactorPET ', &                                         
-            'aspectTresholdPET      '/))                                         
-                                                                                 
+
+       call append(global_parameters_name, (/ &
+            'minCorrectionFactorPET ', &
+            'maxCorrectionFactorPET ', &
+            'aspectTresholdPET      '/))
+
        ! check if parameter are in range
        if ( .not. in_bound(global_parameters) ) then
           call message('***ERROR: parameter in namelist "PET0" out of bound in ', &
@@ -1208,11 +1210,51 @@ CONTAINS
           stop
        end if
 
+     case(4) ! 4 - Penman-Monteith method - with two side sensible heat transfer to air
+        ! additional input needed: net_rad, abs. vapour pressue, windspeed
+        ! check which LAI input is specified
+        if (timeStep_LAI_input .NE. 0) then
+           call message('***ERROR: The specified option of process 5 does only work with LAI from LUT.')
+           call message('          For process 5 the options 0 and 1 work with timeStep_LAI_input unequal to 0.')
+           stop
+        end if
+
+        call position_nml('PET4', unamelist_param)
+        read(unamelist_param, nml=PET4)
+        processMatrix(5, 1) = processCase(5)
+        processMatrix(5, 2) = 7_i4
+        processMatrix(5, 3) = sum(processMatrix(1:5, 2))
+
+        call append(global_parameters, reshape(canopyheigth_forest,                (/1, nColPars/)))
+        call append(global_parameters, reshape(canopyheigth_impervious,            (/1, nColPars/)))
+        call append(global_parameters, reshape(canopyheigth_pervious,              (/1, nColPars/)))
+        call append(global_parameters, reshape(displacementheight_coeff,           (/1, nColPars/)))
+        call append(global_parameters, reshape(roughnesslength_momentum_coeff,     (/1, nColPars/)))
+        call append(global_parameters, reshape(roughnesslength_heat_coeff,         (/1, nColPars/)))
+        call append(global_parameters, reshape(stomatal_resistance,                (/1, nColPars/)))
+
+        call append(global_parameters_name, (/ &
+             'canopyheigth_forest           ', &
+             'canopyheigth_impervious       ', &
+             'canopyheigth_pervious         ', &
+             'displacementheight_coeff      ', &
+             'roughnesslength_momentum_coeff', &
+             'roughnesslength_heat_coeff    ', &
+             'stomatal_resistance           '/))
+
+        ! check if parameter are in range
+        if ( .not. in_bound(global_parameters) ) then
+           call message('***ERROR: parameter in namelist "PET4" out of bound in ', &
+                trim(adjustl(file_namelist_param)))
+           stop
+        end if
+
     case DEFAULT
        call message()
        call message('***ERROR: Process description for process "actualET" does not exist!')
        stop
     end select
+
 
 
     ! Process 6 - interflow
@@ -1339,7 +1381,7 @@ CONTAINS
              exit
           end if
        end do
-       
+
        ! for geology parameters
        processMatrix(9,1) = processCase(9)
        processMatrix(9,2) = nGeoUnits

@@ -26,6 +26,7 @@
 !>          5          | PET                       |   1   | Hargreaves-Samani
 !>          5          | PET                       |   2   | Priestley-Taylor
 !>          5          | PET                       |   3   | Penman-Monteith
+!>          5          | PET                       |   4   | Penman-Monteith (both side sensible heat exchange)
 !>          6          | interflow                 |   1   | Nonlinear reservoir with saturation excess
 !>          7          | percolation and base flow |   1   | GW linear reservoir
 !>          8          | routing                   |   0   | no routing
@@ -646,6 +647,10 @@ CONTAINS
        case(3) ! Penman-Monteith
           pet = pet_penman  (max(netrad_in(k), 0.0_dp), 0.0_dp, temp_in(k), absvappres_in(k)/1000.0_dp, &
                aeroResist(k,month) / windspeed_in(k), surfResist(k,month), 1.0_dp, 1.0_dp)
+
+        case(4) ! Penman-Monteith exchanging sensible heat with air on both sides of leaf
+          pet = pet_penman  (max(netrad_in(k), 0.0_dp), 0.0_dp, temp_in(k), absvappres_in(k)/1000.0_dp, &
+               aeroResist(k,month) / windspeed_in(k), surfResist(k,month), 1.0_dp, 2.0_dp)
 
        end select
 

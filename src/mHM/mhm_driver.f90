@@ -165,7 +165,7 @@ PROGRAM mhm_driver
        dirReferenceET,                                       &      ! PET input path  if process 5 is 'PET is input' (case 0)
        dirMinTemperature, dirMaxTemperature,                 &      ! PET input paths if process 5 is Hargreaves-Samani  (case 1)
        dirNetRadiation,                                      &      ! PET input paths if process 5 is Priestley-Taylor (case 2)
-       dirabsVapPressure, dirwindspeed,                      &      ! PET input paths if process 5 is Penman-Monteith  (case 3)
+       dirabsVapPressure, dirwindspeed,                      &      ! PET input paths if process 5 is Penman-Monteith  (case 3, case 4)
        dirgridded_LAI,                                       &      ! directories
        simPer,                                               &      ! simulation period
        NTSTEPDAY,                                            &      ! number of timesteps per day (former: NAGG)
@@ -279,7 +279,7 @@ PROGRAM mhm_driver
         call message('    Max. temperature directory: ', trim(dirMaxTemperature(ii)  ))
      case(2) ! Priestely-Taylor
         call message('    Net radiation directory:    ', trim(dirNetRadiation(ii) ))
-     case(3) ! Penman-Monteith
+     case(3:4) ! Penman-Monteith
         call message('    Net radiation directory:    ', trim(dirNetRadiation(ii) ))
         call message('    Abs. vap. press. directory: ', trim(dirabsVapPressure(ii)  ))
         call message('    Windspeed directory:        ', trim(dirwindspeed(ii)  ))

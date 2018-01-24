@@ -27,7 +27,7 @@
 ! Demirel M.C., Stisen S., May 2017  - added FC dependency on root fraction coef. at SM process(3)=3
 ! Demirel M.C., Stisen S., Jun 2017  - added PET correction based on LAI at PET process(5)=-1
 ! O. Rakovec, R. Kumar     Nov 2017  - added project description for the netcdf outputs
-
+! Brenner J.,              Jan 2018  - added PET approach Penman-Monteith with two side  sensible heat exchange process(5)=4
 !******************************************************************************************
 ! PROJECT DESCRIPTION
 !******************************************************************************************
@@ -596,7 +596,8 @@ processCase(4) = 1
 !>   0 - PET is input, aspect driven correction
 !>   1 - Hargreaves-Sammani method
 !>   2 - Priestley-Taylor mehtod
-!>   3 - Penman-Monteith method
+!>   3 - Penman-Monteith method (R=0)
+!>   4 - Penman-Monteith method (R=0, exchanging sensible heat with air on both sides of leaf)
 processCase(5) = 0
 !> interflow
 !> 1 - storage reservoir with one outflow threshold and nonlinear response

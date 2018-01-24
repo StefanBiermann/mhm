@@ -307,7 +307,7 @@ CONTAINS
           write(uconfig, 100) 'Label 1 = headwater cell             '
           write(uconfig, 100) 'Label 2 = sink cell                  '
 
-          if (processMatrix(8, 1) .eq. 1_i4) then 
+          if (processMatrix(8, 1) .eq. 1_i4) then
              write(uconfig, 104) '   Overall', &
                   '      From', &
                   '        To', &
@@ -654,7 +654,7 @@ CONTAINS
           case(1)
              write(uopti_nml,*) '&soilmoisture1'
           case(2)
-             write(uopti_nml,*) '&soilmoisture2'             
+             write(uopti_nml,*) '&soilmoisture2'
           end select
        case(4)
           if (processMatrix(iProc,1) .eq. 1) then
@@ -670,6 +670,8 @@ CONTAINS
              write(uopti_nml,*) '&PET2'
           case(3)
              write(uopti_nml,*) '&PET3'
+          case(4)
+             write(uopti_nml,*) '&PET4'
           end select
        case(6)
           if (processMatrix(iProc,1) .eq. 1) then
