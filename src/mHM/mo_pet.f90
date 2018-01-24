@@ -26,6 +26,9 @@ MODULE mo_pet
   PRIVATE :: g_bw
   PRIVATE :: P_a
   PRIVATE :: T_l
+  PRIVATE :: E_l
+  PRIVATE :: H_l
+  PRIVATE :: R_ll
 
   PUBLIC :: pet_hargreaves ! Hargreaves-Samani
   PUBLIC :: pet_priestly   ! Priestley-Taylor
@@ -808,6 +811,11 @@ CONTAINS
   !>        \param[in] "real(dp), intent(in) :: act_vap_pressure"    actual vapur pressure [kPa]
   !>        \param[in] "real(dp), intent(in) :: a_sh"     fraction of projected area exchanging sensible heat with the air \f$1\f$
   !>        \param[in] "real(dp), intent(in) :: g_bw"     boundary layer conductance to water vapour [m s-1]
+  !>        \param[in] "real(dp), intent(in) :: g_sw"     stomatal conductance to water vapour [m s-1]
+  !>        \param[in] "real(dp), intent(in) :: P_a"      air pressure [Pa]
+  !>        \param[in] "real(dp), intent(in) :: h_c"      average one-side convective tranfer coefficient [m s-1]
+  !>        \param[in] "real(dp), intent(in) :: eta1"     longwave emissivity of the leaf surface [1]
+
   !     INTENT(INOUT)
   !         None
 
@@ -861,19 +869,229 @@ CONTAINS
     real(dp)             :: c_h              ! sensible heat tranfer coefficient [J Pa^-1 m^-2 s^-1]
     real(dp)             :: T_l              ! leaf surace temperature [degC]
 
+    ! total leaf layer conductance to water vapour
     g_tw = 1.0_dp / (1.0_dp/g_bw + 1.0_dp/g_sw)
-
     g_tw_mol = g_tw * P_a / (Rmol_dp * tavg)
 
+    ! latent and sensible heat tranfer coefficient
     c_e = MH2O_dp * SpecHeatET_dp * g_tw_mol / P_a
-
     c_h = a_sh * h_c
 
+    ! leaf surace temperature
     T_l = (Rs + c_h * (tavg + T0_dp) + c_e * (delta_e * (tavg + T0_dp) +&
-     act_vap_pressure * 1000.0_dp - sat_vap_pressure(tavg) * 1000.0_dp) +&
+     (act_vap_pressure - sat_vap_pressure(tavg)) * 1000.0_dp) +&
      a_sh * eta1 * sigma_dp * (4.0_dp * (tavg + T0_dp)**4)) /&
      (c_h + c_e * delta_e + 4.0_dp * eta1 * sigma_dp * (tavg + T0_dp)**3)
 
+    ! conversion from K in degC
+    T_l = T_l - T0_dp
+
   END FUNCTION T_l
+
+  ! ------------------------------------------------------------------
+
+  !     NAME
+  !         E_l
+
+  !>        \brief calculation of latent heat flux from leaf (E_l)
+
+  !>        \details calculation of latent heat flux from leaf (E_l)
+  !>
+  !
+
+  !     INTENT(IN)
+  !>        \param[in] "real(dp), intent(in) :: T_l" leaf surace temperature [degC]
+  !>        \param[in] "real(dp), intent(in) :: tavg" temperature [degC]
+  !>        \param[in] "real(dp), intent(in) :: delta_e" slope of saturation vapor pressure curve [kPa K^-1]
+  !>        \param[in] "real(dp), intent(in) :: act_vap_pressure"    actual vapur pressure [kPa]
+  !>        \param[in] "real(dp), intent(in) :: a_sh"     fraction of projected area exchanging sensible heat with the air \f$1\f$
+  !>        \param[in] "real(dp), intent(in) :: h_c"     boundary layer conductance to water vapour [m s-1]
+  !     INTENT(INOUT)
+  !         None
+
+  !     INTENT(OUT)
+  !         None
+
+  !     INTENT(IN), OPTIONAL
+  !         None
+
+  !     INTENT(INOUT), OPTIONAL
+  !         None
+
+  !     INTENT(OUT), OPTIONAL
+  !         None
+
+  !     RETURN
+  !>        \return real(dp) :: E_l &mdash; latent heat flux from leaf [J m^-2 s^-1]
+
+  !     RESTRICTIONS
+  !         None
+
+  !     EXAMPLE
+  !         None
+
+  !     LITERATURE
+  !>         \note
+
+  !     HISTORY
+  !>        \author  Johannes Brenner
+  !>        \date    Jan 2018
+  !
+  elemental pure FUNCTION E_l(T_l, tavg, delta_e, act_vap_pressure, a_sh, h_c)
+
+    use mo_constants, only: Psychro_dp
+
+    implicit none
+
+    real(dp), intent(in) :: T_l              ! leaf surace temperature [degC]
+    real(dp), intent(in) :: tavg             ! temperature [degC]
+    real(dp), intent(in) :: delta_e          ! slope of saturation vapor pressure curve [kPa K^-1]
+    real(dp), intent(in) :: act_vap_pressure ! actual vapur pressure [kPa]
+    real(dp), intent(in) :: a_sh             ! fraction of projected area exchanging sensible heat with the air [1]
+    real(dp), intent(in) :: h_c              ! average one-sided convective transfer coefficient [J K-1 m-2 s-1]
+    real(dp)             :: c_h              ! sensible heat tranfer coefficient [J Pa^-1 m^-2 s^-1]
+    real(dp)             :: E_l              ! leaf surace temperature [degC]
+
+    ! sensible heat tranfer coefficient
+    c_h = a_sh * h_c
+
+    ! latent heat flux from leaf
+    E_l = c_h * (delta_e * (T_l - tavg)) + &
+    (sat_vap_pressure(tavg) - act_vap_pressure) * 1000.0_dp / Psychro_dp
+
+  END FUNCTION E_l
+
+  ! ------------------------------------------------------------------
+
+  !     NAME
+  !         H_l
+
+  !>        \brief calculation of sensible heat flux from leaf (H_l)
+
+  !>        \details calculation of sensible heat flux from leaf (H_l)
+  !>
+  !
+
+  !     INTENT(IN)
+  !>        \param[in] "real(dp), intent(in) :: T_l"  leaf surace temperature [degC]
+  !>        \param[in] "real(dp), intent(in) :: tavg" temperature [degC]
+  !>        \param[in] "real(dp), intent(in) :: a_sh" fraction of projected area exchanging sensible heat with the air \f$1\f$
+  !>        \param[in] "real(dp), intent(in) :: h_c"  boundary layer conductance to water vapour [m s-1]
+  !     INTENT(INOUT)
+  !         None
+
+  !     INTENT(OUT)
+  !         None
+
+  !     INTENT(IN), OPTIONAL
+  !         None
+
+  !     INTENT(INOUT), OPTIONAL
+  !         None
+
+  !     INTENT(OUT), OPTIONAL
+  !         None
+
+  !     RETURN
+  !>        \return real(dp) :: H_l &mdash; sensible heat flux from leaf [J m^-2 s^-1]
+
+  !     RESTRICTIONS
+  !         None
+
+  !     EXAMPLE
+  !         None
+
+  !     LITERATURE
+  !>         \note
+
+  !     HISTORY
+  !>        \author  Johannes Brenner
+  !>        \date    Jan 2018
+  !
+  elemental pure FUNCTION H_l(T_l, tavg, a_sh, h_c)
+
+    use mo_constants, only: Psychro_dp
+
+    implicit none
+
+    real(dp), intent(in) :: T_l              ! leaf surace temperature [degC]
+    real(dp), intent(in) :: tavg             ! temperature [degC]
+    real(dp), intent(in) :: a_sh             ! fraction of projected area exchanging sensible heat with the air [1]
+    real(dp), intent(in) :: h_c              ! average one-sided convective transfer coefficient [J K-1 m-2 s-1]
+    real(dp)             :: c_h              ! sensible heat tranfer coefficient [J Pa^-1 m^-2 s^-1]
+    real(dp)             :: H_l              ! leaf surace temperature [degC]
+
+    ! sensible heat tranfer coefficient
+    c_h = a_sh * h_c
+
+    ! latent heat flux from leaf
+    H_l = c_h * (T_l - tavg)
+
+  END FUNCTION H_l
+
+  ! ------------------------------------------------------------------
+
+  !     NAME
+  !         R_ll
+
+  !>        \brief calculation of long-wave radiation away from leaf (R_ll)
+
+  !>        \details calculation of long-wave radiation away from leaf (R_ll)
+  !>
+  !
+
+  !     INTENT(IN)
+  !>        \param[in] "real(dp), intent(in) :: T_l"  leaf surace temperature [degC]
+  !>        \param[in] "real(dp), intent(in) :: tavg" temperature [degC]
+  !>        \param[in] "real(dp), intent(in) :: a_sh" fraction of projected area exchanging sensible heat with the air \f$1\f$
+  !>        \param[in] "real(dp), intent(in) :: eta1" longwave emissivity of the leaf surface [1]
+
+  !     INTENT(INOUT)
+  !         None
+
+  !     INTENT(OUT)
+  !         None
+
+  !     INTENT(IN), OPTIONAL
+  !         None
+
+  !     INTENT(INOUT), OPTIONAL
+  !         None
+
+  !     INTENT(OUT), OPTIONAL
+  !         None
+
+  !     RETURN
+  !>        \return real(dp) :: R_ll &mdash; long-wave radiation away from leaf [W m^-2]
+
+  !     RESTRICTIONS
+  !         None
+
+  !     EXAMPLE
+  !         None
+
+  !     LITERATURE
+  !>         \note
+
+  !     HISTORY
+  !>        \author  Johannes Brenner
+  !>        \date    Jan 2018
+  !
+  elemental pure FUNCTION R_ll(T_l, tavg, a_sh, eta1)
+
+    use mo_constants, only: sigma_dp
+
+    implicit none
+
+    real(dp), intent(in) :: T_l              ! leaf surace temperature [degC]
+    real(dp), intent(in) :: tavg             ! temperature [degC]
+    real(dp), intent(in) :: a_sh             ! fraction of projected area exchanging sensible heat with the air [1]
+    real(dp), intent(in) :: eta1             ! average one-sided convective transfer coefficient [J K-1 m-2 s-1]
+    real(dp)             :: R_ll             ! long-wave radiation away from leaf [W m^-2]
+
+    ! long-wave radiation away from leaf
+    R_ll = 4 * a_sh * eta1 * sigma_dp * (tavg**4 * T_l - tavg**4)
+
+  END FUNCTION R_ll
 
 END MODULE mo_pet
