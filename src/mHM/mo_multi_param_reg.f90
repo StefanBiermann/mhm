@@ -260,6 +260,7 @@ contains
     use mo_message,             only: message
     use mo_upscaling_operators, only: upscale_arithmetic_mean
     use mo_mpr_soilmoist,       only: mpr_sm
+    use mo_mpr_neutrons,        only: mpr_neutrons
     use mo_mpr_SMhorizons,      only: mpr_SMhorizons
     use mo_mpr_runoff,          only: mpr_runoff
     use mo_mpr_pet,             only: pet_correctbyLAI, pet_correctbyASP, priestley_taylor_alpha, &
@@ -502,10 +503,24 @@ contains
         SDB_sand, SDB_clay, SDB_DbM,                         &
         cell_id0, soilId0, LCOVER0,                          &
         thetaS_till, thetaFC_till, thetaPW_till, latWat_till,&
-        COSMIC_L3_till,                                      &
         thetaS,                                              &
-        thetaFC, thetaPW, latWat, COSMIC_L3,                 &
+        thetaFC, thetaPW, latWat,                            &
         Ks, Db, KsVar_H0, KsVar_V0, SMs_FC0)
+    call mpr_neutrons( param(iStart:iEnd) , & ! IN:  global parameter set
+       iFlag_soil              , & ! IN:  flag to handle different soil database
+       SDB_is_present          , & ! IN:  flag indicating presence of soil
+       SDB_nHorizons           , & ! IN:  Number of Horizons of Soiltype
+       SDB_nTillHorizons       , & ! IN:  Number of tillage Horizons
+       LCOVER0                 , & ! IN:  land cover ids at level 0
+       SDB_DbM                 , & ! IN:  mineral Bulk density
+       Db                      , & ! IN: Bulk density
+       COSMIC_L3_till          , & ! OUT: COSMIC paramter L3 tillage layer
+       COSMIC_L3                 & ! OUT: COSMIC paramter L3 tillage layer
+       !                           !      hydraulic counductivity for Horizantal flow
+       !                           !      hydraulic counductivity for Horizantal flow
+       !                           !      w.r.t to saturation
+       )
+
 
     ! call mpr subroutines which upscale variables from L0, calculated
     ! before, to variables on L1

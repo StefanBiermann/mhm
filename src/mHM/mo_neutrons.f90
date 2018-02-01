@@ -191,9 +191,9 @@ CONTAINS
     real(dp), dimension(:),          intent(in)     :: Horizons
     real(dp), dimension(:),          intent(in)     :: params ! 1: N0, 2: N1, 3: N2, 4: alpha0, 5: alpha1, 6: L30, 7. L31
     real(dp), dimension(:),          intent(in)     :: neutron_integral_AFast
-    real(dp), dimension(:),          intent(inout)  :: L1_bulkDens ! ToDo: these will only be in
-    real(dp), dimension(:),          intent(inout)  :: L1_latticeWater ! ToDo: these will only be in
-    real(dp), dimension(:),          intent(inout)  :: L1_COSMICL3 ! ToDo: these will only be in
+    real(dp), dimension(:),          intent(in)     :: L1_bulkDens ! ToDo: these will only be in
+    real(dp), dimension(:),          intent(in)     :: L1_latticeWater ! ToDo: these will only be in
+    real(dp), dimension(:),          intent(in)     :: L1_COSMICL3 ! ToDo: these will only be in
     real(dp),                        intent(in)     :: interc
     real(dp),                        intent(in)     :: snowpack
     real(dp),                        intent(inout)  :: neutrons
@@ -244,7 +244,7 @@ CONTAINS
 
     snowlayer=1
     
-    call wildSetOfParams(L1_bulkDens,L1_latticeWater,L1_COSMICL3)
+    !call wildSetOfParams(L1_bulkDens,L1_latticeWater,L1_COSMICL3)
     !layer 1 is the surface layer. layer 2 up to layers are the usual layers
     do ll = 1,layers
           
@@ -307,12 +307,12 @@ CONTAINS
            
   end subroutine COSMIC
 
-  subroutine wildSetOfParams(L1_bulkDens,L1_latticeWater,L1_COSMICL3)
-    use mo_mhm_constants, only: COSMIC_bd, COSMIC_vwclat
-     implicit none
-     real(dp), dimension(:),        intent(inout)  :: L1_bulkDens ! ToDo: these will only be in
-     real(dp), dimension(:),        intent(inout)  :: L1_latticeWater ! ToDo: these will only be in
-     real(dp), dimension(:),        intent(inout)  :: L1_COSMICL3 ! ToDo: these will only be in
+ ! subroutine wildSetOfParams(L1_bulkDens,L1_latticeWater,L1_COSMICL3)
+  !  use mo_mhm_constants, only: COSMIC_bd, COSMIC_vwclat
+   !  implicit none
+    ! real(dp), dimension(:),        intent(inout)  :: L1_bulkDens ! ToDo: these will only be in
+     !real(dp), dimension(:),        intent(inout)  :: L1_latticeWater ! ToDo: these will only be in
+     !real(dp), dimension(:),        intent(inout)  :: L1_COSMICL3 ! ToDo: these will only be in
 
      !L1_latticeWater(:)=COSMIC_vwclat
      !L1_COSMICL3(:)=COSMIC_bd*106.194175956_dp - 40.987888406_dp
@@ -322,7 +322,7 @@ CONTAINS
    !  write(*,*) 'LW'
    !  write(*,*) L1_latticeWater
    !  write(*,*) COSMIC_vwclat
-  end subroutine
+  !end subroutine
 
   subroutine loopConstants(ll,&
                     SoilMoisture,L1_bulkDens,L1_latticeWater,&

@@ -140,12 +140,10 @@ contains
        thetaFC_till        , & ! OUT: field capacity tillage layer
        thetaPW_till        , & ! OUT: permanent wilting point tillage layer
        latWat_till         , & ! OUT: lattice water content tillage layer
-       COSMIC_L3_till      , & ! OUT: COSMIC paramter L3 tillage layer
        thetaS              , & ! OUT: saturated soil moisture
        thetaFC             , & ! OUT: field capacity
        thetaPW             , & ! OUT: permanent wilting point
        latWat              , & ! OUT: lattice water contente
-       COSMIC_L3           , & ! OUT: COSMIC paramter L3 tillage layer
        Ks                  , & ! OUT: saturated hydraulic conductivity
        Db                  , & ! OUT: Bulk density
        KsVar_H0            , & ! OUT: relative variability of saturated
@@ -183,12 +181,10 @@ contains
     real(dp),    dimension(:,:,:), intent(out) :: thetaFC_till  ! field capacity tillage layer
     real(dp),    dimension(:,:,:), intent(out) :: thetaPW_till  ! permanent wilting point tillage layer
     real(dp),    dimension(:,:,:), intent(out) :: latWat_till   ! lattice water content tillage layer
-    real(dp),    dimension(:,:,:), intent(out) :: COSMIC_L3_till! COSMIC parameter L3 tillage layer
     real(dp),    dimension(:,:),   intent(out) :: thetaS        ! saturated soil moisture
     real(dp),    dimension(:,:),   intent(out) :: thetaFC       ! field capacity
     real(dp),    dimension(:,:),   intent(out) :: thetaPW       ! permanent wilting point
     real(dp),    dimension(:,:),   intent(out) :: latWat        ! lattice water content
-    real(dp),    dimension(:,:),   intent(out) :: COSMIC_L3     ! COSMIC parameter L3
     real(dp),    dimension(:,:,:), intent(out) :: Ks            ! saturated hydraulic conductivity
     real(dp),    dimension(:,:,:), intent(out) :: Db            ! Bulk density
     real(dp),    dimension(:),     intent(out) :: KsVar_H0      ! rel. var. of Ks for horizontal flow
@@ -241,12 +237,10 @@ contains
     thetaFC_till = 0.0_dp
     thetaPW_till = 0.0_dp
     latWat_till  = 0.0_dp
-    COSMIC_L3_till  = 0.0_dp
     thetaS       = 0.0_dp
     thetaFC      = 0.0_dp
     thetaPW      = 0.0_dp
     latWat       = 0.0_dp
-    COSMIC_L3    = 0.0_dp
     Ks           = 0.0_dp
     Db           = 0.0_dp
     if( allocated(Ks_non_till) ) Ks_non_till = 0.0_dp
@@ -296,7 +290,6 @@ contains
                       ! estimating permanent wilting point
                       call PWP( Genu_Mual_n, Genu_Mual_alpha, thetaS_till(i,j,L), thetaPW_till(i,j,L) )
                       call latticeWater(param(4:9), clay(i,j), latWat_till(i,j,L))
-                      call calcL3(param(4:9), Db(i,j,L), COSMIC_L3_till(i,j,L))
                    end do
                 ! deeper layers
                 else
@@ -310,7 +303,6 @@ contains
                    call PWP( Genu_Mual_n, Genu_Mual_alpha, thetaS(i, j-tmp_minSoilHorizon), &
                              thetaPW(i, j-tmp_minSoilHorizon) )
                    call latticeWater(param(4:9), clay(i,j), latWat(i,j-tmp_minSoilHorizon))
-                   call calcL3(param(4:9), DbM(i,j), COSMIC_L3(i,j-tmp_minSoilHorizon))
                 end if
              end do horizon
           end do
@@ -392,7 +384,6 @@ contains
                    ! estimating permanent wilting point
                    call PWP( Genu_Mual_n, Genu_Mual_alpha, thetaS_till(i,j,L), thetaPW_till(i,j,L) )
                    call latticeWater(param(4:9), clay(i,j), latWat_till(i,j,L))
-                   call calcL3(param(4:9), Db(i,j,L), COSMIC_L3_till(i,j,L))
                 end do
                 
                 ! *** FOR NON-TILLAGE TYPE OF SOILS ***
@@ -406,7 +397,6 @@ contains
                 ! estimate permanent wilting point
                 call PWP( Genu_Mual_n, Genu_Mual_alpha, thetaS(i,j), thetaPW(i,j) )     
                 call latticeWater(param(4:9), clay(i,j), latWat(i,j))
-                call calcL3(param(4:9), DbM(i,j), COSMIC_L3(i,j))
 
              end do  !>> HORIZON
           end do   !>> SOIL TYPE
@@ -853,16 +843,5 @@ contains
     latWat=(0.1783_dp*clay/100.0_dp)/100.0_dp
 
   end subroutine latticeWater
-
-  subroutine calcL3(param, bulkDensity, L3)
-     implicit none
-     real(dp), dimension(4),  intent(in)       :: param
-     real(dp),                intent(in)       :: bulkDensity
-     real(dp),                intent(inout)    :: L3
-      L3 = bulkDensity*106.194175956_dp - 40.987888406_dp
-      if (bulkDensity < 0.4) then ! bulkDensity<0.39 yields negative L3, bulkDensity=0.39 yields L3=0
-         L3 = 1.0 ! Prevent division by zero later on; added by joost Iwema to COSMIC 1.13, Feb. 2017
-      endif
-  end subroutine
 
 end module mo_mpr_soilmoist

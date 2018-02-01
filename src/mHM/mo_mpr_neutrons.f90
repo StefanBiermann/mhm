@@ -80,9 +80,9 @@ contains
        nTillHorizons       , & ! IN:  Number of tillage Horizons
        LCover0             , & ! IN:  land cover ids at level 0
        DbM                 , & ! IN:  mineral Bulk density
+       Db                  , & ! IN: Bulk density
        COSMIC_L3_till      , & ! OUT: COSMIC paramter L3 tillage layer
-       COSMIC_L3           , & ! OUT: COSMIC paramter L3 tillage layer
-       Db                    & ! OUT: Bulk density
+       COSMIC_L3             & ! OUT: COSMIC paramter L3 tillage layer
        !                       !      hydraulic counductivity for Horizantal flow
        !                       !      hydraulic counductivity for Horizantal flow
        !                       !      w.r.t to saturation
@@ -102,20 +102,19 @@ contains
     integer(i4), dimension(:),     intent(in)  :: nHorizons    ! Number of Horizons per soiltype
     integer(i4), dimension(:),     intent(in)  :: nTillHorizons! Number of Tillage Horizons
     real(dp),    dimension(:,:),   intent(in)  :: DbM          ! mineral Bulk density
+    real(dp),    dimension(:,:,:), intent(in)  :: Db           ! Bulk density
     integer(i4), dimension(:),     intent(in)  :: LCOVER0      ! land cover ids at level 0
 
 
     ! Output -------------------------------------------------------------------
     real(dp),    dimension(:,:,:), intent(out) :: COSMIC_L3_till! COSMIC parameter L3 tillage layer
     real(dp),    dimension(:,:),   intent(out) :: COSMIC_L3     ! COSMIC parameter L3
-    real(dp),    dimension(:,:,:), intent(out) :: Db            ! Bulk density
     !                                                           ! field cap. w.r.t to saturation
     ! Local variables
     integer(i4)                               :: i               ! loop index
     integer(i4)                               :: j               ! loop index
     integer(i4)                               :: l               ! loop index
     integer(i4)                               :: tmp_minSoilHorizon
-    real(dp), dimension(:),   allocatable     :: SMs_tot0       ! total saturated soil mositure content
 
     tmp_minSoilHorizon = minval(nTillHorizons(:))
 
