@@ -506,7 +506,7 @@ contains
         thetaS,                                              &
         thetaFC, thetaPW, latWat,                            &
         Ks, Db, KsVar_H0, KsVar_V0, SMs_FC0)
-    call mpr_neutrons( param(iStart:iEnd) , & ! IN:  global parameter set
+    call mpr_neutrons( param(proc_Mat(10,3)-proc_Mat(10,2)+1:proc_Mat(10,3)) , & ! IN:  global parameter set
        iFlag_soil              , & ! IN:  flag to handle different soil database
        SDB_is_present          , & ! IN:  flag indicating presence of soil
        SDB_nHorizons           , & ! IN:  Number of Horizons of Soiltype

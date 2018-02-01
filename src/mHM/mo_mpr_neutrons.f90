@@ -28,18 +28,17 @@ contains
 
   !>        \details calculates neutron variables on L0
   !>                 Global parameters needed (see mhm_parameter.nml):\n
-  !>               TODO:     - param( 1) = orgMatterContent_forest     \n
-  !>                    - param( 2) = orgMatterContent_impervious \n
-  !>                    - param( 3) = orgMatterContent_pervious   \n
-  !>                    - param( 4) = PTF_lower66_5_constant      \n
-  !>                    - param( 5) = PTF_lower66_5_clay          \n
-  !>                    - param( 6) = PTF_lower66_5_Db            \n
-  !>                    - param( 7) = PTF_higher66_5_constant     \n
-  !>                    - param( 8) = PTF_higher66_5_clay         \n
-  !>                    - param( 9) = PTF_higher66_5_Db           \n
+  !>                    - param( 1) = Desilets_N0   \n
+  !>                    - param( 2) = COSMIC_N0     \n
+  !>                    - param( 3) = COSMIC_N1     \n
+  !>                    - param( 4) = COSMIC_N2     \n
+  !>                    - param( 5) = COSMIC_alpha0 \n
+  !>                    - param( 6) = COSMIC_alpha1 \n
+  !>                    - param( 7) = COSMIC_L30    \n
+  !>                    - param( 8) = COSMIC_L31    \n
 
   !      INTENT(IN)
-  !>        \param[in] "real(dp)    :: param(13)"        - global parameters
+  !>        \param[in] "real(dp)    :: param(8)"        - global parameters
 
   !     INTENT(INOUT)
   !         None
@@ -133,11 +132,11 @@ contains
                 if ( j .le. nTillHorizons(i) ) then
                    ! LC class
                    do L = 1, maxval( LCOVER0 )
-                      call calcL3(param(4:9), Db(i,j,L), COSMIC_L3_till(i,j,L))
+                      call calcL3(param(7:8), Db(i,j,L), COSMIC_L3_till(i,j,L))
                    end do
                 ! deeper layers
                 else
-                   call calcL3(param(4:9), DbM(i,j), COSMIC_L3(i,j-tmp_minSoilHorizon))
+                   call calcL3(param(7:8), DbM(i,j), COSMIC_L3(i,j-tmp_minSoilHorizon))
                 end if
              end do horizon
           end do
@@ -151,12 +150,12 @@ contains
              do j = 1, 1   
                 ! tillage horizons properties depending on the LC class
                 do L = 1, maxval( LCOVER0 )
-                   call calcL3(param(4:9), Db(i,j,L), COSMIC_L3_till(i,j,L))
+                   call calcL3(param(7:8), Db(i,j,L), COSMIC_L3_till(i,j,L))
                 end do
                 
                 ! *** FOR NON-TILLAGE TYPE OF SOILS ***
                 ! note j = 1
-                call calcL3(param(4:9), DbM(i,j), COSMIC_L3(i,j))
+                call calcL3(param(7:8), DbM(i,j), COSMIC_L3(i,j))
 
              end do  !>> HORIZON
           end do   !>> SOIL TYPE
@@ -170,11 +169,14 @@ contains
 
 
   subroutine calcL3(param, bulkDensity, L3)
+
+  ! param( 1) = COSMIC_L30
+  ! param( 2) = COSMIC_L31
      implicit none
-     real(dp), dimension(4),  intent(in)       :: param
+     real(dp), dimension(2),  intent(in)       :: param
      real(dp),                intent(in)       :: bulkDensity
      real(dp),                intent(inout)    :: L3
-      L3 = bulkDensity*106.194175956_dp - 40.987888406_dp
+      L3 = bulkDensity*param(1) - param(2)
       if (bulkDensity < 0.4) then ! bulkDensity<0.39 yields negative L3, bulkDensity=0.39 yields L3=0
          L3 = 1.0 ! Prevent division by zero later on; added by joost Iwema to COSMIC 1.13, Feb. 2017
       endif

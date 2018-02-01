@@ -242,7 +242,7 @@ CONTAINS
     bd             = 0.0_dp
     L3             = 1.0_dp
 
-    snowlayer=1
+    snowlayer=0
     
     !call wildSetOfParams(L1_bulkDens,L1_latticeWater,L1_COSMICL3)
     !layer 1 is the surface layer. layer 2 up to layers are the usual layers
