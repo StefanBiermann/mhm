@@ -191,9 +191,9 @@ CONTAINS
     real(dp), dimension(:),          intent(in)     :: Horizons
     real(dp), dimension(:),          intent(in)     :: params ! 1: N0, 2: N1, 3: N2, 4: alpha0, 5: alpha1, 6: L30, 7. L31
     real(dp), dimension(:),          intent(in)     :: neutron_integral_AFast
-    real(dp), dimension(:),          intent(in)     :: L1_bulkDens ! ToDo: these will only be in
-    real(dp), dimension(:),          intent(in)     :: L1_latticeWater ! ToDo: these will only be in
-    real(dp), dimension(:),          intent(in)     :: L1_COSMICL3 ! ToDo: these will only be in
+    real(dp), dimension(:),          intent(in)     :: L1_bulkDens
+    real(dp), dimension(:),          intent(in)     :: L1_latticeWater
+    real(dp), dimension(:),          intent(in)     :: L1_COSMICL3
     real(dp),                        intent(in)     :: interc
     real(dp),                        intent(in)     :: snowpack
     real(dp),                        intent(inout)  :: neutrons
@@ -244,7 +244,6 @@ CONTAINS
 
     snowlayer=0
     
-    !call wildSetOfParams(L1_bulkDens,L1_latticeWater,L1_COSMICL3)
     !layer 1 is the surface layer. layer 2 up to layers are the usual layers
     do ll = 1,layers
           
@@ -270,7 +269,7 @@ CONTAINS
              ! because neutron standard measurements are in cm
              call layerWaterHeight(ll,sm,h2oeffheight)
              ! divided by the thickness of the layers,we get the effective density
-             h2oeffdens(ll) = ((h2oeffheight(ll) / zthick(ll) +lw)*H2Odens)/1000.0_dp  
+             h2oeffdens(ll) = (h2oeffheight(ll) +lw/10.0_dp)*H2Odens/zthick(ll)/1000.0_dp  
           endif
 
           ! Assuming an area of 1 cm2
@@ -307,23 +306,6 @@ CONTAINS
            
   end subroutine COSMIC
 
- ! subroutine wildSetOfParams(L1_bulkDens,L1_latticeWater,L1_COSMICL3)
-  !  use mo_mhm_constants, only: COSMIC_bd, COSMIC_vwclat
-   !  implicit none
-    ! real(dp), dimension(:),        intent(inout)  :: L1_bulkDens ! ToDo: these will only be in
-     !real(dp), dimension(:),        intent(inout)  :: L1_latticeWater ! ToDo: these will only be in
-     !real(dp), dimension(:),        intent(inout)  :: L1_COSMICL3 ! ToDo: these will only be in
-
-     !L1_latticeWater(:)=COSMIC_vwclat
-     !L1_COSMICL3(:)=COSMIC_bd*106.194175956_dp - 40.987888406_dp
-     !write(*,*) 'L3'
-     !write(*,*) L1_COSMICL3
-     !write(*,*) COSMIC_bd*106.194175956_dp - 40.987888406_dp
-   !  write(*,*) 'LW'
-   !  write(*,*) L1_latticeWater
-   !  write(*,*) COSMIC_vwclat
-  !end subroutine
-
   subroutine loopConstants(ll,&
                     SoilMoisture,L1_bulkDens,L1_latticeWater,&
                     L1_COSMICL3,sm,bd,lw,L3)
@@ -352,16 +334,6 @@ CONTAINS
      endif
   end subroutine
 
-  function calcL3(bulkDensity)
-     implicit none
-     real(dp),  intent(in) :: bulkDensity
-     real(dp)              :: calcL3
-      calcL3 = bulkDensity*106.194175956_dp - 40.987888406_dp
-      if (bulkDensity < 0.4) then ! bulkDensity<0.39 yields negative L3, bulkDensity=0.39 yields L3=0
-         calcL3 = 1.0 ! Prevent division by zero later on; added by joost Iwema to COSMIC 1.13, Feb. 2017
-      endif
-  end function
-
   subroutine layerThickness(ll,Horizons,interc,snowpack,zthick)
      implicit none
      integer(i4), intent(in)              :: ll
@@ -370,7 +342,7 @@ CONTAINS
      real(dp),                 intent(in) :: snowpack
      real(dp),dimension(:)                :: zthick
        if (ll.eq.1) then
-          zthick(ll)=(snowpack+interc)/10.0_dp  !TODO: check if good
+          zthick(ll)=(snowpack+interc)/10.0_dp
        else if (ll.eq.2) then
           zthick(ll)=Horizons(ll-1)/10.0_dp
        else

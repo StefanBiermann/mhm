@@ -283,6 +283,8 @@ CONTAINS
     real(dp), dimension(nColPars)                   :: COSMIC_alpha1
     real(dp), dimension(nColPars)                   :: COSMIC_L30
     real(dp), dimension(nColPars)                   :: COSMIC_L31
+    real(dp), dimension(nColPars)                   :: COSMIC_LW0
+    real(dp), dimension(nColPars)                   :: COSMIC_LW1
 
     integer(i4)                                     :: ii, iBasin, n_true_pars
     integer(i4)                                     :: nGeoUnits ! number of geological classes for parameter read-in
@@ -408,7 +410,8 @@ CONTAINS
     namelist /interflow1/ interflowStorageCapacityFactor, interflowRecession_slope, fastInterflowRecession_forest, &
          slowInterflowRecession_Ks, exponentSlowInterflow
     namelist /percolation1/ rechargeCoefficient, rechargeFactor_karstic, gain_loss_GWreservoir_karstic
-    namelist /neutrons1/ Desilets_N0, COSMIC_N0, COSMIC_N1, COSMIC_N2, COSMIC_alpha0, COSMIC_alpha1, COSMIC_L30, COSMIC_L31
+    namelist /neutrons1/ Desilets_N0, COSMIC_N0, COSMIC_N1, COSMIC_N2, COSMIC_alpha0, COSMIC_alpha1, &
+         COSMIC_L30, COSMIC_L31, COSMIC_LW0, COSMIC_LW1
     !
     namelist /geoparameter/ GeoParam
     ! name list regarding output
@@ -1378,7 +1381,7 @@ CONTAINS
        read(unamelist_param, nml=neutrons1)
 
        processMatrix(10, 1) = processCase(10)
-       processMatrix(10, 2) = 8_i4
+       processMatrix(10, 2) = 10_i4
        processMatrix(10, 3) = sum(processMatrix(1:10, 2))
        call append(global_parameters, reshape(Desilets_N0,   (/1, nColPars/)))
        call append(global_parameters, reshape(COSMIC_N0,     (/1, nColPars/)))
@@ -1388,6 +1391,8 @@ CONTAINS
        call append(global_parameters, reshape(COSMIC_alpha1, (/1, nColPars/)))
        call append(global_parameters, reshape(COSMIC_L30,    (/1, nColPars/)))
        call append(global_parameters, reshape(COSMIC_L31,    (/1, nColPars/)))
+       call append(global_parameters, reshape(COSMIC_LW0,    (/1, nColPars/)))
+       call append(global_parameters, reshape(COSMIC_LW1,    (/1, nColPars/)))
 
        call append(global_parameters_name, (/  &
             'Desilets_N0   ', &
@@ -1397,7 +1402,9 @@ CONTAINS
             'COSMIC_alpha0 ', &
             'COSMIC_alpha1 ', &
             'COSMIC_L30    ', &
-            'COSMIC_L31    '/))
+            'COSMIC_L31    ', &
+            'COSMIC_LW0    ', &
+            'COSMIC_LW1    '/))
 
        ! check if parameter are in range
        if ( .not. in_bound(global_parameters) ) then

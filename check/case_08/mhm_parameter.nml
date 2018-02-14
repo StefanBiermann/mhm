@@ -154,8 +154,10 @@ COSMIC_N1                          =    0.01,        10.0,           1.0,     0,
 COSMIC_N2                          =    0.01,        10.0,           1.0,     0,       1
 COSMIC_alpha0                      =    0.01,        10.0,           1.0,     0,       1
 COSMIC_alpha1                      =    0.01,        10.0,           1.0,     0,       1
-COSMIC_L30                         =    0.01,        10.0,           1.0,     0,       1
-COSMIC_L31                         =    0.01,        10.0,           1.0,     0,       1
+COSMIC_L30                         =   26.56,       424.78,     106.1942,     0,       1
+COSMIC_L31                         =  -118.3,       200.28,      40.9879,     0,       1
+COSMIC_LW0                         =     0.0,          0.2,       0.1783,     0,       1
+COSMIC_LW1                         =     0.0,          0.05,         0.0,     0,       1
 /
 ! geological parameters (ordering according to file 'geology_classdefinition.txt')
 ! this parameters are NOT REGIONALIZED yet, i.e. these are <beta> and not <gamma>

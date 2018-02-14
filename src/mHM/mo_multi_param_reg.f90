@@ -502,24 +502,28 @@ contains
         SDB_is_present, SDB_nHorizons, SDB_nTillHorizons,    &
         SDB_sand, SDB_clay, SDB_DbM,                         &
         cell_id0, soilId0, LCOVER0,                          &
-        thetaS_till, thetaFC_till, thetaPW_till, latWat_till,&
+        thetaS_till, thetaFC_till, thetaPW_till,             &
         thetaS,                                              &
-        thetaFC, thetaPW, latWat,                            &
+        thetaFC, thetaPW,                                    &
         Ks, Db, KsVar_H0, KsVar_V0, SMs_FC0)
-    call mpr_neutrons( param(proc_Mat(10,3)-proc_Mat(10,2)+1:proc_Mat(10,3)) , & ! IN:  global parameter set
-       iFlag_soil              , & ! IN:  flag to handle different soil database
-       SDB_is_present          , & ! IN:  flag indicating presence of soil
-       SDB_nHorizons           , & ! IN:  Number of Horizons of Soiltype
-       SDB_nTillHorizons       , & ! IN:  Number of tillage Horizons
-       LCOVER0                 , & ! IN:  land cover ids at level 0
-       SDB_DbM                 , & ! IN:  mineral Bulk density
-       Db                      , & ! IN: Bulk density
-       COSMIC_L3_till          , & ! OUT: COSMIC paramter L3 tillage layer
-       COSMIC_L3                 & ! OUT: COSMIC paramter L3 tillage layer
-       !                           !      hydraulic counductivity for Horizantal flow
-       !                           !      hydraulic counductivity for Horizantal flow
-       !                           !      w.r.t to saturation
-       )
+    if ( proc_Mat(10, 1) .eq. 2 ) &
+       call mpr_neutrons( param(proc_Mat(10,3)-proc_Mat(10,2)+1:proc_Mat(10,3)) , & ! IN:  global parameter set
+          iFlag_soil              , & ! IN:  flag to handle different soil database
+          SDB_is_present          , & ! IN:  flag indicating presence of soil
+          SDB_nHorizons           , & ! IN:  Number of Horizons of Soiltype
+          SDB_nTillHorizons       , & ! IN:  Number of tillage Horizons
+          LCOVER0                 , & ! IN:  land cover ids at level 0
+          SDB_clay                , & ! IN:  clay content
+          SDB_DbM                 , & ! IN:  mineral Bulk density
+          Db                      , & ! IN: Bulk density
+          COSMIC_L3_till          , & ! OUT: COSMIC paramter L3 tillage layer
+          latWat_till             , & ! OUT: COSMIC paramter Lattice Water tillage layer
+          COSMIC_L3               , & ! OUT: COSMIC paramter L3
+          latWat                    & ! OUT: COSMIC paramter Lattice Water
+          !                           !      hydraulic counductivity for Horizantal flow
+          !                           !      hydraulic counductivity for Horizantal flow
+          !                           !      w.r.t to saturation
+          )
 
 
     ! call mpr subroutines which upscale variables from L0, calculated

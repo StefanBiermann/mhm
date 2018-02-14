@@ -161,7 +161,7 @@ contains
        L1_FC         , & ! [10^-3 m] field capacity
        L1_PW         , & ! [10^-3 m] permanent wilting point
        L1_fRoots     , & ! fraction of roots in soil horizons
-       L1_bulkDens   , & ! INOUT: bulk density
+       L1_bulkDens   , & ! L bulk density
        L1_latticeWater,& ! L1 lattice water content
        L1_COSMICL3   )   ! L1 COSMIC L3 parameter from neutron module
 
@@ -245,8 +245,8 @@ contains
     real(dp), dimension(size(LCOVER0,1))    :: SMs0    ! [10^-3 m] depth of saturated SM cont
     real(dp), dimension(size(LCOVER0,1))    :: FC0     ! [10^-3 m] field capacity
     real(dp), dimension(size(LCOVER0,1))    :: PW0     ! [10^-3 m] permanent wilting point
-    real(dp), dimension(size(LCOVER0,1))    :: LW0     ! [10^-3 m] TODO:check einheit lattice water
-    real(dp), dimension(size(LCOVER0,1))    :: L30     ! [10^-3 m] TODO:check einheit COSMIC parameter L3
+    real(dp), dimension(size(LCOVER0,1))    :: LW0     ! lattice water
+    real(dp), dimension(size(LCOVER0,1))    :: L30     ! COSMIC parameter L3
     real(dp), dimension(size(LCOVER0,1))    :: fRoots0 ! fraction of roots in soil horizons
 
     real(dp)                                :: tmp_rootFractionCoefficient_forest
@@ -359,7 +359,7 @@ contains
              FC0(k)  = FC0(k)  * (dpth_t - dpth_f)
              PW0(k)  = PW0(k)  * (dpth_t - dpth_f)
              LW0(k)  = LW0(k)  * (dpth_t - dpth_f)
-             L30(k)  = L30(k)  * (dpth_t - dpth_f)
+           !  L30(k)  = L30(k)  * (dpth_t - dpth_f)
           end do cellloop0
           !$OMP END DO
           !$OMP END PARALLEL    
@@ -510,14 +510,14 @@ contains
                 FC0(k)  = thetaFC_till  (s,1,L) * (dpth_t - dpth_f) ! in mm
                 PW0(k)  = thetaPW_till  (s,1,L) * (dpth_t - dpth_f) ! in mm
                 LW0(k)  = latWat_till   (s,1,L) * (dpth_t - dpth_f) ! in mm
-                L30(k)  = COSMIC_L3_till(s,1,L) * (dpth_t - dpth_f) ! in mm
+  !              L30(k)  = COSMIC_L3_till(s,1,L) * (dpth_t - dpth_f) ! in mm
              else
                 Bd0(k)  = DbM(s,1)
                 SMs0(k) = thetaS   (s,1) * (dpth_t - dpth_f) ! in mm
                 FC0(k)  = thetaFC  (s,1) * (dpth_t - dpth_f) ! in mm
                 PW0(k)  = thetaPW  (s,1) * (dpth_t - dpth_f) ! in mm          
                 LW0(k)  = latWat   (s,1) * (dpth_t - dpth_f) ! in mm          
-                L30(k)  = COSMIC_L3(s,1) * (dpth_t - dpth_f) ! in mm          
+!                L30(k)  = COSMIC_L3(s,1) * (dpth_t - dpth_f) ! in mm          
              end if
           end do cellloop1
           !$OMP END DO
