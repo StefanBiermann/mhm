@@ -35,11 +35,15 @@ MODULE mo_common_mHM_mRM_domain_decomposition
     type(ptrTreeNode)                          :: post      ! node downstream,
                                                             ! parent
     integer(i4)                                :: Nprae     ! number of children
-    type(ptrTreeNode),dimension(:),allocatable :: prae      ! first child
+    type(ptrTreeNode),dimension(:),allocatable :: prae      ! array of children
     integer(i4)                                :: siz       ! size of subtree
     integer(i4)                                :: sizUp     ! size of smallest
                                                             ! subtree > lowBound
                                                             ! downstream
+    type(ptrTreeNode)                          :: postST    ! next subtree downstream,
+    integer(i4)                                :: NpraeST   ! number of cut of subtrees
+    type(ptrTreeNode),dimension(:),allocatable :: praeST    ! array of subtree children
+
   end type treeNode
 CONTAINS
 
@@ -111,7 +115,6 @@ CONTAINS
                                      ! lowBound nodes and at most uppBound
     integer(i4) :: ind               ! index of link/edge for subdomain
     type(ptrTreeNode) :: root
-    type(ptrTreeNode) :: decompTree
 
 #ifdef MRM2MHM
    write(*,*) 'the domain decomposition with mRM gets implemented now...'
@@ -120,7 +123,7 @@ CONTAINS
    lowBound=3
    uppBound=5
    call init_tree(iBasin, lowBound, root)
-   call decompose(iBasin,lowBound,root,decompTree)
+   call decompose(iBasin,lowBound,root)
    call tree_destroy(iBasin,root)
 #else
    write(*,*) 'the domain decomposition without mRM is not implemented yet'
@@ -173,6 +176,7 @@ CONTAINS
       tree(kk)%tN%sizUp=1
       tree(kk)%tN%ind=kk
       tree(kk)%tN%root=.false.
+      tree(kk)%tN%NpraeST=-1
    end do
    ! assign the pointers of the children and the parent
    ! use the array of number of children:
@@ -289,25 +293,37 @@ CONTAINS
 
   end subroutine write_tree
 
-  subroutine decompose(iBasin,lowBound,root,decompTree)
+  subroutine decompose(iBasin,lowBound,root)
+    use mo_mrm_global_variables, only : &
+            level11        ! IN: for number of nCells
     integer(i4),               intent(in)    :: iBasin
     integer(i4),               intent(in)    :: lowBound
     type(ptrTreeNode),         intent(inout) :: root
-    type(ptrTreeNode),         intent(inout) :: decompTree
 
     ! local variables
+    type(ptrTreeNode), dimension(:), allocatable :: subtrees
     type(ptrTreeNode) :: subtree
     integer(i4)       :: kk
+    integer(i4)       :: nNodes, nSubtrees ! number of edges and subtrees
 
-    allocate(decompTree%tN)
-    allocate(decompTree%tN%prae(root%tN%Nprae))
-    do kk=1,11
-       if (root%tN%sizUp .gt. 1) then
-          call cut_of_subtree(lowBound,root,subtree)
-          call update_tree(lowBound,root,subtree)
-       end if
-    !   call write_tree(root, lowBound)
+    nNodes=level11(iBasin)%ncells
+    ! ToDo: thats possibly a bit too much, but maybe more efficient than reallocating?
+    allocate(subtrees(nNodes/lowBound+1))
+    nSubtrees=0
+
+    do while (root%tN%sizUp .gt. 1)
+       call cut_of_subtree(lowBound,root,subtree)
+       call update_tree(lowBound,root,subtree)
+       !call write_tree(root, lowBound)
+       nSubtrees=nSubtrees+1
+       subtrees(nSubtrees)%tN => subtree%tN
     end do
+    call init_subtreetree(nSubtrees,root,subtrees)
+    !do kk = 1, nSubtrees
+    !   write(*,*) subtrees(kk)%tN%ind
+    !end do
+
+    deallocate(subtrees)
 
   end subroutine decompose
 
@@ -319,6 +335,7 @@ CONTAINS
     ! local variables
     integer(i4)          :: kk
 
+    root%tN%NpraeST = 0
     if (root%tN%Nprae .eq. 0) then
        subtree%tN => root%tN
     end if
@@ -332,6 +349,56 @@ CONTAINS
        endif
     end do
   end subroutine cut_of_subtree
+
+  ! ToDo: awful subroutine, to be exchanged later
+  subroutine init_subtreetree(nSubtrees,root,subtrees)
+    integer(i4),                     intent(in)    :: nSubtrees
+    type(ptrTreeNode),               intent(inout) :: root
+    type(ptrTreeNode), dimension(:), intent(inout) :: subtrees
+    ! local variables
+    integer(i4)                            :: kk
+    integer(i4), dimension(:), allocatable :: NpraeST
+    type(ptrTreeNode)                      :: next
+
+    allocate(NpraeST(nSubtrees))
+
+    ! find the link downstream between two nodes
+    do kk=1,nSubtrees
+       next%tN => subtrees(kk)%tN%post%tN
+       do while ((next%tN%NpraeST .eq. -1) .and. (.not. next%tN%root))
+          next%tN => next%tN%post%tN
+       end do
+       ! count number of subtrees
+       next%tN%NpraeST=next%tN%NpraeST+1
+       ! set post node
+       subtrees(kk)%tN%postST%tN => next%tN
+    end do
+    ! allocate array of childsubtrees
+    do kk=1,nSubtrees
+       NpraeST(kk)=subtrees(kk)%tN%NpraeST
+       allocate(subtrees(kk)%tN%praeST(NpraeST(kk)))
+    end do
+    allocate(root%tN%praeST(root%tN%NpraeST))
+    ! again find the link downstream between two nodes
+    do kk=1,nSubtrees
+       next%tN => subtrees(kk)%tN%post%tN
+       do while ((next%tN%NpraeST .eq. -1) .and. (.not. next%tN%root))
+          next%tN => next%tN%post%tN
+       end do
+       ! set the links to the children
+       next%tN%praeST(next%tN%NpraeST)%tN => subtrees(kk)%tN
+       next%tN%NpraeST=next%tN%NpraeST-1
+    end do
+    ! ToDo: This is awfull... repair the subtree sizes
+    do kk=1,nSubtrees
+       subtrees(kk)%tN%NpraeST=NpraeSt(kk)
+    end do
+
+    next%tN => subtrees(1)%tN
+
+    deallocate(NpraeST)
+    
+  end subroutine init_subtreetree
 
   recursive subroutine find_subtree(lowBound,childInd,root,subtree)
     integer(i4),               intent(in)    :: lowBound
@@ -355,6 +422,9 @@ CONTAINS
     end do
     if (found) then
        subtree%tN => root%tN
+       ! initialize the node as one of the subtreetree, so
+       ! we can later derive this tree
+       subtree%tN%NpraeST = 0
        ! the parent gets one child removed
        ! it is not removed from the array
        ! it gets switched with the last child, and Nprae reduced by 1
