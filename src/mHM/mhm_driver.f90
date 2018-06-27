@@ -133,6 +133,7 @@ PROGRAM mhm_driver
 #ifdef MRM2MHM
   USE mo_mrm_objective_function_runoff, only : single_objective_runoff
   USE mo_mrm_init, ONLY : mrm_init
+  USE mo_common_mHM_mRM_domain_decomposition, only: domain_decomposition
   USE mo_mrm_write, only : mrm_write
 
 #endif
@@ -295,6 +296,10 @@ PROGRAM mhm_driver
 #else
   mrm_coupling_mode = -1_i4
 #endif
+  ! --------------------------------------------------------------------------
+  ! DOMAIN DECOMPOSITION
+  ! --------------------------------------------------------------------------
+  call domain_decomposition()
 
   !this call may be moved to another position as it writes the master config out file for all basins
   call write_configfile()
