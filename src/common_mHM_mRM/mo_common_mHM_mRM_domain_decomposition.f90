@@ -41,8 +41,10 @@ MODULE mo_common_mHM_mRM_domain_decomposition
                                                             ! subtree > lowBound
                                                             ! downstream
     type(ptrTreeNode)                          :: postST    ! next subtree downstream,
-    integer(i4)                                :: NpraeST   ! number of cut of subtrees
+    integer(i4)                                :: NpraeST   ! number of cut of subtrees in node
     type(ptrTreeNode),dimension(:),allocatable :: praeST    ! array of subtree children
+
+    integer(i4)                                :: NSTinBranch ! number of cut of subtrees in branch
 
   end type treeNode
 CONTAINS
@@ -177,6 +179,7 @@ CONTAINS
       tree(kk)%tN%ind=kk
       tree(kk)%tN%root=.false.
       tree(kk)%tN%NpraeST=-1
+      tree(kk)%tN%NSTinBranch=1
    end do
    ! assign the pointers of the children and the parent
    ! use the array of number of children:
@@ -312,7 +315,7 @@ CONTAINS
     nSubtrees=0
 
     do while (root%tN%sizUp .gt. 1)
-       call cut_of_subtree(lowBound,root,subtree)
+       call find_and_cut_of_subtree(lowBound,root,subtree)
        call update_tree(lowBound,root,subtree)
        !call write_tree(root, lowBound)
        nSubtrees=nSubtrees+1
@@ -327,28 +330,120 @@ CONTAINS
 
   end subroutine decompose
 
-  subroutine cut_of_subtree(lowBound,root,subtree)
+  subroutine find_and_cut_of_subtree(lowBound,root,subtree)
     integer(i4),               intent(in)    :: lowBound
     type(ptrTreeNode),         intent(inout) :: root
     type(ptrTreeNode),         intent(inout) :: subtree
 
     ! local variables
     integer(i4)          :: kk
+    logical              :: found
 
     root%tN%NpraeST = 0
+    ! if root has no children then this is our subtree
     if (root%tN%Nprae .eq. 0) then
        subtree%tN => root%tN
     end if
+    found = .true.
+    ! the first step is a special case, because root has
+    ! no parent and so the parent does not have to be updated
     do kk=1,root%tN%Nprae
        if (root%tN%prae(kk)%tN%sizUp .eq. root%tN%sizUp) then
-          root%tN%siz=root%tN%siz-root%tN%sizUp
+          found = .false.
+   !       root%tN%siz=root%tN%siz-root%tN%sizUp
           call find_subtree(lowBound,kk,root%tN%prae(kk),subtree)
           exit
-       else
-          subtree%tN => root%tN
        endif
     end do
-  end subroutine cut_of_subtree
+    if (found) then
+       subtree%tN => root%tN
+    end if
+  end subroutine find_and_cut_of_subtree
+
+  recursive subroutine find_subtree(lowBound,childInd,root,subtree)
+    integer(i4),               intent(in)    :: lowBound
+    integer(i4),               intent(in)    :: childInd
+    type(ptrTreeNode),         intent(inout) :: root
+    type(ptrTreeNode),         intent(inout) :: subtree
+
+    ! local variables
+    integer(i4)          :: kk,ll
+    integer(i4)          :: minST,minsize,indOfST
+    type(ptrTreeNode)    :: lastSibling
+    logical              :: found
+
+    found = .true.
+    ! find it
+    !*******************************************************************************
+    ! variant, where the smallest subtree is removed, regrardless of anything else *
+    !*******************************************************************************
+!    do kk=1,root%tN%Nprae
+!       if (root%tN%prae(kk)%tN%sizUp .eq. root%tN%sizUp) then
+!          found = .false.
+!        !  root%tN%siz=root%tN%siz-root%tN%sizUp
+!          call find_subtree(lowBound,kk,root%tN%prae(kk),subtree)
+!          exit
+!       end if
+!    end do
+    !*******************************************************************************
+    ! variant, where the smallest subtree is removed, on the branch with the fewest*
+    ! already cut of children                                                      *
+    !*******************************************************************************
+    ! of all children find the lowest number of subtrees in its branch
+    minST=root%tN%NSTinBranch
+    do kk=1,root%tN%Nprae
+       if (root%tN%prae(kk)%tN%NSTinBranch .lt. minST) then
+          minST = root%tN%prae(kk)%tN%NSTinBranch
+       end if
+    end do
+    ! in order of the number of subtrees in the branch of each child, find
+    ! the child with the smallest subtree > k
+    do ll=minST,root%tN%NSTinBranch
+       minsize=1
+       indOfST=1
+       do kk=1,root%tN%Nprae
+          if ((root%tN%prae(kk)%tN%NSTinBranch .eq. ll) .and. (root%tN%prae(kk)%tN%sizUp .gt. 1)) then
+             found = .false.
+             if (minsize .eq. 1) then
+                minsize = root%tN%prae(kk)%tN%sizUp
+                indOfST=kk
+             else if (root%tN%prae(kk)%tN%sizUp .le. minsize) then
+                minsize = root%tN%prae(kk)%tN%sizUp
+                indOfST=kk
+             end if
+          end if
+       end do
+       if (.not. found) then
+          call find_subtree(lowBound,indOfST,root%tN%prae(indOfST),subtree)
+          exit
+       end if
+    end do
+    ! if found, cut it of
+    if (found) then
+       subtree%tN => root%tN
+       call update_sizes(subtree%tN%siz,subtree)
+       ! initialize the node as one of the subtreetree, so
+       ! we can later derive this tree
+       subtree%tN%NpraeST = 0
+       ! the parent gets one child removed
+       ! it is not removed from the array
+       ! it gets switched with the last child, and Nprae reduced by 1
+       lastSibling%tN => root%tN%post%tN%prae(root%tN%post%tN%Nprae)%tN
+       root%tN%post%tN%prae(root%tN%post%tN%Nprae)%tN => root%tN%post%tN%prae(childInd)%tN
+       root%tN%post%tN%prae(childInd)%tN => lastSibling%tN
+       root%tN%post%tN%Nprae = root%tN%post%tN%Nprae - 1
+    endif
+  end subroutine find_subtree
+
+  recursive subroutine update_sizes(redSize,subtree)
+    integer(i4),               intent(in)    :: redSize
+    type(ptrTreeNode),         intent(inout) :: subtree
+
+    if (.not. subtree%tN%root) then
+       subtree%tN%post%tN%siz = subtree%tN%post%tN%siz - redSize
+       call update_sizes(redSize,subtree%tN%post)
+    end if
+  end subroutine
 
   ! ToDo: awful subroutine, to be exchanged later
   subroutine init_subtreetree(nSubtrees,root,subtrees)
@@ -400,41 +495,6 @@ CONTAINS
     
   end subroutine init_subtreetree
 
-  recursive subroutine find_subtree(lowBound,childInd,root,subtree)
-    integer(i4),               intent(in)    :: lowBound
-    integer(i4),               intent(in)    :: childInd
-    type(ptrTreeNode),         intent(inout) :: root
-    type(ptrTreeNode),         intent(inout) :: subtree
-
-    ! local variables
-    integer(i4)          :: kk
-    type(ptrTreeNode)    :: lastSibling
-    logical              :: found
-
-    found = .true.
-    do kk=1,root%tN%Nprae
-       if (root%tN%prae(kk)%tN%sizUp .eq. root%tN%sizUp) then
-          found = .false.
-          root%tN%siz=root%tN%siz-root%tN%sizUp
-          call find_subtree(lowBound,kk,root%tN%prae(kk),subtree)
-          exit
-       end if
-    end do
-    if (found) then
-       subtree%tN => root%tN
-       ! initialize the node as one of the subtreetree, so
-       ! we can later derive this tree
-       subtree%tN%NpraeST = 0
-       ! the parent gets one child removed
-       ! it is not removed from the array
-       ! it gets switched with the last child, and Nprae reduced by 1
-       lastSibling%tN => root%tN%post%tN%prae(root%tN%post%tN%Nprae)%tN
-       root%tN%post%tN%prae(root%tN%post%tN%Nprae)%tN => root%tN%post%tN%prae(childInd)%tN
-       root%tN%post%tN%prae(childInd)%tN => lastSibling%tN
-       root%tN%post%tN%Nprae = root%tN%post%tN%Nprae - 1
-    endif
-  end subroutine find_subtree
-
   recursive subroutine update_tree(lowBound,root,subtree)
     integer(i4),               intent(in)    :: lowBound
     type(ptrTreeNode),         intent(inout) :: root
@@ -445,6 +505,7 @@ CONTAINS
     type(ptrTreeNode)    :: parent
 
     if (.not. subtree%tN%root) then
+       subtree%tN%post%tN%NSTinBranch=subtree%tN%post%tN%NSTinBranch+1
        call find_sizUp_of_node(subtree%tN%post,lowBound)
        call update_tree(lowBound,root,subtree%tN%post)
     endif
