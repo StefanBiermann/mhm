@@ -95,7 +95,7 @@ CONTAINS
   !>        \date June 2018
   !         Modified, June 2018 - Maren Kaluza, start of implementation
 
-  subroutine domain_decomposition()
+  subroutine domain_decomposition(rank,nproc,ierror)
 
     use mo_mrm_global_variables, only : &
             level11,      & ! IN: for number of nCells
@@ -109,6 +109,9 @@ CONTAINS
 
     implicit none
     ! input variables
+    integer, intent(in) :: nproc
+    integer, intent(in) :: rank
+    integer, intent(in) :: ierror
 
     ! local variables
     ! ToDo: Later to be moved to globally known variables
@@ -119,6 +122,7 @@ CONTAINS
     type(ptrTreeNode) :: root
 
 #ifdef MRM2MHM
+   if (rank .eq. 0) then
    write(*,*) 'the domain decomposition with mRM gets implemented now...'
 
    iBasin=1
@@ -130,6 +134,7 @@ CONTAINS
 #else
    write(*,*) 'the domain decomposition without mRM is not implemented yet'
 #endif
+  end if
   end subroutine domain_decomposition
 
   subroutine init_tree(iBasin,lowBound,root)

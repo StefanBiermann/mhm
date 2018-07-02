@@ -106,10 +106,10 @@ LIBNAME  := #libminpack.a # Name of library
 #
 # Options
 # Systems: eve and personal computers such as mcimac for Matthias Cuntz' iMac; look in $(MAKEDPATH) or type 'make info'
-system   := eve
+system   := eve2
 # Compiler: intelX, gnuX, nagX, sunX, where X stands for version number, e.g. intel13;
 #   look at $(MAKEDPATH)/$(system).alias for shortcuts or type 'make info'
-compiler := intel
+compiler := gnu
 # Releases: debug, release
 release  := release
 # Netcdf versions (Network Common Data Form): netcdf3, netcdf4, [anything else]
@@ -125,7 +125,7 @@ imsl     :=
 # OpenMP parallelization: true, [anything else]
 openmp   := false
 # MPI parallelization - experimental: true, [anything else]
-mpi      :=
+mpi      := true
 # Linking: static, shared, dynamic (last two are equal)
 static   := dynamic
 
