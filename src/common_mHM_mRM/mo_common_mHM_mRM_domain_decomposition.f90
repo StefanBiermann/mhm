@@ -97,13 +97,6 @@ CONTAINS
 
   subroutine domain_decomposition(rank,nproc,ierror)
 
-    use mo_mrm_global_variables, only : &
-            level11,      & ! IN: for number of nCells
-            L11_fromN,    & ! IN: from node
-            L11_toN,      & ! IN: to node
-            L11_label,    & ! IN: label Id [0='', 1=HeadWater, 2=Sink]
-            L11_netPerm,  & ! IN: network routing order
-            L11_nOutlets    ! IN: number of outlets, ToDo: Do I need?
     use mo_common_variables, only : &
             nBasins
 
@@ -121,21 +114,51 @@ CONTAINS
     integer(i4) :: ind               ! index of link/edge for subdomain
     type(ptrTreeNode) :: root
 
+    ! for testing purposes
+    integer(i4), dimension(:), allocatable :: testarray
+
 #ifdef MRM2MHM
+   iBasin=1
    if (rank .eq. 0) then
    write(*,*) 'the domain decomposition with mRM gets implemented now...'
+   call init_testarray(iBasin,testarray)
 
-   iBasin=1
    lowBound=3
    uppBound=5
    call init_tree(iBasin, lowBound, root)
    call decompose(iBasin,lowBound,root)
    call tree_destroy(iBasin,root)
+
+   call destroy_testarray(testarray)
 #else
    write(*,*) 'the domain decomposition without mRM is not implemented yet'
 #endif
-  end if
+  else
+   write(*,*) 'need to have something to eat'
+  endif
   end subroutine domain_decomposition
+
+  subroutine init_testarray(iBasin,testarray)
+    use mo_mrm_global_variables, only : &
+            level11       ! IN: for number of nCells
+    implicit none
+    integer(i4),               intent(in)                  :: iBasin
+    integer(i4), dimension(:), allocatable, intent(inout)  :: testarray
+    integer(i4) :: kk ! loop variable to run over all edges/links
+    integer(i4) :: nLinks ! number of edges
+
+   nLinks=level11(iBasin)%ncells - 1
+
+   allocate(testarray(nLinks+1))
+   testarray(:)=1
+  end subroutine init_testarray
+
+  subroutine destroy_testarray(testarray)
+    implicit none
+    integer(i4), dimension(:), allocatable, intent(inout)  :: testarray
+
+   deallocate(testarray)
+  end subroutine destroy_testarray
 
   subroutine init_tree(iBasin,lowBound,root)
     use mo_mrm_global_variables, only : &
