@@ -41,8 +41,10 @@ MODULE mo_common_mHM_mRM_domain_decomposition
                                                             ! subtree > lowBound
                                                             ! downstream
     type(ptrTreeNode)                          :: postST    ! next subtree downstream,
+                                                            ! parent
     integer(i4)                                :: NpraeST   ! number of cut of subtrees in node
     type(ptrTreeNode),dimension(:),allocatable :: praeST    ! array of subtree children
+    integer(i4)                                :: sizST     ! size of cut of subtree
 
     integer(i4)                                :: NSTinBranch ! number of cut of subtrees in branch
 
@@ -127,6 +129,7 @@ CONTAINS
    uppBound=5
    call init_tree(iBasin, lowBound, root)
    call decompose(iBasin,lowBound,root)
+   call write_domain_decomposition(root)
    call tree_destroy(iBasin,root)
 
    call destroy_testarray(testarray)
@@ -293,7 +296,6 @@ CONTAINS
     ! else it stays 1
     ! we need to set it again in case of update after tree change
 
-
   end subroutine find_sizUp_of_node
 
   recursive subroutine write_tree(root, lowBound)
@@ -323,6 +325,32 @@ CONTAINS
     end do
 
   end subroutine write_tree
+
+  recursive subroutine write_domain_decomposition(root)
+    type(ptrTreeNode),         intent(in) :: root
+    ! local variables
+    integer(i4) :: kk ! loop variable to run over all nodes
+    integer(i4) :: NChildren
+
+    NChildren=size(root%tN%praeST)
+    write(*,*) '**********************************************************************'
+    write(*,*) '* node:', root%tN%ind, '                                             *'
+    write(*,*) '**********************************************************************'
+    write(*,*) 'has size: ', root%tN%sizST
+    if (root%tN%root) then
+       write(*,*) 'it is the root node'
+    else
+       write(*,*) 'its parent is', root%tN%postST%tN%ind
+    end if
+    write(*,*) 'has', root%tN%NpraeST ,'children: '
+    do kk = 1, NChildren
+       write(*,*) '   ', root%tN%praeST(kk)%tN%ind
+    end do
+    do kk = 1, NChildren
+       call write_domain_decomposition(root%tN%praeST(kk))
+    end do
+
+  end subroutine write_domain_decomposition
 
   subroutine decompose(iBasin,lowBound,root)
     use mo_mrm_global_variables, only : &
@@ -449,6 +477,7 @@ CONTAINS
     ! if found, cut it of
     if (found) then
        subtree%tN => root%tN
+       subtree%tN%sizST = subtree%tN%sizUp
        call update_sizes(subtree%tN%siz,subtree)
        ! initialize the node as one of the subtreetree, so
        ! we can later derive this tree
