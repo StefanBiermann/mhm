@@ -377,10 +377,14 @@ CONTAINS
        nSubtrees=nSubtrees+1
        subtrees(nSubtrees)%tN => subtree%tN
     end do
+
+    ! cut of root
+    call cut_of_subtree(lowBound,0,root,subtree)
+    call update_tree(lowBound,root,subtree)
+    nSubtrees=nSubtrees+1
+    subtrees(nSubtrees)%tN => subtree%tN
+    
     call init_subtreetree(nSubtrees,root,subtrees)
-    !do kk = 1, nSubtrees
-    !   write(*,*) subtrees(kk)%tN%ind
-    !end do
 
     deallocate(subtrees)
 
@@ -398,19 +402,28 @@ CONTAINS
     type(ptrTreeNode)    :: lastSibling
     logical              :: found
 
-    ! if we enter this subroutine the first time, childInd is 0 and subtree is root
+    ! ToDo: Check all cases
     if (root%tN%root) then
        root%tN%NpraeST = 0
+       found = .true.
        ! if root has no children then this is our subtree
        if (root%tN%Nprae .eq. 0) then
           subtree%tN => root%tN
           root%tN%sizST = root%tN%siz
-       end if
-       call find_branch(root,found,indOfST)
+          ! initialize the node as one of the subtreetree, so
+          ! we can later derive this tree
+          subtree%tN%NpraeST = 0
+       else
+          call find_branch(root,found,indOfST)
+       endif
        if (.not. found) then
           call cut_of_subtree(lowBound,indOfST,root%tN%prae(indOfST),subtree)
        else
           subtree%tN => root%tN
+          subtree%tN%sizST = subtree%tN%siz
+          ! initialize the node as one of the subtreetree, so
+          ! we can later derive this tree
+          subtree%tN%NpraeST = 0
        end if
     else
        call find_branch(root,found,indOfST)
@@ -484,7 +497,6 @@ CONTAINS
                 minsize = root%tN%prae(ii)%tN%sizUp
                 indOfST=ii
              end if
-             ! ToDo: exit outer do loop
           end if
        end do
        if (.not. found) then
@@ -515,8 +527,8 @@ CONTAINS
 
     allocate(NpraeST(nSubtrees))
 
-    ! find the link downstream between two nodes
-    do kk=1,nSubtrees
+    ! find the link downstream between two nodes, if it is not root
+    do kk=1,nSubtrees-1
        next%tN => subtrees(kk)%tN%post%tN
        do while ((next%tN%NpraeST .eq. -1) .and. (.not. next%tN%root))
           next%tN => next%tN%post%tN
@@ -531,9 +543,9 @@ CONTAINS
        NpraeST(kk)=subtrees(kk)%tN%NpraeST
        allocate(subtrees(kk)%tN%praeST(NpraeST(kk)))
     end do
-    allocate(root%tN%praeST(root%tN%NpraeST))
+ !   allocate(root%tN%praeST(root%tN%NpraeST))
     ! again find the link downstream between two nodes
-    do kk=1,nSubtrees
+    do kk=1,nSubtrees-1
        next%tN => subtrees(kk)%tN%post%tN
        do while ((next%tN%NpraeST .eq. -1) .and. (.not. next%tN%root))
           next%tN => next%tN%post%tN
@@ -547,6 +559,7 @@ CONTAINS
        subtrees(kk)%tN%NpraeST=NpraeSt(kk)
     end do
 
+    !ToDo: why is that?
     next%tN => subtrees(1)%tN
 
     deallocate(NpraeST)
