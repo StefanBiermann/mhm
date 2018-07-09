@@ -313,7 +313,7 @@ PROGRAM mhm_driver
   ! DOMAIN DECOMPOSITION
   ! --------------------------------------------------------------------------
 end if
-  call domain_decomposition(rank,nproc,ierror)
+  call domain_decomposition()
 if (rank == 0) then
 
   !this call may be moved to another position as it writes the master config out file for all basins

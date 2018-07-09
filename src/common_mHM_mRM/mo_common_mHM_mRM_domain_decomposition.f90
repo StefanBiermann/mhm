@@ -11,6 +11,7 @@
 
 MODULE mo_common_mHM_mRM_domain_decomposition
   use mo_kind, only : i4, dp
+  use mpi
 
   ! This module sets decomposes the basins into subdomains for parallel
   ! computing
@@ -97,16 +98,11 @@ CONTAINS
   !>        \date June 2018
   !         Modified, June 2018 - Maren Kaluza, start of implementation
 
-  subroutine domain_decomposition(rank,nproc,ierror)
+  subroutine domain_decomposition()
 
-    use mo_common_variables, only : &
-            nBasins
 
     implicit none
     ! input variables
-    integer, intent(in) :: nproc
-    integer, intent(in) :: rank
-    integer, intent(in) :: ierror
 
     ! local variables
     ! ToDo: Later to be moved to globally known variables
@@ -114,32 +110,72 @@ CONTAINS
     integer(i4) :: lowBound,uppBound ! a subdomain should include at least
                                      ! lowBound nodes and at most uppBound
     integer(i4) :: ind               ! index of link/edge for subdomain
-    type(ptrTreeNode) :: root
+    type(ptrTreeNode) :: root        ! the root node of the tree structure
+    type(ptrTreeNode), dimension(:), allocatable :: subtrees ! the array of
+                                     ! subtrees in routing order
+    integer(i4)       :: nNodes      ! the number of nodes in the original tree
+    integer(i4)       :: nBasins     ! nBasins
 
     ! for testing purposes
     integer(i4), dimension(:), allocatable :: testarray
+    integer(i4) :: kk,mes
+    integer(i4) :: nproc,rank,ierror
 
 #ifdef MRM2MHM
-   iBasin=1
-   if (rank .eq. 0) then
-   write(*,*) 'the domain decomposition with mRM gets implemented now...'
-   call init_testarray(iBasin,testarray)
+    iBasin=1
+    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
+    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
+    if (rank .eq. 0) then
+       write(*,*) 'the domain decomposition with mRM gets implemented now...'
+       call get_number_of_basins_and_nodes(iBasin,nNodes,nBasins)
+       call init_testarray(iBasin,testarray)
 
-   lowBound=3
-   uppBound=5
-   call init_tree(iBasin, lowBound, root)
-   call decompose(iBasin,lowBound,root)
-   call write_domain_decomposition(root)
-   call tree_destroy(iBasin,root)
+       lowBound=3
+       uppBound=5
+       call init_tree(iBasin, lowBound, root)
 
-   call destroy_testarray(testarray)
+       ! ToDo: thats possibly a bit too much, but maybe more efficient than reallocating?
+       allocate(subtrees(nNodes/lowBound+1))
+       call decompose(iBasin,lowBound,root,subtrees)
+       ! call write_domain_decomposition(root)
+
+       write(*,*) 'I am root'
+       do kk=1,nproc-1
+          call MPI_Send(kk+10,1,MPI_INTEGER,kk,0,MPI_COMM_WORLD,ierror)
+       end do
+       write(*,*) 'I sent a message to everyone else'
+
+       call tree_destroy(iBasin,root)
+       deallocate(subtrees)
+
+       call destroy_testarray(testarray)
+    else
+       mes=2
+       write(*,*) 'I am', rank
+       call MPI_Recv(mes,1,MPI_INTEGER,0,0,MPI_COMM_WORLD,ierror)
+       write(*,*) 'process', rank, 'ate', mes
+    endif
 #else
-   write(*,*) 'the domain decomposition without mRM is not implemented yet'
+    if (rank .eq. 0) then
+       write(*,*) 'the domain decomposition without mRM is not implemented yet'
+    else
+       write(*,*) 'need to have something to eat'
+    endif
 #endif
-  else
-   write(*,*) 'need to have something to eat'
-  endif
   end subroutine domain_decomposition
+
+  subroutine get_number_of_basins_and_nodes(iBasin,nNodes,numBasins)
+    use mo_mrm_global_variables, only : &
+            level11        ! IN: for number of nCells
+    use mo_common_variables, only : &
+            nBasins
+    implicit none
+    integer, intent(in)    :: iBasin
+    integer, intent(inout) :: nNodes
+    integer, intent(inout) :: numBasins
+    nNodes=level11(iBasin)%ncells
+    numBasins=nBasins
+  end subroutine get_number_of_basins_and_nodes
 
   subroutine init_testarray(iBasin,testarray)
     use mo_mrm_global_variables, only : &
@@ -352,22 +388,20 @@ CONTAINS
 
   end subroutine write_domain_decomposition
 
-  subroutine decompose(iBasin,lowBound,root)
+  subroutine decompose(iBasin,lowBound,root,subtrees)
     use mo_mrm_global_variables, only : &
             level11        ! IN: for number of nCells
     integer(i4),               intent(in)    :: iBasin
     integer(i4),               intent(in)    :: lowBound
     type(ptrTreeNode),         intent(inout) :: root
+    type(ptrTreeNode), dimension(:), intent(inout):: subtrees
 
     ! local variables
-    type(ptrTreeNode), dimension(:), allocatable :: subtrees
     type(ptrTreeNode) :: subtree
     integer(i4)       :: kk
     integer(i4)       :: nNodes, nSubtrees ! number of edges and subtrees
 
     nNodes=level11(iBasin)%ncells
-    ! ToDo: thats possibly a bit too much, but maybe more efficient than reallocating?
-    allocate(subtrees(nNodes/lowBound+1))
     nSubtrees=0
 
     do while (root%tN%sizUp .gt. 1)
@@ -385,8 +419,6 @@ CONTAINS
     subtrees(nSubtrees)%tN => subtree%tN
     
     call init_subtreetree(nSubtrees,root,subtrees)
-
-    deallocate(subtrees)
 
   end subroutine decompose
 
