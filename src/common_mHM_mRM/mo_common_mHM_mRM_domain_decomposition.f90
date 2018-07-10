@@ -139,21 +139,14 @@ CONTAINS
        call decompose(iBasin,lowBound,root,subtrees)
        ! call write_domain_decomposition(root)
 
-       write(*,*) 'I am root'
-       do kk=1,nproc-1
-          call MPI_Send(kk+10,1,MPI_INTEGER,kk,0,MPI_COMM_WORLD,ierror)
-       end do
-       write(*,*) 'I sent a message to everyone else'
+       call distribute_subtrees(iBasin)
 
        call tree_destroy(iBasin,root)
        deallocate(subtrees)
 
        call destroy_testarray(testarray)
     else
-       mes=2
-       write(*,*) 'I am', rank
-       call MPI_Recv(mes,1,MPI_INTEGER,0,0,MPI_COMM_WORLD,ierror)
-       write(*,*) 'process', rank, 'ate', mes
+       call get_subtree(iBasin)
     endif
 #else
     if (rank .eq. 0) then
@@ -163,6 +156,38 @@ CONTAINS
     endif
 #endif
   end subroutine domain_decomposition
+
+  subroutine distribute_subtrees(iBasin)
+    implicit none
+    integer(i4),               intent(in)                  :: iBasin
+    ! for testing purposes
+    integer(i4) :: kk
+    integer(i4) :: nproc,rank,ierror
+    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
+    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
+     write(*,*) 'I am root'
+     do kk=1,nproc-1
+        call MPI_Send(kk,1,MPI_INTEGER,kk,0,MPI_COMM_WORLD,ierror)
+     end do
+     write(*,*) 'I sent a message to everyone else'
+  end subroutine distribute_subtrees
+
+  subroutine get_subtree(iBasin)
+    implicit none
+    integer(i4),               intent(in)                  :: iBasin
+    ! for testing purposes
+    integer(i4) :: mes,test,test2
+    integer(i4) :: nproc,rank,ierror
+    integer status(MPI_STATUS_SIZE)
+    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
+    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
+
+    mes=2
+    write(*,*) 'I am', rank
+    call MPI_Recv(mes,1,MPI_INTEGER,0,0,MPI_COMM_WORLD,status,ierror)
+
+    write(*,*) 'process', rank, 'ate', mes
+  end subroutine get_subtree
 
   subroutine get_number_of_basins_and_nodes(iBasin,nNodes,numBasins)
     use mo_mrm_global_variables, only : &
