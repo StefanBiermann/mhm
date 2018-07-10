@@ -50,6 +50,13 @@ MODULE mo_common_mHM_mRM_domain_decomposition
     integer(i4)                                :: NSTinBranch ! number of cut of subtrees in branch
 
   end type treeNode
+
+  type subtreeMeta
+     integer(i4)        :: iStart
+     integer(i4)        :: iEnd
+     integer(i4)        :: iIn
+     integer(i4)        :: iOut
+  end type subtreeMeta
 CONTAINS
 
   ! ------------------------------------------------------------------
@@ -115,6 +122,7 @@ CONTAINS
                                      ! subtrees in routing order
     integer(i4)       :: nNodes      ! the number of nodes in the original tree
     integer(i4)       :: nBasins     ! nBasins
+    integer(i4)       :: nSubtrees   ! number of subtrees in treedecomposition
 
     ! for testing purposes
     integer(i4), dimension(:), allocatable :: testarray
@@ -136,7 +144,7 @@ CONTAINS
 
        ! ToDo: thats possibly a bit too much, but maybe more efficient than reallocating?
        allocate(subtrees(nNodes/lowBound+1))
-       call decompose(iBasin,lowBound,root,subtrees)
+       call decompose(iBasin,lowBound,root,subtrees,nSubtrees)
        ! call write_domain_decomposition(root)
 
        call distribute_subtrees(iBasin)
@@ -413,20 +421,19 @@ CONTAINS
 
   end subroutine write_domain_decomposition
 
-  subroutine decompose(iBasin,lowBound,root,subtrees)
+  subroutine decompose(iBasin,lowBound,root,subtrees,nSubtrees)
     use mo_mrm_global_variables, only : &
             level11        ! IN: for number of nCells
-    integer(i4),               intent(in)    :: iBasin
-    integer(i4),               intent(in)    :: lowBound
-    type(ptrTreeNode),         intent(inout) :: root
-    type(ptrTreeNode), dimension(:), intent(inout):: subtrees
+    integer(i4),                     intent(in)    :: iBasin
+    integer(i4),                     intent(in)    :: lowBound
+    type(ptrTreeNode),               intent(inout) :: root
+    type(ptrTreeNode), dimension(:), intent(inout) :: subtrees
+    integer(i4),                     intent(out)   :: nSubtrees ! number of subtrees
 
     ! local variables
     type(ptrTreeNode) :: subtree
     integer(i4)       :: kk
-    integer(i4)       :: nNodes, nSubtrees ! number of edges and subtrees
 
-    nNodes=level11(iBasin)%ncells
     nSubtrees=0
 
     do while (root%tN%sizUp .gt. 1)
