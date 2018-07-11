@@ -153,7 +153,7 @@ CONTAINS
        allocate(STmeta(nSubtrees),permNodes(nNodes))
        call init_subtree_metadata(iBasin,subtrees,STmeta,permNodes)
 
-       call distribute_subtrees(iBasin)
+       call distribute_subtrees(iBasin,nSubtrees,STmeta,permNodes,testarray)
 
        deallocate(STmeta)
 
@@ -196,59 +196,114 @@ CONTAINS
        STmeta(kk)%iIn=0
        STmeta(kk)%iOut=subtrees(kk)%tN%ind
     end do
-    STmeta(nSubtrees)%iOut=0
     do kk=1,nSubtrees
        ind = subtrees(kk)%tN%sizST
-       call write_tree_to_array(subtrees(kk),ind,permNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd),STmeta(kk)%iIn)
+       call write_tree_to_array(subtrees(kk),ind,permNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd))
     end do
   end subroutine init_subtree_metadata
 
-  recursive subroutine write_tree_to_array(tree,ind,array,iIn)
+  recursive subroutine write_tree_to_array(tree,ind,array)
     implicit none
     type(ptrTreeNode),         intent(in)    :: tree
     integer(i4),               intent(inout) :: ind
     integer(i4), dimension(:), intent(inout) :: array
-    integer(i4),               intent(inout) :: iIn
     ! local
     integer(i4) :: kk
 
     array(ind)=tree%tN%ind
     ind=ind-1
     do kk=1,tree%tN%Nprae
-       call write_tree_to_array(tree%tN%prae(kk),ind,array,iIn)
+       call write_tree_to_array(tree%tN%prae(kk),ind,array)
     end do
   end subroutine write_tree_to_array
 
-  subroutine distribute_subtrees(iBasin)
+  subroutine distribute_subtrees(iBasin,nSubtrees,STmeta,permNodes,testarray)
     implicit none
-    integer(i4),               intent(in)                  :: iBasin
-    ! for testing purposes
-    integer(i4) :: kk
+    integer(i4),                     intent(in)     :: iBasin
+    integer(i4),                     intent(in)     :: nSubtrees
+    type(subtreeMeta), dimension(:), intent(inout)  :: STmeta
+    integer(i4),       dimension(:), intent(inout)  :: permNodes
+    integer(i4),       dimension(:), intent(inout)  :: testarray
+    ! local variables
+    integer(i4) :: kk,ii,iPerm,iproc,sizST,maxSizST
     integer(i4) :: nproc,rank,ierror
+    integer(i4), dimension(:,:), allocatable :: iSends ! the number and over all
+                                                       ! length of arrays to be send to a process
+    integer(i4), dimension(:), allocatable :: sendarray
+
     call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
     call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
-     write(*,*) 'I am root'
-     do kk=1,nproc-1
-        call MPI_Send(kk,1,MPI_INTEGER,kk,0,MPI_COMM_WORLD,ierror)
-     end do
-     write(*,*) 'I sent a message to everyone else'
+    allocate(iSends(nproc-1,2))
+    write(*,*) 'I am root'
+    iSends(:,:)=0
+    maxSizST=0
+    do kk=1,nSubtrees
+       iproc=mod(kk-1,nproc-1)+1 
+       iSends(iproc,1)=iSends(iproc,1)+1
+       sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
+       iSends(iproc,2)=iSends(iproc,2)+sizST
+       if (maxSizST .lt. sizST) maxSizST=sizST
+    end do
+    allocate(sendarray(maxSizST))
+    do kk=1,nproc-1
+       write(*,*) 'I send',iSends(kk,1),'to',kk
+       call MPI_Send(iSends(kk,:),2,MPI_INTEGER,kk,0,MPI_COMM_WORLD,ierror)
+    end do
+    do kk=1,nSubtrees
+       iproc=mod(kk-1,nproc-1)+1 
+       sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
+       do ii=STmeta(kk)%iStart,STmeta(kk)%iEnd
+          iPerm=permNodes(ii)
+          sendarray(ii-STmeta(kk)%iStart+1)=testarray(iPerm)
+       end do
+       write(*,*) 'I send',sizST,'to', iproc
+       call MPI_Send(sizST,1,MPI_INTEGER,iproc,1,MPI_COMM_WORLD,ierror)
+       call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,iproc,2,MPI_COMM_WORLD,ierror)
+    end do
+    write(*,*) 'I sent some messages to everyone else'
+    deallocate(sendarray)
+    deallocate(iSends)
   end subroutine distribute_subtrees
 
   subroutine get_subtree(iBasin)
     implicit none
     integer(i4),               intent(in)                  :: iBasin
-    ! for testing purposes
-    integer(i4) :: mes,test,test2
+    ! local variables
+    integer(i4) :: kk
+    integer(i4), dimension(2) :: nDatasets ! number of incoming data sets
+    integer(i4), dimension(:), allocatable :: subtreeArray
+    type(subtreeMeta), dimension(:), allocatable :: STmeta
+    integer(i4) :: mes,sizST
     integer(i4) :: nproc,rank,ierror
     integer status(MPI_STATUS_SIZE)
     call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
     call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
 
     mes=2
-    write(*,*) 'I am', rank
-    call MPI_Recv(mes,1,MPI_INTEGER,0,0,MPI_COMM_WORLD,status,ierror)
+    call MPI_Recv(nDatasets(:),2,MPI_INTEGER,0,0,MPI_COMM_WORLD,status,ierror)
+    allocate(STmeta(nDatasets(1)))
+    allocate(subtreeArray(nDatasets(2)))
+    ! ToDo: case: less subtrees than processes
+    call MPI_Recv(sizST,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
+    write(*,*) 'process', rank, 'gets', nDatasets(1), 'data sets, with', nDatasets(2), 'length'
+    STmeta(1)%iStart=1
+    STmeta(1)%iEnd=sizST
+    STmeta(1)%iIn=0
+    STmeta(1)%iOut=0
+    call MPI_Recv(subtreeArray(STmeta(1)%iStart:STmeta(1)%iEnd),sizST,MPI_INTEGER,0,2,MPI_COMM_WORLD,status,ierror)
+    write(*,*) 'process', rank, 'ate', subtreeArray(STmeta(1)%iStart:STmeta(1)%iEnd)
+    do kk=2,nDatasets(1)
+       call MPI_Recv(sizST,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
+       STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1
+       STmeta(kk)%iEnd=STmeta(kk)%iStart+sizST-1
+       STmeta(kk)%iIn=0
+       STmeta(kk)%iOut=0
+       call MPI_Recv(subtreeArray(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,2,MPI_COMM_WORLD,status,ierror)
+       write(*,*) 'process', rank, 'ate', subtreeArray(STmeta(kk)%iStart:STmeta(kk)%iEnd)
+    end do
+    deallocate(subtreeArray)
+    deallocate(STmeta)
 
-    write(*,*) 'process', rank, 'ate', mes
   end subroutine get_subtree
 
   subroutine get_number_of_basins_and_nodes(iBasin,nNodes,numBasins)
@@ -276,7 +331,9 @@ CONTAINS
    nLinks=level11(iBasin)%ncells - 1
 
    allocate(testarray(nLinks+1))
-   testarray(:)=1
+   do kk=1,nLinks+1
+      testarray(kk)=kk
+   end do
   end subroutine init_testarray
 
   subroutine destroy_testarray(testarray)
