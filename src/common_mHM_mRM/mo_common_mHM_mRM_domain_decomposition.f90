@@ -124,10 +124,14 @@ CONTAINS
     integer(i4)       :: nBasins     ! nBasins
     integer(i4)       :: nSubtrees   ! number of subtrees in treedecomposition
 
+    type(subtreeMeta), dimension(:), allocatable :: STmeta
+    integer(i4) , dimension(:), allocatable      :: permNodes   ! in-Nodes in routing order corresponding
+                                                                ! to decomposition
+    integer(i4) :: nproc,rank,ierror
+
     ! for testing purposes
     integer(i4), dimension(:), allocatable :: testarray
     integer(i4) :: kk,mes
-    integer(i4) :: nproc,rank,ierror
 
 #ifdef MRM2MHM
     iBasin=1
@@ -142,15 +146,19 @@ CONTAINS
        uppBound=5
        call init_tree(iBasin, lowBound, root)
 
-       ! ToDo: thats possibly a bit too much, but maybe more efficient than reallocating?
+       ! ToDo: that's possibly a bit too much, but maybe more efficient than reallocating?
        allocate(subtrees(nNodes/lowBound+1))
        call decompose(iBasin,lowBound,root,subtrees,nSubtrees)
        ! call write_domain_decomposition(root)
+       allocate(STmeta(nSubtrees),permNodes(nNodes))
+       call init_subtree_metadata(iBasin,subtrees,STmeta,permNodes)
 
        call distribute_subtrees(iBasin)
 
+       deallocate(STmeta)
+
        call tree_destroy(iBasin,root)
-       deallocate(subtrees)
+       deallocate(subtrees,permNodes)
 
        call destroy_testarray(testarray)
     else
@@ -164,6 +172,52 @@ CONTAINS
     endif
 #endif
   end subroutine domain_decomposition
+
+  subroutine init_subtree_metadata(iBasin,subtrees,STmeta,permNodes)
+    implicit none
+    integer(i4),                     intent(in)     :: iBasin
+    type(ptrTreeNode), dimension(:), intent(in)     :: subtrees ! the array of
+    type(subtreeMeta), dimension(:), intent(inout)  :: STmeta
+    integer(i4),       dimension(:), intent(inout)  :: permNodes
+    ! local
+    integer(i4) :: nNodes, nSubtrees
+    integer(i4) :: kk,ind
+
+    nSubtrees=size(STmeta)
+    nNodes=size(permNodes)
+
+    STmeta(1)%iStart=1
+    STmeta(1)%iEnd=subtrees(1)%tN%sizST
+    STmeta(1)%iIn=0
+    STmeta(1)%iOut=subtrees(1)%tN%ind
+    do kk=2,nSubtrees
+       STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1
+       STmeta(kk)%iEnd=STmeta(kk)%iStart+subtrees(kk)%tN%sizST-1
+       STmeta(kk)%iIn=0
+       STmeta(kk)%iOut=subtrees(kk)%tN%ind
+    end do
+    STmeta(nSubtrees)%iOut=0
+    do kk=1,nSubtrees
+       ind = subtrees(kk)%tN%sizST
+       call write_tree_to_array(subtrees(kk),ind,permNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd),STmeta(kk)%iIn)
+    end do
+  end subroutine init_subtree_metadata
+
+  recursive subroutine write_tree_to_array(tree,ind,array,iIn)
+    implicit none
+    type(ptrTreeNode),         intent(in)    :: tree
+    integer(i4),               intent(inout) :: ind
+    integer(i4), dimension(:), intent(inout) :: array
+    integer(i4),               intent(inout) :: iIn
+    ! local
+    integer(i4) :: kk
+
+    array(ind)=tree%tN%ind
+    ind=ind-1
+    do kk=1,tree%tN%Nprae
+       call write_tree_to_array(tree%tN%prae(kk),ind,array,iIn)
+    end do
+  end subroutine write_tree_to_array
 
   subroutine distribute_subtrees(iBasin)
     implicit none
