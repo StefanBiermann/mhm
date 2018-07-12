@@ -30,7 +30,8 @@ MODULE mo_common_mHM_mRM_domain_decomposition
 
   type treeNode
     ! general basin information
-    integer(i4)                                :: origind       ! index in node
+    integer(i4)                                :: origind   ! index in node in original array
+    integer(i4)                                :: ind       ! index in node in routing ordered array
                                                             ! array
     logical                                    :: root      ! true if the node is root
     type(ptrTreeNode)                          :: post      ! node downstream,
@@ -153,6 +154,7 @@ CONTAINS
        ! call write_domain_decomposition(root)
        allocate(STmeta(nSubtrees),permNodes(nNodes),toNodes(nNodes))
        call init_subtree_metadata(iBasin,subtrees,STmeta,permNodes,toNodes)
+       call write_tree(root, lowBound)
 
        call distribute_subtrees(iBasin,nSubtrees,toNodes,STmeta,permNodes,testarray)
 
@@ -199,17 +201,19 @@ CONTAINS
        STmeta(kk)%iOut=subtrees(kk)%tN%origind
     end do
     toNodes(:)=0
-    do kk=1,nSubtrees
+    do kk=nSubtrees,1,-1
        ind = subtrees(kk)%tN%sizST
-       call write_tree_to_array(subtrees(kk),ind,permNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd), &
-                                                   toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd))
+       call write_tree_to_array(subtrees(kk),STmeta(kk)%iStart,ind,&
+            permNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd), &
+              toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd))
     end do
     write(*,*) toNodes
   end subroutine init_subtree_metadata
 
-  recursive subroutine write_tree_to_array(tree,ind,array,toArray)
+  recursive subroutine write_tree_to_array(tree,start,ind,array,toArray)
     implicit none
     type(ptrTreeNode),         intent(in)    :: tree
+    integer(i4),               intent(in)    :: start
     integer(i4),               intent(inout) :: ind
     integer(i4), dimension(:), intent(inout) :: array
     integer(i4), dimension(:), intent(inout) :: toArray
@@ -217,14 +221,15 @@ CONTAINS
     integer(i4) :: kk
 
     array(ind)=tree%tN%origind
+    tree%tN%ind=start+ind-1
     if (.not. tree%tN%root) then
-       toArray(ind)=tree%tN%post%tN%origind
+       toArray(ind)=tree%tN%post%tN%ind
     else
        toArray(ind)=0
     end if
     ind=ind-1
     do kk=1,tree%tN%Nprae
-       call write_tree_to_array(tree%tN%prae(kk),ind,array,toArray)
+       call write_tree_to_array(tree%tN%prae(kk),start,ind,array,toArray)
     end do
   end subroutine write_tree_to_array
 
@@ -271,7 +276,7 @@ CONTAINS
        iproc=mod(kk-1,nproc-1)+1 
        sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
        do ii=STmeta(kk)%iStart,STmeta(kk)%iEnd
-          sendarray(ii-STmeta(kk)%iStart+1)=toNodes(ii)
+          sendarray(ii-STmeta(kk)%iStart+1)=toNodes(ii)-STmeta(kk)%iStart
        end do
        call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,iproc,2,MPI_COMM_WORLD,ierror)
 
@@ -414,6 +419,7 @@ CONTAINS
       tree(kk)%tN%siz=1
       tree(kk)%tN%sizUp=1
       tree(kk)%tN%origind=kk
+      tree(kk)%tN%ind=0
       tree(kk)%tN%root=.false.
       tree(kk)%tN%NpraeST=-1
       tree(kk)%tN%NSTinBranch=1
@@ -513,18 +519,18 @@ CONTAINS
 
     NChildren=size(root%tN%prae)
     write(*,*) '**********************************************************************'
-    write(*,*) '* node:', root%tN%origind, '                                             *'
+    write(*,*) '* node:', root%tN%origind, 'new:',root%tN%ind, '                     *'
     write(*,*) '**********************************************************************'
     write(*,*) 'has size: ', root%tN%siz
     write(*,*) 'size of smallest subtree larger than', lowBound, 'is: ', root%tN%sizUp
     if (root%tN%root) then
        write(*,*) 'it is the root node'
     else
-       write(*,*) 'its parent is', root%tN%post%tN%origind
+       write(*,*) 'its parent is', root%tN%post%tN%origind, 'new:', root%tN%post%tN%ind
     end if
     write(*,*) 'has', root%tN%Nprae ,'children: '
     do kk = 1, NChildren
-       write(*,*) '   ', root%tN%prae(kk)%tN%origind
+       write(*,*) '  old:', root%tN%prae(kk)%tN%origind, 'new:', root%tN%prae(kk)%tN%ind
     end do
     do kk = 1, NChildren
        call write_tree(root%tN%prae(kk),lowBound)
