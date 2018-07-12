@@ -30,7 +30,7 @@ MODULE mo_common_mHM_mRM_domain_decomposition
 
   type treeNode
     ! general basin information
-    integer(i4)                                :: ind       ! index in node
+    integer(i4)                                :: origind       ! index in node
                                                             ! array
     logical                                    :: root      ! true if the node is root
     type(ptrTreeNode)                          :: post      ! node downstream,
@@ -126,6 +126,7 @@ CONTAINS
 
     type(subtreeMeta), dimension(:), allocatable :: STmeta
     integer(i4) , dimension(:), allocatable      :: permNodes   ! in-Nodes in routing order corresponding
+    integer(i4) , dimension(:), allocatable      :: toNodes     ! out-Nodes of corresponding in-Nodes
                                                                 ! to decomposition
     integer(i4) :: nproc,rank,ierror
 
@@ -150,15 +151,15 @@ CONTAINS
        allocate(subtrees(nNodes/lowBound+1))
        call decompose(iBasin,lowBound,root,subtrees,nSubtrees)
        ! call write_domain_decomposition(root)
-       allocate(STmeta(nSubtrees),permNodes(nNodes))
-       call init_subtree_metadata(iBasin,subtrees,STmeta,permNodes)
+       allocate(STmeta(nSubtrees),permNodes(nNodes),toNodes(nNodes))
+       call init_subtree_metadata(iBasin,subtrees,STmeta,permNodes,toNodes)
 
-       call distribute_subtrees(iBasin,nSubtrees,STmeta,permNodes,testarray)
+       call distribute_subtrees(iBasin,nSubtrees,toNodes,STmeta,permNodes,testarray)
 
        deallocate(STmeta)
 
        call tree_destroy(iBasin,root)
-       deallocate(subtrees,permNodes)
+       deallocate(subtrees,permNodes,toNodes)
 
        call destroy_testarray(testarray)
     else
@@ -173,12 +174,13 @@ CONTAINS
 #endif
   end subroutine domain_decomposition
 
-  subroutine init_subtree_metadata(iBasin,subtrees,STmeta,permNodes)
+  subroutine init_subtree_metadata(iBasin,subtrees,STmeta,permNodes,toNodes)
     implicit none
     integer(i4),                     intent(in)     :: iBasin
     type(ptrTreeNode), dimension(:), intent(in)     :: subtrees ! the array of
     type(subtreeMeta), dimension(:), intent(inout)  :: STmeta
     integer(i4),       dimension(:), intent(inout)  :: permNodes
+    integer(i4),       dimension(:), intent(inout)  :: toNodes
     ! local
     integer(i4) :: nNodes, nSubtrees
     integer(i4) :: kk,ind
@@ -189,38 +191,48 @@ CONTAINS
     STmeta(1)%iStart=1
     STmeta(1)%iEnd=subtrees(1)%tN%sizST
     STmeta(1)%iIn=0
-    STmeta(1)%iOut=subtrees(1)%tN%ind
+    STmeta(1)%iOut=subtrees(1)%tN%origind
     do kk=2,nSubtrees
        STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1
        STmeta(kk)%iEnd=STmeta(kk)%iStart+subtrees(kk)%tN%sizST-1
        STmeta(kk)%iIn=0
-       STmeta(kk)%iOut=subtrees(kk)%tN%ind
+       STmeta(kk)%iOut=subtrees(kk)%tN%origind
     end do
+    toNodes(:)=0
     do kk=1,nSubtrees
        ind = subtrees(kk)%tN%sizST
-       call write_tree_to_array(subtrees(kk),ind,permNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd))
+       call write_tree_to_array(subtrees(kk),ind,permNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd), &
+                                                   toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd))
     end do
+    write(*,*) toNodes
   end subroutine init_subtree_metadata
 
-  recursive subroutine write_tree_to_array(tree,ind,array)
+  recursive subroutine write_tree_to_array(tree,ind,array,toArray)
     implicit none
     type(ptrTreeNode),         intent(in)    :: tree
     integer(i4),               intent(inout) :: ind
     integer(i4), dimension(:), intent(inout) :: array
+    integer(i4), dimension(:), intent(inout) :: toArray
     ! local
     integer(i4) :: kk
 
-    array(ind)=tree%tN%ind
+    array(ind)=tree%tN%origind
+    if (.not. tree%tN%root) then
+       toArray(ind)=tree%tN%post%tN%origind
+    else
+       toArray(ind)=0
+    end if
     ind=ind-1
     do kk=1,tree%tN%Nprae
-       call write_tree_to_array(tree%tN%prae(kk),ind,array)
+       call write_tree_to_array(tree%tN%prae(kk),ind,array,toArray)
     end do
   end subroutine write_tree_to_array
 
-  subroutine distribute_subtrees(iBasin,nSubtrees,STmeta,permNodes,testarray)
+  subroutine distribute_subtrees(iBasin,nSubtrees,toNodes,STmeta,permNodes,testarray)
     implicit none
     integer(i4),                     intent(in)     :: iBasin
     integer(i4),                     intent(in)     :: nSubtrees
+    integer(i4),       dimension(:), intent(in)     :: toNodes
     type(subtreeMeta), dimension(:), intent(inout)  :: STmeta
     integer(i4),       dimension(:), intent(inout)  :: permNodes
     integer(i4),       dimension(:), intent(inout)  :: testarray
@@ -245,6 +257,7 @@ CONTAINS
        if (maxSizST .lt. sizST) maxSizST=sizST
     end do
     allocate(sendarray(maxSizST))
+    sendarray(:)=0
     do kk=1,nproc-1
        write(*,*) 'I send',iSends(kk,1),'to',kk
        call MPI_Send(iSends(kk,:),2,MPI_INTEGER,kk,0,MPI_COMM_WORLD,ierror)
@@ -252,13 +265,21 @@ CONTAINS
     do kk=1,nSubtrees
        iproc=mod(kk-1,nproc-1)+1 
        sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
+       call MPI_Send(sizST,1,MPI_INTEGER,iproc,1,MPI_COMM_WORLD,ierror)
+    end do
+    do kk=1,nSubtrees
+       iproc=mod(kk-1,nproc-1)+1 
+       sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
+       do ii=STmeta(kk)%iStart,STmeta(kk)%iEnd
+          sendarray(ii-STmeta(kk)%iStart+1)=toNodes(ii)
+       end do
+       call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,iproc,2,MPI_COMM_WORLD,ierror)
+
        do ii=STmeta(kk)%iStart,STmeta(kk)%iEnd
           iPerm=permNodes(ii)
           sendarray(ii-STmeta(kk)%iStart+1)=testarray(iPerm)
        end do
-       write(*,*) 'I send',sizST,'to', iproc
-       call MPI_Send(sizST,1,MPI_INTEGER,iproc,1,MPI_COMM_WORLD,ierror)
-       call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,iproc,2,MPI_COMM_WORLD,ierror)
+       call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,iproc,3,MPI_COMM_WORLD,ierror)
     end do
     write(*,*) 'I sent some messages to everyone else'
     deallocate(sendarray)
@@ -271,6 +292,7 @@ CONTAINS
     ! local variables
     integer(i4) :: kk
     integer(i4), dimension(2) :: nDatasets ! number of incoming data sets
+    integer(i4), dimension(:), allocatable :: toNodes
     integer(i4), dimension(:), allocatable :: subtreeArray
     type(subtreeMeta), dimension(:), allocatable :: STmeta
     integer(i4) :: mes,sizST
@@ -282,7 +304,7 @@ CONTAINS
     mes=2
     call MPI_Recv(nDatasets(:),2,MPI_INTEGER,0,0,MPI_COMM_WORLD,status,ierror)
     allocate(STmeta(nDatasets(1)))
-    allocate(subtreeArray(nDatasets(2)))
+    allocate(subtreeArray(nDatasets(2)),toNodes(nDatasets(2)))
     ! ToDo: case: less subtrees than processes
     call MPI_Recv(sizST,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
     write(*,*) 'process', rank, 'gets', nDatasets(1), 'data sets, with', nDatasets(2), 'length'
@@ -290,18 +312,22 @@ CONTAINS
     STmeta(1)%iEnd=sizST
     STmeta(1)%iIn=0
     STmeta(1)%iOut=0
-    call MPI_Recv(subtreeArray(STmeta(1)%iStart:STmeta(1)%iEnd),sizST,MPI_INTEGER,0,2,MPI_COMM_WORLD,status,ierror)
-    write(*,*) 'process', rank, 'ate', subtreeArray(STmeta(1)%iStart:STmeta(1)%iEnd)
     do kk=2,nDatasets(1)
        call MPI_Recv(sizST,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
        STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1
        STmeta(kk)%iEnd=STmeta(kk)%iStart+sizST-1
        STmeta(kk)%iIn=0
        STmeta(kk)%iOut=0
-       call MPI_Recv(subtreeArray(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,2,MPI_COMM_WORLD,status,ierror)
+    end do
+
+    do kk=1,nDatasets(1)
+       sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
+       call MPI_Recv(toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,2,MPI_COMM_WORLD,status,ierror)
+       write(*,*) 'process', rank, 'ate', toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd)
+       call MPI_Recv(subtreeArray(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,3,MPI_COMM_WORLD,status,ierror)
        write(*,*) 'process', rank, 'ate', subtreeArray(STmeta(kk)%iStart:STmeta(kk)%iEnd)
     end do
-    deallocate(subtreeArray)
+    deallocate(subtreeArray,toNodes)
     deallocate(STmeta)
 
   end subroutine get_subtree
@@ -387,7 +413,7 @@ CONTAINS
       end do
       tree(kk)%tN%siz=1
       tree(kk)%tN%sizUp=1
-      tree(kk)%tN%ind=kk
+      tree(kk)%tN%origind=kk
       tree(kk)%tN%root=.false.
       tree(kk)%tN%NpraeST=-1
       tree(kk)%tN%NSTinBranch=1
@@ -487,18 +513,18 @@ CONTAINS
 
     NChildren=size(root%tN%prae)
     write(*,*) '**********************************************************************'
-    write(*,*) '* node:', root%tN%ind, '                                             *'
+    write(*,*) '* node:', root%tN%origind, '                                             *'
     write(*,*) '**********************************************************************'
     write(*,*) 'has size: ', root%tN%siz
     write(*,*) 'size of smallest subtree larger than', lowBound, 'is: ', root%tN%sizUp
     if (root%tN%root) then
        write(*,*) 'it is the root node'
     else
-       write(*,*) 'its parent is', root%tN%post%tN%ind
+       write(*,*) 'its parent is', root%tN%post%tN%origind
     end if
     write(*,*) 'has', root%tN%Nprae ,'children: '
     do kk = 1, NChildren
-       write(*,*) '   ', root%tN%prae(kk)%tN%ind
+       write(*,*) '   ', root%tN%prae(kk)%tN%origind
     end do
     do kk = 1, NChildren
        call write_tree(root%tN%prae(kk),lowBound)
@@ -514,17 +540,17 @@ CONTAINS
 
     NChildren=size(root%tN%praeST)
     write(*,*) '**********************************************************************'
-    write(*,*) '* node:', root%tN%ind, '                                             *'
+    write(*,*) '* node:', root%tN%origind, '                                             *'
     write(*,*) '**********************************************************************'
     write(*,*) 'has size: ', root%tN%sizST
     if (root%tN%root) then
        write(*,*) 'it is the root node'
     else
-       write(*,*) 'its parent is', root%tN%postST%tN%ind
+       write(*,*) 'its parent is', root%tN%postST%tN%origind
     end if
     write(*,*) 'has', root%tN%NpraeST ,'children: '
     do kk = 1, NChildren
-       write(*,*) '   ', root%tN%praeST(kk)%tN%ind
+       write(*,*) '   ', root%tN%praeST(kk)%tN%origind
     end do
     do kk = 1, NChildren
        call write_domain_decomposition(root%tN%praeST(kk))
