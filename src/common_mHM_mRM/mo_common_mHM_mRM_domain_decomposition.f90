@@ -155,10 +155,10 @@ CONTAINS
        ! call write_domain_decomposition(root)
        allocate(STmeta(nSubtrees),permNodes(nNodes),toNodes(nNodes))
        call init_subtree_metadata(iBasin,subtrees,STmeta,permNodes,toNodes)
-       ! call write_tree(root, lowBound)
 
        call distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes)
        call routing(iBasin,subtrees,nSubtrees,STmeta,permNodes,testarray)
+   !    call write_tree_with_array(root, lowBound,testarray)
 
        deallocate(STmeta)
 
@@ -191,7 +191,7 @@ CONTAINS
     integer(i4),       dimension(:), intent(in)     :: permNodes
     integer(i4),       dimension(:), intent(inout)  :: array
     ! local
-    integer(i4) :: kk,nST,iproc,next,iOut
+    integer(i4) :: kk,nST,iproc,next,ind,iOut
     integer(i4), dimension(2) :: value_ind
     integer(i4) :: nproc,rank,ierror,request
     integer status(MPI_STATUS_SIZE)
@@ -201,13 +201,14 @@ CONTAINS
     call distribute_array(iBasin,nSubtrees,STmeta,permNodes,array)
     
     do kk=1,nSubtrees
-       call nST_to_nproc(kk,nproc,iproc)
+       call iST_to_iproc(kk,nproc,iproc)
        call MPI_Recv(value_ind,2,MPI_INTEGER,iproc,7,MPI_COMM_WORLD,status,ierror)
        if (.not. subtrees(value_ind(2))%tN%root) then
-       next=subtrees(value_ind(2))%tN%postST%tN%indST
-       call nST_to_nproc(next,nproc,iproc)
-       call MPI_Send([array(kk),array(kk+1)],2,MPI_INTEGER,iproc,6,MPI_COMM_WORLD,ierror)
-       write(*,*) 'master sent', [array(kk),array(kk+1)], 'to', iproc, 'index', subtrees(kk)%tN%post%tN%ind
+          next=subtrees(value_ind(2))%tN%postST%tN%indST
+          ind=subtrees(value_ind(2))%tN%post%tN%ind
+          call iST_to_iproc(next,nproc,iproc)
+          call MPI_Send([value_ind(1),ind-STmeta(next)%iStart],2,MPI_INTEGER,iproc,next,MPI_COMM_WORLD,ierror)
+   !       write(*,*) 'master sent', value_ind(1), 'to process',iproc,'tree',next, 'ind_diff', ind-STmeta(next)%iStart
        end if
     end do
 
@@ -223,7 +224,7 @@ CONTAINS
     integer(i4),       dimension(:), allocatable, intent(inout) :: array
     ! local
     integer(i4) :: nST ! number of subtrees scheduled on this node
-    integer(i4) :: kk,jj,test
+    integer(i4) :: kk,jj,next
     integer(i4), dimension(2) :: value_ind
     integer(i4) :: nproc,rank,ierror,request
     integer status(MPI_STATUS_SIZE)
@@ -233,24 +234,35 @@ CONTAINS
     call get_array(iBasin,STmeta,array)
 
     nST=size(STmeta)
-    test=0
     do kk=1,nST
        do jj=1,STmeta(kk)%nIn
-       test=test+1
+          call MPI_Recv(value_ind,2,MPI_INTEGER,0,STmeta(kk)%indST,MPI_COMM_WORLD,status,ierror)
+          next=value_ind(2)+STmeta(kk)%iStart
+          array(next)=array(next)+value_ind(1)
+   !       write(*,*) 'process',rank, 'tree', STmeta(kk)%indST, 'with indices', &
+   !               STmeta(kk)%iStart,'-',STmeta(kk)%iEnd ,&
+   !               'gets', value_ind(1), 'for ind', next, 'ind_diff', value_ind(2)
        enddo
-    enddo
-    do kk=1,nST
-       do jj=1,STmeta(kk)%nIn
-          call MPI_Recv(value_ind,2,MPI_INTEGER,0,6,MPI_COMM_WORLD,status,ierror)
-          write(*,*) 'process', rank, 'with index', array(STmeta(kk)%iEnd), 'ate', value_ind
-       enddo
-       call MPI_Send([1,STmeta(kk)%indST],2,MPI_INTEGER,0,7,MPI_COMM_WORLD,ierror)
-       write(*,*) 'process', rank, 'sent', [1,STmeta(kk)%indST]
+       call nodeinternal_routing(kk,toNodes,STmeta,array)
+       call MPI_Send([array(STmeta(kk)%iEnd),STmeta(kk)%indST],2,MPI_INTEGER,0,7,MPI_COMM_WORLD,ierror)
     enddo
 
     call send_array(iBasin,STmeta,array)
     deallocate(array)
   end subroutine subtree_routing
+
+  subroutine nodeinternal_routing(kk,toNodes,STmeta,array)
+    implicit none
+    integer(i4),                                  intent(in)    :: kk
+    integer(i4),       dimension(:),              intent(in)    :: toNodes
+    type(subtreeMeta), dimension(:),              intent(in)    :: STmeta
+    integer(i4),       dimension(:),              intent(inout) :: array
+    ! local
+    integer(i4) :: jj
+    do jj=STmeta(kk)%iStart,STmeta(kk)%iEnd-1
+       array(toNodes(jj))=array(toNodes(jj))+array(jj)
+    end do
+  end subroutine nodeinternal_routing
 
   subroutine init_subtree_metadata(iBasin,subtrees,STmeta,permNodes,toNodes)
     implicit none
@@ -327,7 +339,7 @@ CONTAINS
     iSends(:,:)=0
     maxSizST=0
     do kk=1,nSubtrees
-       call nST_to_nproc(kk,nproc,iproc)
+       call iST_to_iproc(kk,nproc,iproc)
        iSends(iproc,1)=iSends(iproc,1)+1
        sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
        iSends(iproc,2)=iSends(iproc,2)+sizST
@@ -339,14 +351,14 @@ CONTAINS
        call MPI_Send(iSends(kk,:),2,MPI_INTEGER,kk,0,MPI_COMM_WORLD,ierror)
     end do
     do kk=1,nSubtrees
-       call nST_to_nproc(kk,nproc,iproc)
+       call iST_to_iproc(kk,nproc,iproc)
        sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
        call MPI_Send(sizST,1,MPI_INTEGER,iproc,1,MPI_COMM_WORLD,ierror)
        call MPI_Send(kk,1,MPI_INTEGER,iproc,1,MPI_COMM_WORLD,ierror)
        call MPI_Send(STmeta(kk)%nIn,1,MPI_INTEGER,iproc,1,MPI_COMM_WORLD,ierror)
     end do
     do kk=1,nSubtrees
-       call nST_to_nproc(kk,nproc,iproc)
+       call iST_to_iproc(kk,nproc,iproc)
        sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
        do ii=STmeta(kk)%iStart,STmeta(kk)%iEnd
           sendarray(ii-STmeta(kk)%iStart+1)=toNodes(ii)-STmeta(kk)%iStart
@@ -358,14 +370,14 @@ CONTAINS
     deallocate(iSends)
   end subroutine distribute_subtree_meta
 
-  subroutine nST_to_nproc(kk,nproc,iproc)
+  subroutine iST_to_iproc(kk,nproc,iproc)
     implicit none
     integer(i4),                     intent(in)  :: kk
     integer(i4),                     intent(in)  :: nproc
     integer(i4),                     intent(out) :: iproc
 
     iproc=mod(kk-1,nproc-1)+1
-  end subroutine nST_to_nproc
+  end subroutine iST_to_iproc
 
   subroutine distribute_array(iBasin,nSubtrees,STmeta,permNodes,testarray)
     implicit none
@@ -389,7 +401,7 @@ CONTAINS
     allocate(sendarray(maxSizST))
     sendarray(:)=0
     do kk=1,nSubtrees
-       call nST_to_nproc(kk,nproc,iproc)
+       call iST_to_iproc(kk,nproc,iproc)
        sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
        do ii=STmeta(kk)%iStart,STmeta(kk)%iEnd
           iPerm=permNodes(ii)
@@ -423,7 +435,7 @@ CONTAINS
     allocate(recvarray(maxSizST))
     recvarray(:)=0
     do kk=1,nSubtrees
-       call nST_to_nproc(kk,nproc,iproc)
+       call iST_to_iproc(kk,nproc,iproc)
        sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
        call MPI_Recv(recvarray(1:sizST),sizST,MPI_INTEGER,iproc,4,MPI_COMM_WORLD,status,ierror)
        do ii=STmeta(kk)%iStart,STmeta(kk)%iEnd
@@ -442,7 +454,6 @@ CONTAINS
     ! local variables
     integer(i4) :: kk
     integer(i4), dimension(2) :: nDatasets ! number of incoming data sets
-    integer(i4), dimension(:), allocatable :: subtreeArray
     integer(i4) :: mes,sizST,indST
     integer(i4) :: nproc,rank,ierror
     integer status(MPI_STATUS_SIZE)
@@ -452,7 +463,7 @@ CONTAINS
     mes=2
     call MPI_Recv(nDatasets(:),2,MPI_INTEGER,0,0,MPI_COMM_WORLD,status,ierror)
     allocate(STmeta(nDatasets(1)))
-    allocate(subtreeArray(nDatasets(2)),toNodes(nDatasets(2)))
+    allocate(toNodes(nDatasets(2)))
     ! ToDo: case: less subtrees than processes
     call MPI_Recv(sizST,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
     STmeta(1)%iStart=1
@@ -470,8 +481,9 @@ CONTAINS
     do kk=1,nDatasets(1)
        sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
        call MPI_Recv(toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,2,MPI_COMM_WORLD,status,ierror)
+       ! ToDo: why not -1
+       toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd)=toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd)+STmeta(kk)%iStart
     end do
-    deallocate(subtreeArray)
 
   end subroutine get_subtree_meta
 
@@ -545,7 +557,8 @@ CONTAINS
 
    allocate(testarray(nLinks+1))
    do kk=1,nLinks+1
-      testarray(kk)=kk
+      !testarray(kk)=kk
+      testarray(kk)=1
    end do
   end subroutine init_testarray
 
@@ -720,6 +733,36 @@ CONTAINS
     end do
 
   end subroutine write_tree
+
+  recursive subroutine write_tree_with_array(root, lowBound,array)
+    type(ptrTreeNode),         intent(in) :: root
+    integer(i4),               intent(in) :: lowBound
+    integer(i4), dimension(:), intent(in) :: array
+    ! local variables
+    integer(i4) :: kk ! loop variable to run over all nodes
+    integer(i4) :: NChildren
+
+    NChildren=size(root%tN%prae)
+    write(*,*) '**********************************************************************'
+    write(*,*) '* node:', root%tN%origind, 'new:',root%tN%ind, '                     *'
+    write(*,*) '* value:', array(root%tN%origind), '                                 *'
+    write(*,*) '**********************************************************************'
+    write(*,*) 'has size: ', root%tN%siz
+    write(*,*) 'size of smallest subtree larger than', lowBound, 'is: ', root%tN%sizUp
+    if (root%tN%root) then
+       write(*,*) 'it is the root node'
+    else
+       write(*,*) 'its parent is', root%tN%post%tN%origind, 'new:', root%tN%post%tN%ind
+    end if
+    write(*,*) 'has', root%tN%Nprae ,'children: '
+    do kk = 1, NChildren
+       write(*,*) '  old:', root%tN%prae(kk)%tN%origind, 'new:', root%tN%prae(kk)%tN%ind
+    end do
+    do kk = 1, NChildren
+       call write_tree_with_array(root%tN%prae(kk),lowBound,array)
+    end do
+
+  end subroutine write_tree_with_array
 
   recursive subroutine write_domain_decomposition(root)
     type(ptrTreeNode),         intent(in) :: root
