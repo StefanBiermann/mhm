@@ -32,8 +32,7 @@ MODULE mo_common_mHM_mRM_domain_decomposition
     ! general basin information
     integer(i4)                                :: origind   ! index in node in original array
     integer(i4)                                :: ind       ! index in node in routing ordered array
-    integer(i4)                                :: indST     ! index in node in Subtree array
-                                                            ! array
+
     logical                                    :: root      ! true if the node is root
     type(ptrTreeNode)                          :: post      ! node downstream,
                                                             ! parent
@@ -43,15 +42,20 @@ MODULE mo_common_mHM_mRM_domain_decomposition
     integer(i4)                                :: sizUp     ! size of smallest
                                                             ! subtree > lowBound
                                                             ! downstream
+    type(subtreeNode), pointer                 :: ST        ! data of a node, that is also a subtreetree node
+
+    integer(i4)                                :: NSTinBranch ! number of cut of subtrees in branch
+
+  end type treeNode
+
+  type subtreeNode
+    integer(i4)                                :: indST     ! index in node in Subtree array
     type(ptrTreeNode)                          :: postST    ! next subtree downstream,
                                                             ! parent
     integer(i4)                                :: NpraeST   ! number of cut of subtrees in node
     type(ptrTreeNode),dimension(:),allocatable :: praeST    ! array of subtree children
     integer(i4)                                :: sizST     ! size of cut of subtree
-
-    integer(i4)                                :: NSTinBranch ! number of cut of subtrees in branch
-
-  end type treeNode
+  end type subtreeNode
 
   type subtreeMeta
      integer(i4)        :: iStart
@@ -158,7 +162,7 @@ CONTAINS
 
        call distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes)
        call routing(iBasin,subtrees,nSubtrees,STmeta,permNodes,testarray)
-   !    call write_tree_with_array(root, lowBound,testarray)
+       ! call write_tree_with_array(root, lowBound,testarray)
 
        deallocate(STmeta)
 
@@ -204,7 +208,8 @@ CONTAINS
        call iST_to_iproc(kk,nproc,iproc)
        call MPI_Recv(value_ind,2,MPI_INTEGER,iproc,7,MPI_COMM_WORLD,status,ierror)
        if (.not. subtrees(value_ind(2))%tN%root) then
-          next=subtrees(value_ind(2))%tN%postST%tN%indST
+          next=subtrees(value_ind(2))%tN%ST%postST%tN%ST%indST
+
           ind=subtrees(value_ind(2))%tN%post%tN%ind
           call iST_to_iproc(next,nproc,iproc)
           call MPI_Send([value_ind(1),ind-STmeta(next)%iStart],2,MPI_INTEGER,iproc,next,MPI_COMM_WORLD,ierror)
@@ -279,18 +284,18 @@ CONTAINS
     nNodes=size(permNodes)
 
     STmeta(1)%iStart=1
-    STmeta(1)%iEnd=subtrees(1)%tN%sizST
+    STmeta(1)%iEnd=subtrees(1)%tN%ST%sizST
     STmeta(1)%indST=1
-    STmeta(1)%nIn=subtrees(1)%tN%NpraeST
+    STmeta(1)%nIn=subtrees(1)%tN%ST%NpraeST
     do kk=2,nSubtrees
        STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1
-       STmeta(kk)%iEnd=STmeta(kk)%iStart+subtrees(kk)%tN%sizST-1
+       STmeta(kk)%iEnd=STmeta(kk)%iStart+subtrees(kk)%tN%ST%sizST-1
        STmeta(kk)%indST=kk
-       STmeta(kk)%nIn=subtrees(kk)%tN%NpraeST
+       STmeta(kk)%nIn=subtrees(kk)%tN%ST%NpraeST
     end do
     toNodes(:)=0
     do kk=nSubtrees,1,-1
-       ind = subtrees(kk)%tN%sizST
+       ind = subtrees(kk)%tN%ST%sizST
        call write_tree_to_array(subtrees(kk),STmeta(kk)%iStart,ind,&
             permNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd), &
               toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd))
@@ -614,11 +619,10 @@ CONTAINS
       tree(kk)%tN%siz=1
       tree(kk)%tN%sizUp=1
       tree(kk)%tN%origind=kk
-      tree(kk)%tN%indST=0
       tree(kk)%tN%ind=0
       tree(kk)%tN%root=.false.
-      tree(kk)%tN%NpraeST=-1
       tree(kk)%tN%NSTinBranch=1
+      tree(kk)%tN%ST=>null()
    end do
    ! assign the pointers of the children and the parent
    ! use the array of number of children:
@@ -769,23 +773,22 @@ CONTAINS
     ! local variables
     integer(i4) :: kk ! loop variable to run over all nodes
     integer(i4) :: NChildren
-
-    NChildren=size(root%tN%praeST)
+    NChildren=size(root%tN%ST%praeST)
     write(*,*) '**********************************************************************'
     write(*,*) '* node:', root%tN%origind, '                                             *'
     write(*,*) '**********************************************************************'
-    write(*,*) 'has size: ', root%tN%sizST
+    write(*,*) 'has size: ', root%tN%ST%sizST
     if (root%tN%root) then
        write(*,*) 'it is the root node'
     else
-       write(*,*) 'its parent is', root%tN%postST%tN%origind
+       write(*,*) 'its parent is', root%tN%ST%postST%tN%origind
     end if
-    write(*,*) 'has', root%tN%NpraeST ,'children: '
+    write(*,*) 'has', root%tN%ST%NpraeST ,'children: '
     do kk = 1, NChildren
-       write(*,*) '   ', root%tN%praeST(kk)%tN%origind
+       write(*,*) '   ', root%tN%ST%praeST(kk)%tN%origind
     end do
     do kk = 1, NChildren
-       call write_domain_decomposition(root%tN%praeST(kk))
+       call write_domain_decomposition(root%tN%ST%praeST(kk))
     end do
 
   end subroutine write_domain_decomposition
@@ -811,7 +814,7 @@ CONTAINS
        !call write_tree(root, lowBound)
        nSubtrees=nSubtrees+1
        subtrees(nSubtrees)%tN => subtree%tN
-       subtree%tN%indST = nSubtrees
+       subtree%tN%ST%indST = nSubtrees
     end do
 
     ! cut of root
@@ -819,7 +822,7 @@ CONTAINS
     call update_tree(lowBound,root,subtree)
     nSubtrees=nSubtrees+1
     subtrees(nSubtrees)%tN => subtree%tN
-    subtree%tN%indST = nSubtrees
+    subtree%tN%ST%indST = nSubtrees
     
     call init_subtreetree(nSubtrees,root,subtrees)
 
@@ -839,15 +842,19 @@ CONTAINS
 
     ! ToDo: Check all cases
     if (root%tN%root) then
-       root%tN%NpraeST = 0
+       allocate(root%tN%ST)
+       root%tN%ST%NpraeST = 0
+       root%tN%ST%sizST = root%tN%siz
+
        found = .true.
        ! if root has no children then this is our subtree
        if (root%tN%Nprae .eq. 0) then
           subtree%tN => root%tN
-          root%tN%sizST = root%tN%siz
           ! initialize the node as one of the subtreetree, so
           ! we can later derive this tree
-          subtree%tN%NpraeST = 0
+          allocate(root%tN%ST)
+          root%tN%ST%sizST = root%tN%siz
+          root%tN%ST%NpraeST = 0
        else
           call find_branch(root,found,indOfST)
        endif
@@ -855,10 +862,11 @@ CONTAINS
           call cut_of_subtree(lowBound,indOfST,root%tN%prae(indOfST),subtree)
        else
           subtree%tN => root%tN
-          subtree%tN%sizST = subtree%tN%siz
           ! initialize the node as one of the subtreetree, so
           ! we can later derive this tree
-          subtree%tN%NpraeST = 0
+          allocate(root%tN%ST)
+          subtree%tN%ST%sizST = subtree%tN%siz
+          subtree%tN%ST%NpraeST = 0
        end if
     else
        call find_branch(root,found,indOfST)
@@ -867,11 +875,13 @@ CONTAINS
        else
           ! if found, cut it of
           subtree%tN => root%tN
-          subtree%tN%sizST = subtree%tN%sizUp
           call update_sizes(subtree%tN%siz,subtree)
           ! initialize the node as one of the subtreetree, so
           ! we can later derive this tree
-          subtree%tN%NpraeST = 0
+          allocate(subtree%tN%ST)
+          subtree%tN%ST%sizST = subtree%tN%sizUp
+          subtree%tN%ST%NpraeST = 0
+
           ! the parent gets one child removed
           ! it is not removed from the array
           ! it gets switched with the last child, and Nprae reduced by 1
@@ -965,33 +975,35 @@ CONTAINS
     ! find the link downstream between two nodes, if it is not root
     do kk=1,nSubtrees-1
        next%tN => subtrees(kk)%tN%post%tN
-       do while ((next%tN%NpraeST .eq. -1) .and. (.not. next%tN%root))
+       do while ((.not. associated(next%tN%ST)) .and. (.not. next%tN%root))
           next%tN => next%tN%post%tN
        end do
+       
        ! count number of subtrees
-       next%tN%NpraeST=next%tN%NpraeST+1
+       next%tN%ST%NpraeST=next%tN%ST%NpraeST+1
+
        ! set post node
-       subtrees(kk)%tN%postST%tN => next%tN
+       subtrees(kk)%tN%ST%postST%tN => next%tN
     end do
     ! allocate array of childsubtrees
     do kk=1,nSubtrees
-       NpraeST(kk)=subtrees(kk)%tN%NpraeST
-       allocate(subtrees(kk)%tN%praeST(NpraeST(kk)))
+       NpraeST(kk)=subtrees(kk)%tN%ST%NpraeST
+       allocate(subtrees(kk)%tN%ST%praeST(NpraeST(kk)))
     end do
  !   allocate(root%tN%praeST(root%tN%NpraeST))
     ! again find the link downstream between two nodes
     do kk=1,nSubtrees-1
        next%tN => subtrees(kk)%tN%post%tN
-       do while ((next%tN%NpraeST .eq. -1) .and. (.not. next%tN%root))
+       do while ((.not. associated(next%tN%ST)) .and. (.not. next%tN%root))
           next%tN => next%tN%post%tN
        end do
        ! set the links to the children
-       next%tN%praeST(next%tN%NpraeST)%tN => subtrees(kk)%tN
-       next%tN%NpraeST=next%tN%NpraeST-1
+       next%tN%ST%praeST(next%tN%ST%NpraeST)%tN => subtrees(kk)%tN
+       next%tN%ST%NpraeST=next%tN%ST%NpraeST-1
     end do
     ! ToDo: This is awfull... repair the subtree sizes
     do kk=1,nSubtrees
-       subtrees(kk)%tN%NpraeST=NpraeSt(kk)
+       subtrees(kk)%tN%ST%NpraeST=NpraeSt(kk)
     end do
 
     !ToDo: why is that?
