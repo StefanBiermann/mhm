@@ -33,9 +33,9 @@ MODULE mo_common_mHM_mRM_domain_decomposition
     integer(i4)                                :: origind   ! index in node in original array
     integer(i4)                                :: ind       ! index in node in routing ordered array
 
-    logical                                    :: root      ! true if the node is root
     type(ptrTreeNode)                          :: post      ! node downstream,
                                                             ! parent
+                                                            ! null, if root
     integer(i4)                                :: Nprae     ! number of children
     type(ptrTreeNode),dimension(:),allocatable :: prae      ! array of children
     integer(i4)                                :: siz       ! size of subtree
@@ -162,7 +162,7 @@ CONTAINS
 
        call distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes)
        call routing(iBasin,subtrees,nSubtrees,STmeta,permNodes,testarray)
-       ! call write_tree_with_array(root, lowBound,testarray)
+       call write_tree_with_array(root, lowBound,testarray)
 
        deallocate(STmeta)
 
@@ -207,7 +207,7 @@ CONTAINS
     do kk=1,nSubtrees
        call iST_to_iproc(kk,nproc,iproc)
        call MPI_Recv(value_ind,2,MPI_INTEGER,iproc,7,MPI_COMM_WORLD,status,ierror)
-       if (.not. subtrees(value_ind(2))%tN%root) then
+       if (associated(subtrees(value_ind(2))%tN%post%tN)) then
           next=subtrees(value_ind(2))%tN%ST%postST%tN%ST%indST
 
           ind=subtrees(value_ind(2))%tN%post%tN%ind
@@ -314,7 +314,7 @@ CONTAINS
 
     array(ind)=tree%tN%origind
     tree%tN%ind=start+ind-1
-    if (.not. tree%tN%root) then
+    if (associated(tree%tN%post%tN)) then
        toArray(ind)=tree%tN%post%tN%ind
     else
        toArray(ind)=0
@@ -580,7 +580,6 @@ CONTAINS
             L11_fromN,    & ! IN: from node
             L11_toN,      & ! IN: to node
             L11_label,    & ! IN: label on edge, Id [0='', 1=HeadWater, 2=Sink]
-            L11_rOrder,   & ! IN: network routing order
             L11_netPerm     ! IN: network routing order
     implicit none
     integer(i4),               intent(in)    :: iBasin
@@ -608,7 +607,7 @@ CONTAINS
       iNode = L11_fromN(i)
       Nprae(tNode)=Nprae(tNode)+1
    end do
-   ! allocate array for children
+   ! allocate array for children, initialize node
    do kk = 1, nLinks+1
       allocate(tree(kk)%tN)
       tree(kk)%tN%Nprae=Nprae(kk)
@@ -620,7 +619,7 @@ CONTAINS
       tree(kk)%tN%sizUp=1
       tree(kk)%tN%origind=kk
       tree(kk)%tN%ind=0
-      tree(kk)%tN%root=.false.
+      tree(kk)%tN%post%tN=>null()
       tree(kk)%tN%NSTinBranch=1
       tree(kk)%tN%ST=>null()
    end do
@@ -642,10 +641,11 @@ CONTAINS
       end if
 
       ! we return only the root, and now set the parent nodes
+      ! ToDo: this is the only place, where we need i to be in routing
+      ! order. Otherwise we would not need L11_netPerm
+      ! ToDo: get rid of root. test for associated instead
       if (L11_label(i).eq.2) then
          root%tN => tree(tNode)%tN
-         tree(tNode)%tN%root=.true.
-         nullify(tree(tNode)%tN%post%tN)
       end if
       ! set the parent node
       tree(iNode)%tN%post%tN=>tree(tNode)%tN
@@ -653,6 +653,8 @@ CONTAINS
       tree(tNode)%tN%siz=tree(tNode)%tN%siz+tree(iNode)%tN%siz
    end do
    ! assign size of smallest subtree greater lowBound to each node
+   ! ToDo: if L11_netPerm is deleted, this has to be done in
+   ! another way
    do kk = 1, nLinks
       i = L11_netPerm(kk)
       tNode = L11_toN(i)
@@ -723,7 +725,7 @@ CONTAINS
     write(*,*) '**********************************************************************'
     write(*,*) 'has size: ', root%tN%siz
     write(*,*) 'size of smallest subtree larger than', lowBound, 'is: ', root%tN%sizUp
-    if (root%tN%root) then
+    if (.not. associated(root%tN%post%tN)) then
        write(*,*) 'it is the root node'
     else
        write(*,*) 'its parent is', root%tN%post%tN%origind, 'new:', root%tN%post%tN%ind
@@ -753,7 +755,7 @@ CONTAINS
     write(*,*) '**********************************************************************'
     write(*,*) 'has size: ', root%tN%siz
     write(*,*) 'size of smallest subtree larger than', lowBound, 'is: ', root%tN%sizUp
-    if (root%tN%root) then
+    if (.not. associated(root%tN%post%tN)) then
        write(*,*) 'it is the root node'
     else
        write(*,*) 'its parent is', root%tN%post%tN%origind, 'new:', root%tN%post%tN%ind
@@ -778,7 +780,7 @@ CONTAINS
     write(*,*) '* node:', root%tN%origind, '                                             *'
     write(*,*) '**********************************************************************'
     write(*,*) 'has size: ', root%tN%ST%sizST
-    if (root%tN%root) then
+    if (.not. associated(root%tN%post%tN)) then
        write(*,*) 'it is the root node'
     else
        write(*,*) 'its parent is', root%tN%ST%postST%tN%origind
@@ -841,7 +843,7 @@ CONTAINS
     logical              :: found
 
     ! ToDo: Check all cases
-    if (root%tN%root) then
+    if (.not. associated(root%tN%post%tN)) then
        allocate(root%tN%ST)
        root%tN%ST%NpraeST = 0
        root%tN%ST%sizST = root%tN%siz
@@ -954,7 +956,7 @@ CONTAINS
     integer(i4),               intent(in)    :: redSize
     type(ptrTreeNode),         intent(inout) :: subtree
 
-    if (.not. subtree%tN%root) then
+    if (associated(subtree%tN%post%tN)) then
        subtree%tN%post%tN%siz = subtree%tN%post%tN%siz - redSize
        call update_sizes(redSize,subtree%tN%post)
     end if
@@ -975,7 +977,7 @@ CONTAINS
     ! find the link downstream between two nodes, if it is not root
     do kk=1,nSubtrees-1
        next%tN => subtrees(kk)%tN%post%tN
-       do while ((.not. associated(next%tN%ST)) .and. (.not. next%tN%root))
+       do while ((.not. associated(next%tN%ST)) .and. (associated(next%tN%post%tN)))
           next%tN => next%tN%post%tN
        end do
        
@@ -994,7 +996,7 @@ CONTAINS
     ! again find the link downstream between two nodes
     do kk=1,nSubtrees-1
        next%tN => subtrees(kk)%tN%post%tN
-       do while ((.not. associated(next%tN%ST)) .and. (.not. next%tN%root))
+       do while ((.not. associated(next%tN%ST)) .and. (associated(next%tN%post%tN)))
           next%tN => next%tN%post%tN
        end do
        ! set the links to the children
@@ -1022,7 +1024,7 @@ CONTAINS
     integer(i4)          :: kk
     type(ptrTreeNode)    :: parent
 
-    if (.not. subtree%tN%root) then
+    if (associated(subtree%tN%post%tN)) then
        subtree%tN%post%tN%NSTinBranch=subtree%tN%post%tN%NSTinBranch+1
        call find_sizUp_of_node(subtree%tN%post,lowBound)
        call update_tree(lowBound,root,subtree%tN%post)
