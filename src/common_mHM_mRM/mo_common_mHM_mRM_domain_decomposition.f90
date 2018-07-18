@@ -41,7 +41,7 @@ MODULE mo_common_mHM_mRM_domain_decomposition
   end type ptrTreeNode
 
   ! treeNode is a tree and a node in a tree at the
-  ! same time. Most important attributs concerning the
+  ! same time. Most important attributes concerning the
   ! tree strucuture are post and prae.
   ! post is a pointer to the parent node and prae an array
   ! of pointers to the child vertices.
@@ -525,7 +525,7 @@ CONTAINS
     integer(i4),       dimension(:), intent(in)    :: permNodes
     integer(i4),       dimension(:), intent(inout) :: array
     ! local variables
-    integer(i4) :: kk,ii,iPerm,iproc,sizST,maxSizST
+    integer(i4) :: kk,ii,iPerm,iproc,sizST
     integer(i4) :: nproc,rank,ierror
     integer status(MPI_STATUS_SIZE)
     integer(i4), dimension(:), allocatable :: recvarray
@@ -957,8 +957,7 @@ CONTAINS
     type(ptrTreeNode),         intent(inout) :: subtree
 
     ! local variables
-    integer(i4)          :: kk,ll
-    integer(i4)          :: minST,minsize,indOfST
+    integer(i4)          :: indOfST
     type(ptrTreeNode)    :: lastSibling
     logical              :: found
 
@@ -1172,10 +1171,6 @@ CONTAINS
     integer(i4),               intent(in)    :: lowBound
     type(ptrTreeNode),         intent(inout) :: root
     type(ptrTreeNode),         intent(inout) :: subtree
-
-    ! local variables
-    integer(i4)          :: kk
-    type(ptrTreeNode)    :: parent
 
     ! if the parent node is not root
     if (associated(subtree%tN%post%tN)) then
