@@ -139,8 +139,6 @@ CONTAINS
   !         Modified, June 2018 - Maren Kaluza, start of implementation
 
   subroutine domain_decomposition()
-
-
     implicit none
     ! input variables
 
@@ -769,6 +767,7 @@ CONTAINS
   ! this subroutine also considers sizUp of each child to
   ! be initialized with 1
   subroutine find_sizUp_of_node(node,lowBound)
+    implicit none
     type(ptrTreeNode),         intent(in) :: node
     integer(i4),               intent(in) :: lowBound
     ! local variables
@@ -808,6 +807,7 @@ CONTAINS
   end subroutine find_sizUp_of_node
 
   recursive subroutine write_tree(root, lowBound)
+    implicit none
     type(ptrTreeNode),         intent(in) :: root
     integer(i4),               intent(in) :: lowBound
     ! local variables
@@ -836,6 +836,7 @@ CONTAINS
   end subroutine write_tree
 
   recursive subroutine write_tree_with_array(root, lowBound,array)
+    implicit none
     type(ptrTreeNode),         intent(in) :: root
     integer(i4),               intent(in) :: lowBound
     integer(i4), dimension(:), intent(in) :: array
@@ -866,6 +867,7 @@ CONTAINS
   end subroutine write_tree_with_array
 
   recursive subroutine write_domain_decomposition(root)
+    implicit none
     type(ptrTreeNode),         intent(in) :: root
     ! local variables
     integer(i4) :: kk ! loop variable to run over all tree nodes
@@ -899,6 +901,7 @@ CONTAINS
   ! subtree, we want to cut of. We know which
   ! path to go because of metadata in the tree nodes
   subroutine decompose(iBasin,lowBound,root,subtrees,nSubtrees)
+    implicit none
     integer(i4),                     intent(in)    :: iBasin
     integer(i4),                     intent(in)    :: lowBound
     type(ptrTreeNode),               intent(inout) :: root
@@ -947,6 +950,7 @@ CONTAINS
   end subroutine decompose
 
   recursive subroutine cut_of_subtree(lowBound,childInd,root,subtree)
+    implicit none
     integer(i4),               intent(in)    :: lowBound
     integer(i4),               intent(in)    :: childInd
     type(ptrTreeNode),         intent(inout) :: root
@@ -1094,6 +1098,7 @@ CONTAINS
   ! if a subtree is cut of, the sizes in all tree nodes
   ! downstream get reduced by the size of that subtree
   recursive subroutine update_sizes(redSize,subtree)
+    implicit none
     integer(i4),               intent(in)    :: redSize
     type(ptrTreeNode),         intent(inout) :: subtree
 
@@ -1106,6 +1111,7 @@ CONTAINS
   ! Quite similar to init_tree, but only
   ! for the subtreetree nodes.
   subroutine init_subtreetree(nSubtrees,root,subtrees)
+    implicit none
     integer(i4),                     intent(in)    :: nSubtrees
     type(ptrTreeNode),               intent(inout) :: root
     type(ptrTreeNode), dimension(:), intent(inout) :: subtrees
@@ -1162,6 +1168,7 @@ CONTAINS
   end subroutine init_subtreetree
 
   recursive subroutine update_tree(lowBound,root,subtree)
+    implicit none
     integer(i4),               intent(in)    :: lowBound
     type(ptrTreeNode),         intent(inout) :: root
     type(ptrTreeNode),         intent(inout) :: subtree
@@ -1219,6 +1226,7 @@ CONTAINS
 
   ! better destroy virtual trees than real ones
   recursive subroutine tree_destroy(iBasin,root)
+    implicit none
     integer(i4),               intent(in)    :: iBasin
     type(ptrTreeNode),         intent(inout) :: root
 
