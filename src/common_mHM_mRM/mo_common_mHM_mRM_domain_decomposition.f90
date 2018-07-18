@@ -146,7 +146,6 @@ CONTAINS
 
     ! local variables
     ! ToDo: Later to be moved to globally known variables
-    ! ToDo: set pointers so reading attributes is not done >5 times in one line
     ! ToDo: handle case without MPI, or only one process
     ! ToDo: handle more outlets
     integer(i4) :: iBasin
@@ -200,7 +199,7 @@ CONTAINS
        ! this subroutine cuts down the tree into a subtreetree and
        ! writes each subtreetree node into an array (subtrees) in routing order
        call decompose(iBasin,lowBound,root,subtrees,nSubtrees)
-       ! call write_domain_decomposition(root)
+       call write_domain_decomposition(root)
        allocate(STmeta(nSubtrees),permNodes(nNodes),toNodes(nNodes))
        ! A subtree data structrure makes communication between the subtrees
        ! much easier for the master. Processing the data is more efficient
@@ -216,7 +215,7 @@ CONTAINS
        !   data to corresponding leaves in connected subtrees
        ! - collects the data in the end
        call routing(iBasin,subtrees,nSubtrees,STmeta,permNodes,testarray)
-       call write_tree_with_array(root, lowBound,testarray)
+    !   call write_tree_with_array(root, lowBound,testarray)
 
        deallocate(STmeta)
 
@@ -742,9 +741,6 @@ CONTAINS
       end if
 
       ! we return only the root, and now set the parent nodes
-      ! ToDo: this is the only place, where we need i to be in routing
-      ! order. Otherwise we would not need L11_netPerm
-      ! ToDo: get rid of root. test for associated instead
       if (L11_label(i).eq.2) then
          root%tN => tree(tNode)%tN
       end if
@@ -754,8 +750,6 @@ CONTAINS
       tree(tNode)%tN%siz=tree(tNode)%tN%siz+tree(iNode)%tN%siz
    end do
    ! assign size of smallest subtree greater lowBound to each tree node
-   ! ToDo: if L11_netPerm is deleted, this has to be done in
-   ! another way
    do kk = 1, nLinks
       i = L11_netPerm(kk)
       tNode = L11_toN(i)
@@ -917,30 +911,32 @@ CONTAINS
 
     nSubtrees=0
 
-    ! ToDo: is there a way to handle the root node in one flow?
-    ! ToDo: can it happen, that root gets cut of inside?
-    ! cut of subtrees while the root subtree
-    ! is larger than one tree node
-    do while (root%tN%sizUp .gt. 1)
-       ! cut of one subtree following a rule defined
-       ! in find_branch
-       call cut_of_subtree(lowBound,0,root,subtree)
-       ! update the number of cut of subtrees in that branch
-       ! update sizes of the smallest subtree larger
-       ! than lowBound in that branch
-       call update_tree(lowBound,root,subtree)
-       nSubtrees=nSubtrees+1
-       subtrees(nSubtrees)%tN => subtree%tN
+    ! if root has no children, the tree is probably too small
+    if (root%tN%Nprae .eq. 0) then
+       write(*,*) 'warning: There came a tree in with only one tree node'
+       subtree%tN => root%tN
+       nSubtrees=1
+       subtrees(nSubtrees)%tN => root%tN
        subtree%tN%ST%indST = nSubtrees
-    end do
+    else
+       ! set subtree to a subtree with a parent
+       subtree%tN => root%tN%prae(1)%tN
+       ! cut of subtrees while the root subtree
+       ! is larger than one tree node
+       do while (associated(subtree%tN%post%tN))
+          ! cut of one subtree following a rule defined
+          ! in find_branch
+          call cut_of_subtree(lowBound,0,root,subtree)
+          ! update the number of cut of subtrees in that branch
+          ! update sizes of the smallest subtree larger
+          ! than lowBound in that branch
+          call update_tree(lowBound,root,subtree)
+          nSubtrees=nSubtrees+1
+          subtrees(nSubtrees)%tN => subtree%tN
+          subtree%tN%ST%indST = nSubtrees
+       end do
+    end if
 
-    ! cut of root
-    call cut_of_subtree(lowBound,0,root,subtree)
-    call update_tree(lowBound,root,subtree)
-    nSubtrees=nSubtrees+1
-    subtrees(nSubtrees)%tN => subtree%tN
-    subtree%tN%ST%indST = nSubtrees
-    
     ! subtrees is now the array of all subtrees and
     ! therefore the tree decomposition. But they
     ! are not connected until now. This subroutine
@@ -967,23 +963,12 @@ CONTAINS
     ! cut of the root tree:
     ! if the tree node, we handle, is the root node:
     if (.not. associated(root%tN%post%tN)) then
-       ! regardless of root being the node, we cut
-       ! of, we will sooner or later. So we
-       ! allocate the derived data type for its
-       ! subtreetree metadata
-       allocate(root%tN%ST)
-       root%tN%ST%NpraeST = 0
-       root%tN%ST%sizST = root%tN%siz
-
        found = .true.
        ! if root has no children then this is our subtree
        if (root%tN%Nprae .eq. 0) then
           subtree%tN => root%tN
-          ! initialize the tree node as one of the subtreetree, so
-          ! we can later derive this tree
-          allocate(root%tN%ST)
-          root%tN%ST%sizST = root%tN%siz
-          root%tN%ST%NpraeST = 0
+          ! initialize the tree node as one of the subtreetree
+          call initiate_subtreetreenode(subtree)
        ! if root has children, we have a look into
        ! the meta data of the children and decide, if
        ! we crawl along a branch
@@ -995,17 +980,10 @@ CONTAINS
        if (.not. found) then
           call cut_of_subtree(lowBound,indOfST,root%tN%prae(indOfST),subtree)
        else
-       ! ToDo: this is, where we might cut of root twice?
        ! if there was no branch matching the critera, we cut of root
           subtree%tN => root%tN
-          ! initialize the tree node as one of the subtreetree, so
-          ! we can later derive this tree
-          allocate(root%tN%ST)
-          ! the size of the subtree at the moment we cut it of has
-          ! exactly the size of the subtree. Each time, we cut of
-          ! a subtree, we reduce the sizes of all tree nodes downstrem
-          subtree%tN%ST%sizST = subtree%tN%siz
-          subtree%tN%ST%NpraeST = 0
+          ! initialize the tree node as one of the subtreetree
+          call initiate_subtreetreenode(subtree)
        end if
     ! if root is not the tree node, we handle
     else
@@ -1022,14 +1000,8 @@ CONTAINS
           ! their size reduced by the size of that subtree.
           ! Not necessary if that subtree is root.
           call update_sizes(subtree%tN%siz,subtree)
-          ! initialize the tree node as one of the subtreetree, so
-          ! we can later derive this tree
-          allocate(subtree%tN%ST)
-          ! the size of the subtree at the moment we cut it of has
-          ! exactly the size of the subtree. Each time, we cut of
-          ! a subtree, we reduce the sizes of all tree nodes downstrem
-          subtree%tN%ST%sizST = subtree%tN%sizUp
-          subtree%tN%ST%NpraeST = 0
+          ! initialize the tree node as one of the subtreetree
+          call initiate_subtreetreenode(subtree)
 
           ! the parent gets one child removed
           ! it is not removed from the array
@@ -1039,14 +1011,30 @@ CONTAINS
           ! but still we have the original one, because we know the original
           ! number of children was size(prae)
           lastSibling%tN => root%tN%post%tN%prae(root%tN%post%tN%Nprae)%tN
-          root%tN%post%tN%prae(root%tN%post%tN%Nprae)%tN => root%tN%post%tN%prae(childInd)%tN
+          ! root%tN%post%tN%prae(root%tN%post%tN%Nprae)%tN => root%tN%post%tN%prae(childInd)%tN
+          root%tN%post%tN%prae(root%tN%post%tN%Nprae)%tN => subtree%tN
           root%tN%post%tN%prae(childInd)%tN => lastSibling%tN
           root%tN%post%tN%Nprae = root%tN%post%tN%Nprae - 1
        endif
     end if
   end subroutine cut_of_subtree
 
+  subroutine initiate_subtreetreenode(subtree)
+    implicit none
+    type(ptrTreeNode),         intent(in)    :: subtree
+
+    ! initialize the tree node as one of the subtreetree, so
+    ! we can later derive this tree
+    allocate(subtree%tN%ST)
+    ! the size of the subtree at the moment we cut it of has
+    ! exactly the size of the subtree. Each time, we cut of
+    ! a subtree, we reduce the sizes of all tree nodes downstrem
+    subtree%tN%ST%sizST = subtree%tN%siz
+    subtree%tN%ST%NpraeST = 0
+  end subroutine initiate_subtreetreenode
+
   subroutine find_branch(root,found,indOfST)
+    implicit none
     type(ptrTreeNode),         intent(in)    :: root
     integer(i4),               intent(inout) :: indOfST
     logical,                   intent(inout) :: found
@@ -1122,22 +1110,20 @@ CONTAINS
     type(ptrTreeNode),               intent(inout) :: root
     type(ptrTreeNode), dimension(:), intent(inout) :: subtrees
     ! local variables
-    integer(i4)                            :: kk
-    integer(i4), dimension(:), allocatable :: NpraeST
-    type(ptrTreeNode)                      :: next
+    integer(i4)         :: kk
+    integer(i4)         :: NpraeST
+    type(ptrTreeNode)   :: next
 
-    allocate(NpraeST(nSubtrees))
 
     ! find the link downstream between two tree nodes, if it is not root
     ! root lies in subtrees at position nSubtrees
     do kk=1,nSubtrees-1
        ! set next to the next tree node downstream
        next%tN => subtrees(kk)%tN%post%tN
-       ! while the next is not a subtreetree node and while it is not the root node
+       ! while the next tree node is not a subtreetree node
        ! set next to the next tree node downstream
-       ! ToDo: It should be not necessary to check, if it is not root, maybe make
-       ! a checkcase out of that instead.
-       do while ((.not. associated(next%tN%ST)) .and. (associated(next%tN%post%tN)))
+       ! ToDo: check, if not root, and if, return with error?
+       do while (.not. associated(next%tN%ST))
           next%tN => next%tN%post%tN
        end do
        ! ToDo: check, if next%tN is a subtreetree node?
@@ -1151,8 +1137,8 @@ CONTAINS
     end do
     ! allocate array of childsubtrees
     do kk=1,nSubtrees
-       NpraeST(kk)=subtrees(kk)%tN%ST%NpraeST
-       allocate(subtrees(kk)%tN%ST%praeST(NpraeST(kk)))
+       NpraeST=subtrees(kk)%tN%ST%NpraeST
+       allocate(subtrees(kk)%tN%ST%praeST(NpraeST))
     end do
     ! again find the link downstream between two subtreetree nodes
     do kk=1,nSubtrees-1
@@ -1168,16 +1154,10 @@ CONTAINS
     end do
     ! ToDo: This is awfull... repair the subtree sizes
     ! we also could live with NpraeST being 0 now, because
-    ! we now it via size(...%praeST)
-    ! maybe, get rid of the array NpraeST instead.
+    ! NpraeST = size(subtrees(kk)%tN%ST%praeST)
     do kk=1,nSubtrees
-       subtrees(kk)%tN%ST%NpraeST=NpraeST(kk)
+       subtrees(kk)%tN%ST%NpraeST=size(subtrees(kk)%tN%ST%praeST)
     end do
-
-    !ToDo: why is that?
-    next%tN => subtrees(1)%tN
-
-    deallocate(NpraeST)
     
   end subroutine init_subtreetree
 
@@ -1248,6 +1228,10 @@ CONTAINS
     do kk=1,size(root%tN%prae)
        call tree_destroy(iBasin,root%tN%prae(kk))
     enddo
+    if (associated(root%tN%ST)) then
+       deallocate(root%tN%ST%praeST)
+       deallocate(root%tN%ST)
+    end if
     deallocate(root%tN%prae)
     deallocate(root%tN)
   end subroutine tree_destroy
