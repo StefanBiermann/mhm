@@ -72,6 +72,8 @@ MODULE mo_common_mHM_mRM_domain_decomposition
     type(subtreeNode), pointer                 :: ST        ! data of a node, that is also a subtreetree node
 
     integer(i4)                                :: NSTinBranch ! number of cut of subtrees in branch
+    integer(i4)                                :: level     ! distance to root
+    integer(i4)                                :: revLevel  ! distance from farthest leave
 
   end type treeNode
 
@@ -82,6 +84,8 @@ MODULE mo_common_mHM_mRM_domain_decomposition
     integer(i4)                                :: NpraeST   ! number of cut of subtrees in node
     type(ptrTreeNode),dimension(:),allocatable :: praeST    ! array of subtree children
     integer(i4)                                :: sizST     ! size of cut of subtree
+    integer(i4)                                :: levelST   ! distance to root
+    integer(i4)                                :: revLevelST! distance from farthest leave
   end type subtreeNode
 
   type subtreeMeta
@@ -181,7 +185,7 @@ CONTAINS
        call get_number_of_basins_and_nodes(iBasin,nNodes,nBasins)
        call init_testarray(iBasin,testarray)
 
-       lowBound=3
+       lowBound=30
        uppBound=5
        ! In this subroutine the tree structure gets initialized for
        ! the flownetwork of the iBasin-th basin.
@@ -198,6 +202,7 @@ CONTAINS
        ! writes each subtreetree node into an array (subtrees) in routing order
        call decompose(iBasin,lowBound,root,subtrees,nSubtrees)
        call write_domain_decomposition(root)
+       call write_graphviz_output(root)
        allocate(STmeta(nSubtrees),permNodes(nNodes),toNodes(nNodes))
        ! A subtree data structrure makes communication between the subtrees
        ! much easier for the master. Processing the data is more efficient
@@ -213,7 +218,7 @@ CONTAINS
        !   data to corresponding leaves in connected subtrees
        ! - collects the data in the end
        call routing(iBasin,subtrees,nSubtrees,STmeta,permNodes,testarray)
-    !   call write_tree_with_array(root, lowBound,testarray)
+       ! call write_tree_with_array(root, lowBound,testarray)
 
        deallocate(STmeta)
 
@@ -719,6 +724,8 @@ CONTAINS
       tree(kk)%tN%ind=0
       tree(kk)%tN%post%tN=>null()
       tree(kk)%tN%NSTinBranch=1
+      tree(kk)%tN%level=0
+      tree(kk)%tN%revLevel=0
       tree(kk)%tN%ST=>null()
    end do
    ! assign the pointers of the children and the parent
@@ -747,7 +754,14 @@ CONTAINS
       ! while assigning, we can calculate the size of the subtree
       tree(tNode)%tN%siz=tree(tNode)%tN%siz+tree(iNode)%tN%siz
    end do
+   ! set level
+   do kk = nLinks,1,-1
+      i = L11_netPerm(kk)
+      iNode = L11_fromN(i)
+      tree(iNode)%tN%level=tree(iNode)%tN%post%tN%level+1
+   end do
    ! assign size of smallest subtree greater lowBound to each tree node
+   ! assign farthest distant to a leave
    do kk = 1, nLinks
       i = L11_netPerm(kk)
       tNode = L11_toN(i)
@@ -756,6 +770,7 @@ CONTAINS
       ! this subroutine also considers sizUp of each child to
       ! be initialized with 1
       call find_sizUp_of_node(tree(tNode),lowBound)
+      call find_revLevel_of_node(tree(tNode))
    end do
 
     ! call write_tree(root,lowBound)
@@ -806,6 +821,23 @@ CONTAINS
 
   end subroutine find_sizUp_of_node
 
+  subroutine find_revLevel_of_node(node)
+    implicit none
+    type(ptrTreeNode),         intent(in) :: node
+    ! local variables
+    integer(i4) :: kk ! loop variable to run over all tree nodes
+    integer(i4) :: maxDist
+
+    maxDist=-1
+    ! find maxDist of all children
+    do kk = 1, node%tN%Nprae
+       if (maxDist .lt. node%tN%prae(kk)%tN%revLevel) then
+          maxDist=node%tN%prae(kk)%tN%revLevel
+       end if
+    end do
+    node%tN%revLevel=maxDist+1
+  end subroutine find_revLevel_of_node
+
   recursive subroutine write_tree(root, lowBound)
     implicit none
     type(ptrTreeNode),         intent(in) :: root
@@ -850,6 +882,8 @@ CONTAINS
     write(*,*) '* value:', array(root%tN%origind), '                                 *'
     write(*,*) '**********************************************************************'
     write(*,*) 'has size: ', root%tN%siz
+    write(*,*) 'distance to root: ',root%tN%level
+    write(*,*) 'distance to farthest leave: ',root%tN%revLevel
     write(*,*) 'size of smallest subtree larger than', lowBound, 'is: ', root%tN%sizUp
     if (.not. associated(root%tN%post%tN)) then
        write(*,*) 'it is the root node'
@@ -876,6 +910,8 @@ CONTAINS
     write(*,*) '**********************************************************************'
     write(*,*) '* node:', root%tN%origind, '                                             *'
     write(*,*) '**********************************************************************'
+    write(*,*) 'farthest distant leave:', root%tN%ST%revLevelST
+    write(*,*) 'level:', root%tN%ST%levelST
     write(*,*) 'has size: ', root%tN%ST%sizST
     if (.not. associated(root%tN%post%tN)) then
        write(*,*) 'it is the root node'
@@ -891,6 +927,26 @@ CONTAINS
     end do
 
   end subroutine write_domain_decomposition
+
+  recursive subroutine write_graphviz_output(root)
+    implicit none
+    type(ptrTreeNode),         intent(in) :: root
+    ! local variables
+    integer(i4) :: kk ! loop variable to run over all tree nodes
+    integer(i4) :: NChildren
+    NChildren=size(root%tN%ST%praeST)
+    if (.not. associated(root%tN%post%tN)) then
+       write(*,*) root%tN%origind,';'
+    end if
+    write(*,*) root%tN%origind, '[label="',root%tN%ST%indST,'"]', ';'
+    do kk = 1, NChildren
+       write(*,*) root%tN%origind,'--', root%tN%ST%praeST(kk)%tN%origind
+    end do
+    do kk = 1, NChildren
+       call write_graphviz_output(root%tN%ST%praeST(kk))
+    end do
+
+  end subroutine write_graphviz_output
 
   ! subtrees is an array of pointers to subtrees, where we
   ! write the subtrees in routing order to.
@@ -946,6 +1002,8 @@ CONTAINS
     ! takes care of pointers to parents and
     ! children in the subtreetree
     call init_subtreetree(nSubtrees,root,subtrees)
+    ! sort the array of subtrees, so that distant leaves come first
+    call sort_subtrees(nSubtrees,root,subtrees)
 
   end subroutine decompose
 
@@ -1033,10 +1091,46 @@ CONTAINS
     ! exactly the size of the subtree. Each time, we cut of
     ! a subtree, we reduce the sizes of all tree nodes downstrem
     subtree%tN%ST%sizST = subtree%tN%siz
+    subtree%tN%ST%postST%tN => null()
     subtree%tN%ST%NpraeST = 0
+    subtree%tN%ST%levelST = 0
+    subtree%tN%ST%revLevelST = 0
   end subroutine initiate_subtreetreenode
 
   subroutine find_branch(root,found,indOfST)
+    implicit none
+    type(ptrTreeNode),         intent(in)    :: root
+    integer(i4),               intent(inout) :: indOfST
+    logical,                   intent(inout) :: found
+
+    ! local variables
+    integer(i4)          :: ll,ii
+    integer(i4)          :: minST,minsize
+    type(ptrTreeNode)    :: lastSibling
+
+    found = .true.
+    !*******************************************************************************
+    ! variant, where the smallest subtree is removed, regrardless of anything else *
+    !*******************************************************************************
+    ! of all children find the lowest number of subtrees in its branch
+    ! find the child with the smallest subtree > k
+    minsize=1
+    indOfST=1
+    do ii=1,root%tN%Nprae
+       if (root%tN%prae(ii)%tN%sizUp .gt. 1) then
+          found = .false.
+          if (minsize .eq. 1) then
+             minsize = root%tN%prae(ii)%tN%sizUp
+             indOfST=ii
+          else if (root%tN%prae(ii)%tN%sizUp .le. minsize) then
+             minsize = root%tN%prae(ii)%tN%sizUp
+             indOfST=ii
+          end if
+       end if
+    end do
+  end subroutine find_branch
+
+  subroutine find_branch_least_cut_first(root,found,indOfST)
     implicit none
     type(ptrTreeNode),         intent(in)    :: root
     integer(i4),               intent(inout) :: indOfST
@@ -1073,11 +1167,12 @@ CONTAINS
     end do
     ! in order of the number of subtrees in the branch of each child, find
     ! the child with the smallest subtree > k
-    do ll=minST,root%tN%NSTinBranch
+    sizloop : do ll=minST,root%tN%NSTinBranch
        minsize=1
        indOfST=1
        do ii=1,root%tN%Nprae
-          if ((root%tN%prae(ii)%tN%NSTinBranch .eq. ll) .and. (root%tN%prae(ii)%tN%sizUp .gt. 1)) then
+          if ((root%tN%prae(ii)%tN%NSTinBranch .eq. ll) &
+                  .and. (root%tN%prae(ii)%tN%sizUp .gt. 1)) then
              found = .false.
              if (minsize .eq. 1) then
                 minsize = root%tN%prae(ii)%tN%sizUp
@@ -1089,10 +1184,10 @@ CONTAINS
           end if
        end do
        if (.not. found) then
-          exit
+          exit sizloop
        end if
-    end do
-  end subroutine find_branch
+    end do sizloop
+  end subroutine find_branch_least_cut_first
 
   ! if a subtree is cut of, the sizes in all tree nodes
   ! downstream get reduced by the size of that subtree
@@ -1115,8 +1210,8 @@ CONTAINS
     type(ptrTreeNode),               intent(inout) :: root
     type(ptrTreeNode), dimension(:), intent(inout) :: subtrees
     ! local variables
-    integer(i4)         :: kk
-    integer(i4)         :: NpraeST
+    integer(i4)         :: kk,jj
+    integer(i4)         :: NpraeST,maxDist
     type(ptrTreeNode)   :: next
 
 
@@ -1163,8 +1258,82 @@ CONTAINS
     do kk=1,nSubtrees
        subtrees(kk)%tN%ST%NpraeST=size(subtrees(kk)%tN%ST%praeST)
     end do
+    ! set farthest distance to a leave
+    do kk=1,nSubtrees
+       if (associated(subtrees(kk)%tN%ST%postST%tN)) then
+          maxDist=0
+          next%tN=>subtrees(kk)%tN%ST%postST%tN
+          do jj=1,next%tN%ST%NpraeST
+             if (maxDist .lt. next%tN%ST%praeST(jj)%tN%ST%revLevelST) then
+                maxDist = next%tN%ST%praeST(jj)%tN%ST%revLevelST
+             end if
+          end do
+          next%tN%ST%revLevelST=maxDist+1
+       end if
+    end do
+    ! set level of nodes
+    do kk=nSubtrees-1,1,-1
+       subtrees(kk)%tN%ST%levelST=subtrees(kk)%tN%ST%postST%tN%ST%levelST+1
+    end do
     
   end subroutine init_subtreetree
+
+  ! dirty subroutine to sort the tree nodes revLevel first
+  ! tree nodes with same revLevel are sorted by level
+  ! should be done with a nice radix sort, but too much effort, if
+  ! it does not help much
+  subroutine sort_subtrees(nSubtrees,root,subtrees)
+    implicit none
+    integer(i4),                     intent(in)    :: nSubtrees
+    type(ptrTreeNode),               intent(inout) :: root
+    type(ptrTreeNode), dimension(:), intent(inout) :: subtrees
+    ! local variables
+    integer(i4) :: kk,pos
+    integer(i4) :: maxRevLevel
+    integer(i4) :: maxLevel
+    integer(i4), dimension(:), allocatable :: kRevLevel
+    type(ptrTreeNode), dimension(:), allocatable :: newSubtrees
+    
+
+    maxRevLevel=0
+    do kk=1,nSubtrees
+       if (maxRevLevel .lt. subtrees(kk)%tN%ST%revLevelST) then
+          maxRevLevel = subtrees(kk)%tN%ST%revLevelST
+       end if
+    end do
+    allocate(kRevLevel(maxRevLevel+1))
+    kRevLevel(:)=0
+    do kk=1,nSubtrees
+       kRevLevel(subtrees(kk)%tN%ST%revLevelST+1)=kRevLevel(subtrees(kk)%tN%ST%revLevelST+1)+1
+    end do
+    ! find position
+    do kk=maxRevLevel+1,2,-1
+       kRevLevel(kk)=kRevLevel(kk-1)
+    end do
+    kRevLevel(1)=1
+    do kk=2,maxRevLevel+1
+       kRevLevel(kk)=kRevLevel(kk)+kRevLevel(kk-1)
+    end do
+    allocate(newSubtrees(size(subtrees)))
+    do kk=1,nSubtrees
+       newSubtrees(kk)%tN=>null()
+    end do
+    do kk=1,nSubtrees
+       pos=kRevLevel(subtrees(kk)%tN%ST%revLevelST+1)
+       kRevLevel(subtrees(kk)%tN%ST%revLevelST+1)=kRevLevel(subtrees(kk)%tN%ST%revLevelST+1)+1
+       newSubtrees(pos)%tN=>subtrees(kk)%tN
+       write(*,*) subtrees(kk)%tN%ST%revLevelST, pos
+    end do
+    do kk=1,nSubtrees
+       subtrees(kk)%tN=>newSubtrees(kk)%tN
+       subtrees(kk)%tN%ST%indST=kk
+    end do
+    deallocate(newSubtrees)
+    deallocate(kRevLevel)
+    do kk=1,nSubtrees
+       write(*,*) subtrees(kk)%tN%ST%indST, subtrees(kk)%tN%ST%revLevelST
+    end do
+  end subroutine sort_subtrees
 
   recursive subroutine update_tree(lowBound,root,subtree)
     implicit none
