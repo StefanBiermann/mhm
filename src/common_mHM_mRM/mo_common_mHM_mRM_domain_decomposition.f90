@@ -71,6 +71,7 @@ MODULE mo_common_mHM_mRM_domain_decomposition
                                                             ! upstream
     type(subtreeNode), pointer                 :: ST        ! data of a node, that is also a subtreetree node
 
+    !ToDo: Do we need this three components? If so, array of three?
     integer(i4)                                :: NSTinBranch ! number of cut of subtrees in branch
     integer(i4)                                :: level     ! distance to root
     integer(i4)                                :: revLevel  ! distance from farthest leave
@@ -84,8 +85,8 @@ MODULE mo_common_mHM_mRM_domain_decomposition
     integer(i4)                                :: NpraeST   ! number of cut of subtrees in node
     type(ptrTreeNode),dimension(:),allocatable :: praeST    ! array of subtree children
     integer(i4)                                :: sizST     ! size of cut of subtree
-    integer(i4)                                :: levelST   ! distance to root
-    integer(i4)                                :: revLevelST! distance from farthest leave
+    integer(i4), dimension(2)                  :: levelST   ! component 1: distance to root
+                                                            ! component 2: distance from farthest leave
   end type subtreeNode
 
   type subtreeMeta
@@ -105,7 +106,7 @@ CONTAINS
   !>        \brief decomposes the basins into subdomains for parallel computing
   !
   !>        \details decomposes basins into subdomains depending
-  !>             on wether mRM is active or notse variable will then not be read in again.
+  !>             on wether mRM is active or not, variable will then not be read in again.
   !
   !     INTENT(IN)
   !         None
@@ -185,7 +186,7 @@ CONTAINS
        call get_number_of_basins_and_nodes(iBasin,nNodes,nBasins)
        call init_testarray(iBasin,testarray)
 
-       lowBound=30
+       lowBound=3
        uppBound=5
        ! In this subroutine the tree structure gets initialized for
        ! the flownetwork of the iBasin-th basin.
@@ -201,7 +202,7 @@ CONTAINS
        ! this subroutine cuts down the tree into a subtreetree and
        ! writes each subtreetree node into an array (subtrees) in routing order
        call decompose(iBasin,lowBound,root,subtrees,nSubtrees)
-       call write_domain_decomposition(root)
+       ! call write_domain_decomposition(root)
        call write_graphviz_output(root)
        allocate(STmeta(nSubtrees),permNodes(nNodes),toNodes(nNodes))
        ! A subtree data structrure makes communication between the subtrees
@@ -321,10 +322,10 @@ CONTAINS
    !       write(*,*) 'process',rank, 'tree', STmeta(kk)%indST, 'with indices', &
    !               STmeta(kk)%iStart,'-',STmeta(kk)%iEnd ,&
    !               'gets', value_ind(1), 'for ind', next, 'ind_diff', value_ind(2)
-       enddo
+       end do
        call nodeinternal_routing(kk,toNodes,STmeta,array)
        call MPI_Send([array(STmeta(kk)%iEnd),STmeta(kk)%indST],2,MPI_INTEGER,0,7,MPI_COMM_WORLD,ierror)
-    enddo
+    end do
 
     call send_array(iBasin,STmeta,array)
     deallocate(array)
@@ -910,8 +911,8 @@ CONTAINS
     write(*,*) '**********************************************************************'
     write(*,*) '* node:', root%tN%origind, '                                             *'
     write(*,*) '**********************************************************************'
-    write(*,*) 'farthest distant leave:', root%tN%ST%revLevelST
-    write(*,*) 'level:', root%tN%ST%levelST
+    write(*,*) 'farthest distant leave:', root%tN%ST%levelST(2)
+    write(*,*) 'level:', root%tN%ST%levelST(1)
     write(*,*) 'has size: ', root%tN%ST%sizST
     if (.not. associated(root%tN%post%tN)) then
        write(*,*) 'it is the root node'
@@ -1003,7 +1004,7 @@ CONTAINS
     ! children in the subtreetree
     call init_subtreetree(nSubtrees,root,subtrees)
     ! sort the array of subtrees, so that distant leaves come first
-    call sort_subtrees(nSubtrees,root,subtrees)
+    call sort_subtrees(nSubtrees,subtrees)
 
   end subroutine decompose
 
@@ -1093,8 +1094,8 @@ CONTAINS
     subtree%tN%ST%sizST = subtree%tN%siz
     subtree%tN%ST%postST%tN => null()
     subtree%tN%ST%NpraeST = 0
-    subtree%tN%ST%levelST = 0
-    subtree%tN%ST%revLevelST = 0
+    subtree%tN%ST%levelST(1) = 0
+    subtree%tN%ST%levelST(2) = 0
   end subroutine initiate_subtreetreenode
 
   subroutine find_branch(root,found,indOfST)
@@ -1264,16 +1265,16 @@ CONTAINS
           maxDist=0
           next%tN=>subtrees(kk)%tN%ST%postST%tN
           do jj=1,next%tN%ST%NpraeST
-             if (maxDist .lt. next%tN%ST%praeST(jj)%tN%ST%revLevelST) then
-                maxDist = next%tN%ST%praeST(jj)%tN%ST%revLevelST
+             if (maxDist .lt. next%tN%ST%praeST(jj)%tN%ST%levelST(2)) then
+                maxDist = next%tN%ST%praeST(jj)%tN%ST%levelST(2)
              end if
           end do
-          next%tN%ST%revLevelST=maxDist+1
+          next%tN%ST%levelST(2)=maxDist+1
        end if
     end do
     ! set level of nodes
     do kk=nSubtrees-1,1,-1
-       subtrees(kk)%tN%ST%levelST=subtrees(kk)%tN%ST%postST%tN%ST%levelST+1
+       subtrees(kk)%tN%ST%levelST(1)=subtrees(kk)%tN%ST%postST%tN%ST%levelST(1)+1
     end do
     
   end subroutine init_subtreetree
@@ -1282,58 +1283,87 @@ CONTAINS
   ! tree nodes with same revLevel are sorted by level
   ! should be done with a nice radix sort, but too much effort, if
   ! it does not help much
-  subroutine sort_subtrees(nSubtrees,root,subtrees)
+  subroutine sort_subtrees(nSubtrees,subtrees)
     implicit none
     integer(i4),                     intent(in)    :: nSubtrees
-    type(ptrTreeNode),               intent(inout) :: root
     type(ptrTreeNode), dimension(:), intent(inout) :: subtrees
     ! local variables
-    integer(i4) :: kk,pos
-    integer(i4) :: maxRevLevel
-    integer(i4) :: maxLevel
-    integer(i4), dimension(:), allocatable :: kRevLevel
-    type(ptrTreeNode), dimension(:), allocatable :: newSubtrees
-    
+    integer(i4) :: kk,maxRevLevel
+    integer(i4), dimension(:), allocatable :: posRevLevel
+    integer(i4), dimension(:), allocatable :: kLevel
 
-    maxRevLevel=0
+    call sort_by_component(2,subtrees(1:nSubtrees),posRevLevel)
+    ! sort equal revRevel parts by level
+    maxRevlevel=size(posRevLevel)-2
+    do kk=1,maxRevlevel+1
+       call sort_by_component(1,subtrees(posRevLevel(kk):posRevLevel(kk+1)-1),kLevel)
+       deallocate(kLevel)
+    end do
+    ! update indices
     do kk=1,nSubtrees
-       if (maxRevLevel .lt. subtrees(kk)%tN%ST%revLevelST) then
-          maxRevLevel = subtrees(kk)%tN%ST%revLevelST
+       subtrees(kk)%tN%ST%indST=kk
+    end do
+    deallocate(posRevLevel)
+  end subroutine sort_subtrees
+
+  subroutine sort_by_component(ind,subtrees,posLevel)
+    implicit none
+    integer(i4),                            intent(in)    :: ind
+    type(ptrTreeNode), dimension(:),        intent(inout) :: subtrees
+    integer(i4), dimension(:), allocatable, intent(inout) :: posLevel
+    ! local variables
+    integer(i4) :: nSubtrees
+    integer(i4) :: kk,pos
+    integer(i4) :: maxLevel
+    integer(i4), dimension(:), allocatable :: kLevel
+    type(ptrTreeNode), dimension(:), allocatable :: newSubtrees
+    ! find the maximum level
+    maxLevel=0
+    nSubtrees=size(subtrees)
+    do kk=1,nSubtrees
+       if (maxLevel .lt. subtrees(kk)%tN%ST%levelST(ind)) then
+          maxLevel = subtrees(kk)%tN%ST%levelST(ind)
        end if
     end do
-    allocate(kRevLevel(maxRevLevel+1))
-    kRevLevel(:)=0
-    do kk=1,nSubtrees
-       kRevLevel(subtrees(kk)%tN%ST%revLevelST+1)=kRevLevel(subtrees(kk)%tN%ST%revLevelST+1)+1
-    end do
-    ! find position
-    do kk=maxRevLevel+1,2,-1
-       kRevLevel(kk)=kRevLevel(kk-1)
-    end do
-    kRevLevel(1)=1
-    do kk=2,maxRevLevel+1
-       kRevLevel(kk)=kRevLevel(kk)+kRevLevel(kk-1)
-    end do
-    allocate(newSubtrees(size(subtrees)))
+    allocate(kLevel(maxLevel+2),posLevel(maxLevel+2),newSubtrees(nSubtrees))
     do kk=1,nSubtrees
        newSubtrees(kk)%tN=>null()
     end do
+    kLevel(:)=0
+    posLevel(:)=0
+    ! lowest level is 0. We want to count the occurency of this level in component 2
     do kk=1,nSubtrees
-       pos=kRevLevel(subtrees(kk)%tN%ST%revLevelST+1)
-       kRevLevel(subtrees(kk)%tN%ST%revLevelST+1)=kRevLevel(subtrees(kk)%tN%ST%revLevelST+1)+1
+       kLevel(subtrees(kk)%tN%ST%levelST(ind)+2) &
+               =kLevel(subtrees(kk)%tN%ST%levelST(ind)+2)+1
+    end do
+    kLevel(1)=1
+    ! find position, where the parts with equal level in array start and end
+    do kk=2,maxLevel+1
+       kLevel(kk)=kLevel(kk)+kLevel(kk-1)
+    end do
+    ! the last component should be the number of subtrees +1, so
+    ! kLevel(kk)-kLevel(kk-1) gives us the number of occurencies of level kk-1
+    kLevel(maxLevel+2)=nSubtrees+1
+    ! save this positions in posLevel to give it back
+    posLevel(:)=kLevel(:)
+    ! do the actual sorting
+    do kk=1,nSubtrees
+       pos=kLevel(subtrees(kk)%tN%ST%levelST(ind)+1)
+       kLevel(subtrees(kk)%tN%ST%levelST(ind)+1) &
+               =kLevel(subtrees(kk)%tN%ST%levelST(ind)+1)+1
        newSubtrees(pos)%tN=>subtrees(kk)%tN
-       write(*,*) subtrees(kk)%tN%ST%revLevelST, pos
     end do
+    ! write to array
+    ! ToDo: rather reverse tag?
     do kk=1,nSubtrees
-       subtrees(kk)%tN=>newSubtrees(kk)%tN
-       subtrees(kk)%tN%ST%indST=kk
+       if (ind .eq. 2) then
+          subtrees(kk)%tN=>newSubtrees(kk)%tN
+       else
+          subtrees(nSubtrees-kk+1)%tN=>newSubtrees(kk)%tN
+       end if
     end do
-    deallocate(newSubtrees)
-    deallocate(kRevLevel)
-    do kk=1,nSubtrees
-       write(*,*) subtrees(kk)%tN%ST%indST, subtrees(kk)%tN%ST%revLevelST
-    end do
-  end subroutine sort_subtrees
+
+  end subroutine sort_by_component
 
   recursive subroutine update_tree(lowBound,root,subtree)
     implicit none
