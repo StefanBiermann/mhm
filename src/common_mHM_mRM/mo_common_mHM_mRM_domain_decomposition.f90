@@ -188,7 +188,7 @@ CONTAINS
     ! larger than lowBound is saved, so cutting of
     ! subtrees can be done efficiently.
     ! Root is the root node of the tree. All other tree nodes
-    ! can be accessed throug it.
+    ! can be accessed through it.
     call init_tree(iBasin, lowBound, root)
 
     ! ToDo: that's possibly a bit too much, but maybe more efficient than reallocating?
@@ -206,29 +206,21 @@ CONTAINS
     ! which is at the same time fromNodes, and a toNode array
     call init_subtree_metadata(iBasin,subtrees,STmeta,permNodes,toNodes)
 
-    ! sends the meta data from master process to all the others
-    ! call distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes)
-    ! - sends data (testarray) corresponding to subtrees to nodes
-    ! - collects processed data from roots from subtrees and sends this
-    !   data to corresponding leaves in connected subtrees
-    ! - collects the data in the end
-    ! call routing(iBasin,subtrees,nSubtrees,STmeta,permNodes,testarray)
-    ! call write_tree_with_array(root, lowBound,testarray)
+    call sort_by_routing_order(permNodes,testarray)
     rank=0
     !$OMP parallel private(rank) shared(testarray)
-    !$ rank=OMP_GET_THREAD_NUM()
     !$OMP single
-    call routing(root,toNodes,STmeta,testarray,rank)
+    call routing(root,toNodes,STmeta,testarray)
     !$OMP end single
-    !$OMP end parallel
     !$OMP barrier
-    write(*,*) testarray
+    !$OMP end parallel
+    call sort_back(permNodes,testarray)
 
-    call write_tree_with_array(root, lowBound,testarray)
+    ! call write_tree_with_array(root, lowBound,testarray)
     deallocate(STmeta)
 
+    deallocate(permNodes,toNodes,subtrees)
     call tree_destroy(iBasin,root)
-    deallocate(subtrees,permNodes,toNodes)
 
     call destroy_testarray(testarray)
     ! all other processes receive meta data for their
@@ -253,25 +245,56 @@ CONTAINS
 #endif
   end subroutine domain_decomposition
 
-  recursive subroutine routing(root,toNodes,STmeta,array,rank)
+  subroutine sort_by_routing_order(permNodes,array)
+    implicit none
+    integer(i4),       dimension(:),              intent(in)    :: permNodes
+    integer(i4),       dimension(:),              intent(inout) :: array
+    ! local
+    integer(i4), dimension(:), allocatable :: newarray
+    integer(i4)                            :: ii
+
+    allocate(newarray(size(array)))
+    do ii=1,size(permNodes)
+      newarray(ii)=array(permNodes(ii))
+    end do
+    array(:)=newarray(:)
+    deallocate(newarray)
+
+  end subroutine sort_by_routing_order
+
+  subroutine sort_back(permNodes,array)
+    implicit none
+    integer(i4),       dimension(:),              intent(in)    :: permNodes
+    integer(i4),       dimension(:),              intent(inout) :: array
+    ! local
+    integer(i4), dimension(:), allocatable :: newarray
+    integer(i4)                            :: ii
+
+    allocate(newarray(size(array)))
+    do ii=1,size(permNodes)
+      newarray(permNodes(ii))=array(ii)
+    end do
+    array(:)=newarray(:)
+    deallocate(newarray)
+
+  end subroutine sort_back
+
+  recursive subroutine routing(root,toNodes,STmeta,array)
     implicit none
     type(ptrTreeNode),                            intent(in)    :: root
     integer(i4),       dimension(:),              intent(in)    :: toNodes
     type(subtreeMeta), dimension(:),              intent(in)    :: STmeta
     integer(i4),       dimension(:),              intent(inout) :: array
-    integer(i4),                                  intent(inout) :: rank
     ! local
-    integer(i4) :: jj
+    integer(i4) :: jj, rank
 
     do jj=1,root%tN%ST%NpraeST
-       !$OMP task shared(array,toNodes,STmeta)
-       call routing(root%tN%ST%PraeST(jj),toNodes,STmeta,array,rank)
+       !$OMP task shared(root,array,toNodes,STmeta)
+       call routing(root%tN%ST%PraeST(jj),toNodes,STmeta,array)
        !$OMP end task
     end do
     !$OMP taskwait
     call nodeinternal_routing(root%tN%ST%indST,toNodes,STmeta,root,array)
-    !$ rank=OMP_GET_THREAD_NUM()
-    !$ write(*,*) rank, root%tN%ST%indST
 
   end subroutine routing
 
@@ -290,11 +313,13 @@ CONTAINS
     end do
     if (associated(root%tN%post%tN)) then
        jj=STmeta(kk)%iEnd
+       !$OMP critical
        array(toNodes(jj))=array(toNodes(jj))+array(jj)
+       !$OMP end critical
     end if
   end subroutine nodeinternal_routing
 
-  ! A subtree data structrure makes communication between the subtrees
+  ! A subtree data structure makes communication between the subtrees
   ! much easier for the master. Processing the data is more efficient
   ! with array, so everything gets written into a nice array in
   ! routing order. Therefore we need a permutation array permNodes
@@ -330,7 +355,13 @@ CONTAINS
             permNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd), &
               toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd))
     end do
-    write(*,*) toNodes
+    ! ToDo: repair this part
+    ! correct last toNode
+    do kk=1,nSubtrees
+       if (associated(subtrees(kk)%tN%post%tN)) then
+          toNodes(STmeta(kk)%iEnd)=subtrees(kk)%tN%post%tN%ind
+       end if
+    end do
   end subroutine init_subtree_metadata
 
   ! gets the root node of a tree, after tree decomposition.
@@ -736,6 +767,8 @@ CONTAINS
     call init_subtreetree(nSubtrees,root,subtrees)
     ! sort the array of subtrees, so that distant leaves come first
     call sort_subtrees(nSubtrees,subtrees)
+    ! ToDo: Is this a good idea?
+    ! call unsort_subtrees(nSubtrees,subtrees)
 
   end subroutine decompose
 
@@ -1010,10 +1043,8 @@ CONTAINS
     
   end subroutine init_subtreetree
 
-  ! dirty subroutine to sort the tree nodes revLevel first
-  ! tree nodes with same revLevel are sorted by level
-  ! should be done with a nice radix sort, but too much effort, if
-  ! it does not help much
+  ! sort the tree nodes first by their farthest distant leave and
+  ! if this is equal, then by their distance to root
   subroutine sort_subtrees(nSubtrees,subtrees)
     implicit none
     integer(i4),                     intent(in)    :: nSubtrees
@@ -1036,6 +1067,41 @@ CONTAINS
     end do
     deallocate(posRevLevel)
   end subroutine sort_subtrees
+
+  ! mix the sorted array so that successive arrays are distant
+  ! cache line problems with openMP
+  subroutine unsort_subtrees(nSubtrees,subtrees)
+    implicit none
+    integer(i4),                     intent(in)    :: nSubtrees
+    type(ptrTreeNode), dimension(:), intent(inout) :: subtrees
+    ! local variables
+    type(ptrTreeNode), dimension(:), allocatable :: newSubtrees
+    real(dp) :: goldenRatio
+    integer(i4) :: step
+    integer(i4) :: ii
+
+    ! set golden ratio
+    goldenRatio=(1.0+sqrt(5.0))/2.0
+    ! find a nice stepsize
+    step=int(real(nSubtrees)/goldenRatio)
+    if (mod(nSubtrees,step) .eq. 0) then
+       step=step+1
+    end if
+    ! ToDo: catch error
+    if (step .ge. nSubtrees) then
+      write(*,*) 'module decomposition, unsort_subtrees, strange things happend'
+    end if
+    allocate(newSubtrees(nSubtrees))
+    do ii=1,nSubtrees
+       newSubtrees(ii)%tN=>subtrees(mod(step*ii,nSubtrees)+1)%tN
+    end do
+    do ii=1,nSubtrees
+      subtrees(ii)%tN=>newSubtrees(ii)%tN
+      subtrees(ii)%tN%ST%indST=ii
+    end do
+    deallocate(newSubtrees)
+
+  end subroutine unsort_subtrees
 
   subroutine sort_by_component(ind,subtrees,posLevel)
     implicit none
@@ -1093,6 +1159,7 @@ CONTAINS
           subtrees(nSubtrees-kk+1)%tN=>newSubtrees(kk)%tN
        end if
     end do
+    deallocate(kLevel,newSubtrees)
 
   end subroutine sort_by_component
 
