@@ -94,7 +94,6 @@ MODULE mo_common_mHM_mRM_domain_decomposition
      integer(i4)        :: iStart
      integer(i4)        :: iEnd
      integer(i4)        :: indST
-     integer(i4)        :: nIn
   end type subtreeMeta
 CONTAINS
 
@@ -341,12 +340,10 @@ CONTAINS
     STmeta(1)%iStart=1
     STmeta(1)%iEnd=subtrees(1)%tN%ST%sizST
     STmeta(1)%indST=1
-    STmeta(1)%nIn=subtrees(1)%tN%ST%NpraeST
     do kk=2,nSubtrees
        STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1
        STmeta(kk)%iEnd=STmeta(kk)%iStart+subtrees(kk)%tN%ST%sizST-1
        STmeta(kk)%indST=kk
-       STmeta(kk)%nIn=subtrees(kk)%tN%ST%NpraeST
     end do
     toNodes(:)=0
     do kk=nSubtrees,1,-1
@@ -749,10 +746,6 @@ CONTAINS
           ! cut of one subtree following a rule defined
           ! in find_branch
           call cut_of_subtree(lowBound,0,root,subtree)
-          ! update the number of cut of subtrees in that branch
-          ! update sizes of the smallest subtree larger
-          ! than lowBound in that branch
-          call update_tree(lowBound,root,subtree)
           nSubtrees=nSubtrees+1
           subtrees(nSubtrees)%tN => subtree%tN
           subtree%tN%ST%indST = nSubtrees
@@ -825,7 +818,13 @@ CONTAINS
           ! If we cut of a subtree, all tree nodes downstream get
           ! their size reduced by the size of that subtree.
           ! Not necessary if that subtree is root.
+          ! ToDo: moved update_tree from decompose here. Check if this made
+          ! new errors
           call update_sizes(subtree%tN%siz,subtree)
+          ! update the number of cut of subtrees in that branch
+          ! update sizes of the smallest subtree larger
+          ! than lowBound in that branch
+          call update_tree(lowBound,root,subtree)
           ! initialize the tree node as one of the subtreetree
           call initiate_subtreetreenode(subtree)
 
