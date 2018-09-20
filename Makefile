@@ -123,11 +123,11 @@ proj     :=
 # IMSL (IMSL Numerical Libraries): vendor, imsl, [anything else]
 imsl     :=
 # OpenMP parallelization: true, [anything else]
-openmp   := true
+openmp   := false
 # MPI parallelization - experimental: true, [anything else]
-mpi      := false
+mpi      := true
 # Linking: static, shared, dynamic (last two are equal)
-static   := dynamic
+static   := shared
 
 # The Makefile sets the following variables depending on the above options:
 # FC, FCFLAGS, F90, F90FLAGS, CC, CFLAGS, CPP, DEFINES, INCLUDES, LD, LDFLAGS, LIBS

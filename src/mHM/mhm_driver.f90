@@ -138,6 +138,7 @@ PROGRAM mhm_driver
 
 #endif
   !$ USE omp_lib, ONLY : OMP_GET_NUM_THREADS           ! OpenMP routines
+  USE mpi
 
   IMPLICIT NONE
 
@@ -152,6 +153,18 @@ PROGRAM mhm_driver
   !                                              ! false = parameter will not be optimized = parameter(i,4) = 0
   procedure(mhm_eval), pointer :: eval
   procedure(objective), pointer :: obj_func
+
+  integer :: nproc, rank
+  integer :: ierror
+
+! Initialize MPI
+  call MPI_Init(ierror)
+  call MPI_Comm_size(MPI_COMM_WORLD, nproc,ierror)
+  call MPI_Comm_rank(MPI_COMM_WORLD, rank,ierror)
+  write(*,*) 'MPI!', rank, nproc
+
+  if (rank .eq. 0) then
+  write(*,*) 'process with rank', rank, 'makes all the work'
 
   ! --------------------------------------------------------------------------
   ! START
@@ -299,7 +312,9 @@ PROGRAM mhm_driver
   ! --------------------------------------------------------------------------
   ! DOMAIN DECOMPOSITION
   ! --------------------------------------------------------------------------
+end if
   call domain_decomposition()
+if (rank == 0) then
 
   !this call may be moved to another position as it writes the master config out file for all basins
   call write_configfile()
@@ -392,6 +407,11 @@ PROGRAM mhm_driver
           // ":" // trim(num2str(datetime(6), '(I2.2)')) // ":" // trim(num2str(datetime(7), '(I2.2)'))
   call message('Finished at ', trim(message_text), '.')
   call message()
+  end if ! mpi
+  if (.false.) then
   call finish('mHM', 'Finished!')
+  end if
+  ! Finalize MPI
+  call MPI_Finalize(ierror)
 
 END PROGRAM mhm_driver
