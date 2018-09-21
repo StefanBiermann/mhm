@@ -133,7 +133,7 @@ PROGRAM mhm_driver
 #ifdef MRM2MHM
   USE mo_mrm_objective_function_runoff, only : single_objective_runoff
   USE mo_mrm_init, ONLY : mrm_init
-  USE mo_common_mHM_mRM_domain_decomposition, only: domain_decomposition
+  USE mo_HRD_domain_decomposition, only: domain_decomposition
   USE mo_mrm_write, only : mrm_write
 
 #endif
