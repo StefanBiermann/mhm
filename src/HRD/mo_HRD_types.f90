@@ -10,7 +10,7 @@ MODULE mo_HRD_types
 
   IMPLICIT NONE
 
-  public :: ptrTreeNode, treeNode, subtreeMeta
+  public :: ptrTreeNode, treeNode, subtreeMeta, processSchedule
 
   private
   
@@ -70,6 +70,9 @@ MODULE mo_HRD_types
     integer(i4)                                :: sizST     ! size of cut of subtree
     integer(i4), dimension(2)                  :: levelST   ! component 1: distance to root
                                                             ! component 2: distance from farthest leave
+                                                            
+    integer(i4), dimension(2)                  :: sched     ! component 1: processor
+                                                            ! component 2: time slot
   end type subtreeNode
 
   type subtreeMeta
@@ -78,4 +81,10 @@ MODULE mo_HRD_types
      integer(i4)        :: indST
      integer(i4)        :: nIn
   end type subtreeMeta
+
+  type processSchedule
+     integer(i4)                                :: nTrees
+     integer(i4), dimension(:), allocatable     :: trees
+     integer(i4)                                :: overallSize
+  end type processSchedule
 END MODULE mo_HRD_types

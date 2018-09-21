@@ -116,6 +116,16 @@ CONTAINS
   recursive subroutine write_graphviz_output(root)
     implicit none
     type(ptrTreeNode),         intent(in) :: root
+    write(*,*) 'graph ""'
+    write(*,*) '{'
+    call write_graphviz_output_nodes(root)
+    write(*,*) '}'
+
+  end subroutine write_graphviz_output
+
+  recursive subroutine write_graphviz_output_nodes(root)
+    implicit none
+    type(ptrTreeNode),         intent(in) :: root
     ! local variables
     integer(i4) :: kk ! loop variable to run over all tree nodes
     integer(i4) :: NChildren
@@ -123,14 +133,15 @@ CONTAINS
     if (.not. associated(root%tN%post%tN)) then
        write(*,*) root%tN%origind,';'
     end if
-    write(*,*) root%tN%origind, '[label="',root%tN%ST%indST,'"]', ';'
+    write(*,*) root%tN%origind, '[label="',root%tN%ST%indST
+    write(*,*) 'proc:',root%tN%ST%sched(1),'slot:',root%tN%ST%sched(2)
+    write(*,*) '"]', ';'
     do kk = 1, NChildren
        write(*,*) root%tN%origind,'--', root%tN%ST%praeST(kk)%tN%origind
     end do
     do kk = 1, NChildren
-       call write_graphviz_output(root%tN%ST%praeST(kk))
+       call write_graphviz_output_nodes(root%tN%ST%praeST(kk))
     end do
-
-  end subroutine write_graphviz_output
+  end subroutine write_graphviz_output_nodes
 
 END MODULE mo_HRD_write

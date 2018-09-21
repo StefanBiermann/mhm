@@ -23,7 +23,7 @@ MODULE mo_HRD_domain_decomposition
   use mo_kind, only : i4, dp
 
   use mo_HRD_write
-  use mo_HRD_types, only: ptrTreeNode, subtreeMeta
+  use mo_HRD_types, only: ptrTreeNode, subtreeMeta, processSchedule
 
   use mo_HRD_tree_init_and_destroy
 
@@ -112,6 +112,10 @@ CONTAINS
     integer(i4) , dimension(:), allocatable      :: permNodes   ! in-Nodes in routing order corresponding
     integer(i4) , dimension(:), allocatable      :: toNodes     ! out-Nodes of corresponding in-Nodes
                                                                 ! to decomposition
+    type(processSchedule), dimension(:), allocatable :: schedule! knows for each process the number
+                                                                ! of subtrees assigned to it, the
+                                                                ! indices of the subtrees and the overall
+                                                                ! size of the subtrees
     integer(i4) :: nproc,rank,ierror
 
     ! for testing purposes
@@ -151,24 +155,29 @@ CONTAINS
        ! sort the array of subtrees, so that distant leaves come first
        call sort_subtrees(nSubtrees,subtrees)
        ! call write_domain_decomposition(root)
-       call write_graphviz_output(root)
-       allocate(STmeta(nSubtrees),permNodes(nNodes),toNodes(nNodes))
+       allocate(STmeta(nSubtrees),permNodes(nNodes),toNodes(nNodes),schedule(nproc-1))
        ! A subtree data structrure makes communication between the subtrees
        ! much easier for the master. Processing the data is more efficient
        ! with array, so everything gets written into a nice array in
        ! routing order. Therefore we need a permutation array permNodes
        ! which is at the same time fromNodes, and a toNode array
        call init_subtree_metadata(iBasin,subtrees,STmeta,permNodes,toNodes)
+       ! create schedule:
+       ! to each process in the array schedule the number of trees, the
+       ! indices of the trees and the over all size is assigned
+       call create_schedule(iBasin,nSubtrees,STmeta,subtrees,schedule)
 
        ! sends the meta data from master process to all the others
-       call distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes)
+       call distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes,schedule,subtrees)
+       call write_graphviz_output(root)
        ! - sends data (testarray) corresponding to subtrees to nodes
        ! - collects processed data from roots from subtrees and sends this
        !   data to corresponding leaves in connected subtrees
        ! - collects the data in the end
-       call routing(iBasin,subtrees,nSubtrees,STmeta,permNodes,testarray)
-       ! call write_tree_with_array(root, lowBound,testarray)
+       call routing(iBasin,subtrees,nSubtrees,STmeta,permNodes,schedule,testarray)
+       call write_tree_with_array(root, lowBound,testarray)
 
+       call schedule_destroy(iBasin,schedule)
        deallocate(STmeta)
 
        call tree_destroy(iBasin,root)
@@ -203,13 +212,14 @@ CONTAINS
   ! - collects processed data from roots from subtrees and sends this
   !   data to corresponding leaves in connected subtrees
   ! - collects the data in the end
-  subroutine routing(iBasin,subtrees,nSubtrees,STmeta,permNodes,array)
+  subroutine routing(iBasin,subtrees,nSubtrees,STmeta,permNodes,schedule,array)
     implicit none
     integer(i4),                     intent(in)     :: iBasin
     type(ptrTreeNode), dimension(:), intent(in)     :: subtrees ! the array of
     integer(i4),                     intent(in)     :: nSubtrees
     type(subtreeMeta), dimension(:), intent(in)     :: STmeta
     integer(i4),       dimension(:), intent(in)     :: permNodes
+    type(processSchedule), dimension(:), intent(in) :: schedule
     integer(i4),       dimension(:), intent(inout)  :: array
     ! local
     integer(i4) :: kk,iproc,next,ind
@@ -219,10 +229,11 @@ CONTAINS
 
     call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
     call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
-    call distribute_array(iBasin,nSubtrees,STmeta,permNodes,array)
+    call distribute_array(iBasin,nSubtrees,STmeta,permNodes,schedule,array)
     
     do kk=1,nSubtrees
        call iST_to_iproc(kk,nproc,iproc)
+       iproc=subtrees(kk)%tN%ST%sched(1)
        call MPI_Recv(value_ind,2,MPI_INTEGER,iproc,7,MPI_COMM_WORLD,status,ierror)
        if (associated(subtrees(value_ind(2))%tN%post%tN)) then
           next=subtrees(value_ind(2))%tN%ST%postST%tN%ST%indST
@@ -235,7 +246,7 @@ CONTAINS
     end do
 
     array(:)=0
-    call collect_array(iBasin,nSubtrees,STmeta,permNodes,array)
+    call collect_array(iBasin,nSubtrees,STmeta,permNodes,schedule,array)
   end subroutine
 
   ! - receives data corresponding to an array and assigned
@@ -292,14 +303,16 @@ CONTAINS
     end do
   end subroutine nodeinternal_routing
 
-  subroutine distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes)
+  subroutine distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes,schedule,subtrees)
     implicit none
     integer(i4),                     intent(in)  :: iBasin
     integer(i4),                     intent(in)  :: nSubtrees
     type(subtreeMeta), dimension(:), intent(in)  :: STmeta
     integer(i4),       dimension(:), intent(in)  :: toNodes
+    type(processSchedule), dimension(:), intent(inout) :: schedule
+    type(ptrTreeNode), dimension(:), intent(inout)     :: subtrees ! the array of
     ! local variables
-    integer(i4) :: kk,ii,iPerm,iproc,sizST
+    integer(i4) :: kk,ii,jj,iPerm,iproc,sizST,iST
     integer(i4) :: nproc,rank,ierror
     integer(i4), dimension(:,:), allocatable :: iSends ! the number and over all
                                                        ! length of arrays to be send to a process
@@ -309,8 +322,66 @@ CONTAINS
     call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
     ! find the number the process is referred to, called rank
     call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
+    ! send number of subtrees and total number of tree nodes assigned
+    ! to the processes to the corresponding process, so arrays can be
+    ! allocated in the receiving subroutines
     allocate(iSends(nproc-1,2))
-    iSends(:,:)=0
+    do kk=1,nproc-1
+       iSends(kk,1)=schedule(kk)%nTrees
+       iSends(kk,2)=schedule(kk)%overallSize
+       call MPI_Send(iSends(kk,:),2,MPI_INTEGER,kk,0,MPI_COMM_WORLD,ierror)
+    end do
+    ! send metadata of the subtrees to the nodes where they are assigned to
+    ! size, identifying index corresponding to the subtree array and number of
+    ! nodes, where data is flowing into the tree
+    do kk=1,nproc-1
+       do jj=1,schedule(kk)%nTrees
+          iST=schedule(kk)%trees(jj)
+          sizST=STmeta(iST)%iEnd+1-STmeta(iST)%iStart
+          call MPI_Send(sizST,1,MPI_INTEGER,kk,1,MPI_COMM_WORLD,ierror)
+          call MPI_Send(iST,1,MPI_INTEGER,kk,1,MPI_COMM_WORLD,ierror)
+          call MPI_Send(STmeta(iST)%nIn,1,MPI_INTEGER,kk,1,MPI_COMM_WORLD,ierror)
+       end do
+    end do
+    ! for each subtree send corresponding toNodes to the node. Move indices from
+    ! toNodes, so they start from 0
+    ! They can then be moved on the receiving process corresponding to
+    ! its own offset
+    do kk=1,nproc-1
+       do jj=1,schedule(kk)%nTrees
+          iST=schedule(kk)%trees(jj)
+          sizST=STmeta(iST)%iEnd+1-STmeta(iST)%iStart
+          allocate(sendarray(sizST))
+          do ii=STmeta(iST)%iStart,STmeta(iST)%iEnd
+             sendarray(ii-STmeta(iST)%iStart+1)=toNodes(ii)-STmeta(iST)%iStart
+          end do
+          call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,kk,2,MPI_COMM_WORLD,ierror)
+          deallocate(sendarray)
+       end do
+    end do
+
+    deallocate(iSends)
+  end subroutine distribute_subtree_meta
+
+  subroutine create_schedule(iBasin,nSubtrees,STmeta,subtrees,schedule)
+    implicit none
+    integer(i4),                     intent(in)  :: iBasin
+    integer(i4),                     intent(in)  :: nSubtrees
+    type(subtreeMeta), dimension(:), intent(in)  :: STmeta
+    type(ptrTreeNode), dimension(:), intent(inout)     :: subtrees ! the array of
+    type(processSchedule), dimension(:), allocatable, intent(inout) :: schedule
+    ! local variables
+    integer(i4) :: kk,iproc,sizST,place
+    integer(i4) :: nproc,ierror
+    integer(i4), dimension(:), allocatable :: sendarray
+
+    ! find number of processes nproc
+    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
+    ! initialize
+    do kk=1,nproc
+       schedule(kk)%nTrees=0
+       schedule(kk)%overallSize=0
+    end do
     ! Each process gets a subset of the subtrees in a round robin fashion.
     ! In each process an array will be allocated with a length, so that
     ! every subtree fits into it.
@@ -318,44 +389,61 @@ CONTAINS
        ! for each subtree estimate the process iproc, where it gets send to
        call iST_to_iproc(kk,nproc,iproc)
        ! count the number of subtrees that will be send to process iproc
-       iSends(iproc,1)=iSends(iproc,1)+1
+       schedule(iproc)%nTrees=schedule(iproc)%nTrees+1
        ! find the size of the subtree
        sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
        ! sum up the over all number of tree nodes send to process iproc
-       iSends(iproc,2)=iSends(iproc,2)+sizST
+       schedule(iproc)%overallSize=schedule(iproc)%overallSize+sizST
     end do
-    ! send number of subtrees and total number of tree nodes assigned
-    ! to the processes to the corresponding process, so arrays can be
-    ! allocated in the receiving subroutines
+    ! allocate array of subtree indices
     do kk=1,nproc-1
-       call MPI_Send(iSends(kk,:),2,MPI_INTEGER,kk,0,MPI_COMM_WORLD,ierror)
+       allocate(schedule(kk)%trees(schedule(kk)%nTrees))
+       schedule(kk)%trees(:)=0
     end do
-    ! send metadata of the subtrees to the noders where theres are assigned to
-    ! size, identifiing index corresponding to the subtree array and number of
-    ! nodes, where data is flowing into the tree
+    ! write subtree indices to index array
     do kk=1,nSubtrees
+       ! for each subtree estimate the process iproc, where it gets send to
        call iST_to_iproc(kk,nproc,iproc)
-       sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
-       call MPI_Send(sizST,1,MPI_INTEGER,iproc,1,MPI_COMM_WORLD,ierror)
-       call MPI_Send(kk,1,MPI_INTEGER,iproc,1,MPI_COMM_WORLD,ierror)
-       call MPI_Send(STmeta(kk)%nIn,1,MPI_INTEGER,iproc,1,MPI_COMM_WORLD,ierror)
+       place=size(schedule(iproc)%trees)-schedule(iproc)%nTrees+1
+       schedule(iproc)%trees(place)=kk
+       schedule(iproc)%nTrees=schedule(iproc)%nTrees-1
     end do
-    ! for each subtree send corresponding toNodes to the node. Move indices from
-    ! toNodes, so they start from 0
-    ! They can then be moved on the receiving process corresponding to
-    ! its own offset
-    do kk=1,nSubtrees
-       call iST_to_iproc(kk,nproc,iproc)
-       sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
-       allocate(sendarray(SizST))
-       do ii=STmeta(kk)%iStart,STmeta(kk)%iEnd
-          sendarray(ii-STmeta(kk)%iStart+1)=toNodes(ii)-STmeta(kk)%iStart
+    ! repair sizes
+    do kk=1,nproc-1
+       schedule(kk)%Ntrees=size(schedule(kk)%trees)
+    end do
+    call schedule_to_subtree_nodes(iBasin,schedule,nSubtrees,subtrees)
+  end subroutine create_schedule
+
+ !ToDo: remove this, if necessary, debugging information
+  subroutine schedule_to_subtree_nodes(iBasin,schedule,nSubtrees,subtrees)
+    implicit none
+    integer(i4),                     intent(in)  :: iBasin
+    type(processSchedule), dimension(:), allocatable, intent(in) :: schedule
+    integer(i4),                     intent(in)  :: nSubtrees
+    type(ptrTreeNode), dimension(:), intent(inout)     :: subtrees ! the array of
+    ! local variables
+    integer(i4) :: kk,jj,iTree,iproc
+    integer(i4) :: nproc,ierror
+    type(ptrTreeNode) :: childsubtree
+
+    do kk=1,size(schedule)
+       do jj=1,schedule(kk)%nTrees
+          iTree=schedule(kk)%trees(jj)
+          subtrees(iTree)%tN%ST%sched(1)=kk
+          subtrees(iTree)%tN%ST%sched(2)=jj
        end do
-       call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,iproc,2,MPI_COMM_WORLD,ierror)
-       deallocate(sendarray)
     end do
-    deallocate(iSends)
-  end subroutine distribute_subtree_meta
+    do kk=1,nSubtrees
+       do jj=1,subtrees(kk)%tN%ST%NpraeST
+          childsubtree%tN=>subtrees(kk)%tN%ST%praeST(jj)%tN
+          if (childsubtree%tN%ST%sched(2).ge.subtrees(kk)%tN%ST%sched(2)) then
+             subtrees(kk)%tN%ST%sched(2)=childsubtree%tN%ST%sched(2)+1
+             exit
+          end if
+       end do
+    end do
+  end subroutine schedule_to_subtree_nodes
 
   ! calculates the rank of the process (a number, a
   ! process can be referred by) a subtree gets associated
@@ -369,60 +457,68 @@ CONTAINS
     iproc=mod(kk-1,nproc-1)+1
   end subroutine iST_to_iproc
 
-  subroutine distribute_array(iBasin,nSubtrees,STmeta,permNodes,array)
+  subroutine distribute_array(iBasin,nSubtrees,STmeta,permNodes,schedule,array)
     implicit none
     integer(i4),                     intent(in)  :: iBasin
     integer(i4),                     intent(in)  :: nSubtrees
     type(subtreeMeta), dimension(:), intent(in)  :: STmeta
     integer(i4),       dimension(:), intent(in)  :: permNodes
+    type(processSchedule), dimension(:), intent(in) :: schedule
     integer(i4),       dimension(:), intent(in)  :: array
     ! local variables
-    integer(i4) :: kk,ii,iPerm,iproc,sizST
+    integer(i4) :: kk,jj,ii,iPerm,iproc,sizST,iST
     integer(i4) :: nproc,rank,ierror
     integer(i4), dimension(:), allocatable :: sendarray
+
     call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
     call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
 
-    do kk=1,nSubtrees
-       call iST_to_iproc(kk,nproc,iproc)
-       sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
-       allocate(sendarray(sizST))
-       do ii=STmeta(kk)%iStart,STmeta(kk)%iEnd
-          iPerm=permNodes(ii)
-          sendarray(ii-STmeta(kk)%iStart+1)=array(iPerm)
+    do kk=1,nproc-1
+       do jj=1,schedule(kk)%nTrees
+          iST=schedule(kk)%trees(jj)
+          sizST=STmeta(iST)%iEnd+1-STmeta(iST)%iStart
+          allocate(sendarray(sizST))
+          do ii=STmeta(iST)%iStart,STmeta(iST)%iEnd
+             iPerm=permNodes(ii)
+             sendarray(ii-STmeta(iST)%iStart+1)=array(iPerm)
+          end do
+          call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,kk,3,MPI_COMM_WORLD,ierror)
+          deallocate(sendarray)
        end do
-       call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,iproc,3,MPI_COMM_WORLD,ierror)
-       deallocate(sendarray)
     end do
   end subroutine distribute_array
 
   ! collects data from the other processes into one array in
   ! original order
-  subroutine collect_array(iBasin,nSubtrees,STmeta,permNodes,array)
+  subroutine collect_array(iBasin,nSubtrees,STmeta,permNodes,schedule,array)
     implicit none
     integer(i4),                     intent(in)    :: iBasin
     integer(i4),                     intent(in)    :: nSubtrees
     type(subtreeMeta), dimension(:), intent(in)    :: STmeta
     integer(i4),       dimension(:), intent(in)    :: permNodes
+    type(processSchedule), dimension(:), intent(in) :: schedule
     integer(i4),       dimension(:), intent(inout) :: array
     ! local variables
-    integer(i4) :: kk,ii,iPerm,iproc,sizST
+    integer(i4) :: kk,jj,ii,iPerm,iproc,sizST,iST
     integer(i4) :: nproc,rank,ierror
     integer status(MPI_STATUS_SIZE)
     integer(i4), dimension(:), allocatable :: recvarray
 
     call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
     call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
-    do kk=1,nSubtrees
-       call iST_to_iproc(kk,nproc,iproc)
-       sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
-       allocate(recvarray(sizST))
-       call MPI_Recv(recvarray(1:sizST),sizST,MPI_INTEGER,iproc,4,MPI_COMM_WORLD,status,ierror)
-       do ii=STmeta(kk)%iStart,STmeta(kk)%iEnd
-          iPerm=permNodes(ii)
-          array(iPerm)=recvarray(ii-STmeta(kk)%iStart+1)
+
+    do kk=1,nproc-1
+       do jj=1,schedule(kk)%nTrees
+          iST=schedule(kk)%trees(jj)
+          sizST=STmeta(iST)%iEnd+1-STmeta(iST)%iStart
+          allocate(recvarray(sizST))
+          call MPI_Recv(recvarray(1:sizST),sizST,MPI_INTEGER,kk,4,MPI_COMM_WORLD,status,ierror)
+          do ii=STmeta(iST)%iStart,STmeta(iST)%iEnd
+             iPerm=permNodes(ii)
+             array(iPerm)=recvarray(ii-STmeta(iST)%iStart+1)
+          end do
+          deallocate(recvarray)
        end do
-       deallocate(recvarray)
     end do
   end subroutine collect_array
 
@@ -514,6 +610,20 @@ CONTAINS
     end do
 
   end subroutine send_array
+
+  ! destroy schedule variable
+  subroutine schedule_destroy(iBasin,schedule)
+    implicit none
+    integer(i4),                     intent(in) :: iBasin
+    type(processSchedule), dimension(:), allocatable, intent(inout) :: schedule
+    ! local variables
+    integer(i4) :: kk
+
+    do kk=1,size(schedule)
+       deallocate(schedule(kk)%trees)
+    end do
+    deallocate(schedule)
+  end subroutine schedule_destroy
 
   subroutine get_number_of_basins_and_nodes(iBasin,nNodes,numBasins)
     use mo_mrm_global_variables, only : &

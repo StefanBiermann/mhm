@@ -172,6 +172,9 @@ CONTAINS
     subtree%tN%ST%NpraeST = 0
     subtree%tN%ST%levelST(1) = 0
     subtree%tN%ST%levelST(2) = 0
+    !ToDo: remove this later perhabs, debugging information
+    subtree%tN%ST%sched(1) = 0
+    subtree%tN%ST%sched(2) = 0
   end subroutine initiate_subtreetreenode
 
   subroutine find_branch(root,found,indOfST)
