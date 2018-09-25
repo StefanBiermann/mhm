@@ -135,6 +135,7 @@ CONTAINS
     end if
     write(*,*) root%tN%origind, '[label="',root%tN%ST%indST
     write(*,*) 'proc:',root%tN%ST%sched(1),'slot:',root%tN%ST%sched(2)
+    write(*,*) 'siz:', root%tN%ST%sizST
     write(*,*) '"]', ';'
     do kk = 1, NChildren
        write(*,*) root%tN%origind,'--', root%tN%ST%praeST(kk)%tN%origind

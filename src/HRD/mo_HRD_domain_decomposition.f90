@@ -138,7 +138,7 @@ CONTAINS
        call get_number_of_basins_and_nodes(iBasin,nNodes,nBasins)
        call init_testarray(iBasin,testarray)
 
-       lowBound=60
+       lowBound=3
        uppBound=5
        ! In this subroutine the tree structure gets initialized for
        ! the flownetwork of the iBasin-th basin.
@@ -160,11 +160,11 @@ CONTAINS
        ! create schedule:
        ! to each process in the array schedule the number of trees, the
        ! indices of the trees and the over all size is assigned
-       call create_schedule_hu(iBasin,nSubtrees,subtrees,schedule)
-       ! call write_graphviz_output(root)
+        call create_schedule_hu(iBasin,nSubtrees,subtrees,schedule)
        !call schedule_destroy(iBasin,schedule)
        !allocate(schedule(nproc-1))
        ! call create_schedule(iBasin,nSubtrees,subtrees,schedule)
+      !  call write_graphviz_output(root)
        ! A subtree data structrure makes communication between the subtrees
        ! much easier for the master. Processing the data is more efficient
        ! with array, so everything gets written into a nice array in
@@ -244,7 +244,8 @@ CONTAINS
           ind=subtrees(value_ind(2))%tN%post%tN%ind
           iproc=subtrees(next)%tN%ST%sched(1)
           call MPI_Send([value_ind(1),ind-STmeta(next)%iStart],2,MPI_INTEGER,iproc,next,MPI_COMM_WORLD,ierror)
-       !   write(*,*) 'master sent', value_ind(1), 'to process',iproc,'tree',next, 'ind_diff', ind-STmeta(next)%iStart
+      !    write(*,*) 'master sent', value_ind(1),'from tree',kk, &
+      !            'to process',iproc,'tree',next, 'ind_diff', ind-STmeta(next)%iStart
        end if
     end do
 
@@ -281,9 +282,11 @@ CONTAINS
           call MPI_Recv(value_ind,2,MPI_INTEGER,0,STmeta(kk)%indST,MPI_COMM_WORLD,status,ierror)
           next=value_ind(2)+STmeta(kk)%iStart
           array(next)=array(next)+value_ind(1)
-   !       write(*,*) 'process',rank, 'tree', STmeta(kk)%indST, 'with indices', &
-   !               STmeta(kk)%iStart,'-',STmeta(kk)%iEnd ,&
-   !               'gets', value_ind(1), 'for ind', next, 'ind_diff', value_ind(2)
+     !     write(*,*) '**********************************************************'
+     !     write(*,*) 'process',rank, 'tree', STmeta(kk)%indST, 'with indices', &
+     !             STmeta(kk)%iStart,'-',STmeta(kk)%iEnd ,&
+     !             'gets', value_ind(1), 'for ind', next, 'ind_diff', value_ind(2)
+     !     write(*,*) '**********************************************************'
        end do
        call nodeinternal_routing(kk,toNodes,STmeta,array)
        call MPI_Send([array(STmeta(kk)%iEnd),STmeta(kk)%indST],2,MPI_INTEGER,0,7,MPI_COMM_WORLD,ierror)

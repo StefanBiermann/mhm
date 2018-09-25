@@ -34,6 +34,8 @@ CONTAINS
     integer(i4)                :: nproc,ierror
     logical                    :: free
     type(ptrTreeNode)          :: parent
+    type(ptrTreeNode), dimension(:), allocatable :: newSubtrees
+    integer(i4)                :: iSubtree
 
     call init_list_of_leaves(iBasin,nSubtrees,subtrees,head)
     ! find number of processes nproc
@@ -48,19 +50,27 @@ CONTAINS
        schedule(kk)%trees(:)=0
     end do
 
+    allocate(newSubtrees(nSubtrees))
     islot=1
     newNodes=>null()
+    iSubtree=1
     do while (associated(head))
        iproc=1
        nullify(newNodes)
        do while (associated(head) .and. iproc<=nproc-1)
           element=>head
           call find_farthest_leaf(head,element)
+          ! write tree into new order list
+          newSubtrees(iSubtree)%tN=>subtrees(element%content%tN%ST%indST)%tN
           ! write tree to schedule
           schedule(iproc)%nTrees=schedule(iproc)%nTrees+1
-          schedule(iproc)%trees(islot)=element%content%tN%ST%indST
+       !   schedule(iproc)%trees(islot)=element%content%tN%ST%indST
+       !   schedule(iproc)%overallSize= &
+       !           schedule(iproc)%overallSize+element%content%tN%ST%sizST
+          schedule(iproc)%trees(islot)=iSubtree
           schedule(iproc)%overallSize= &
-                  schedule(iproc)%overallSize+element%content%tN%ST%sizST
+                  schedule(iproc)%overallSize+newSubtrees(iSubtree)%tN%ST%sizST
+          iSubtree=iSubtree+1
           ! write schedule to tree
           element%content%tN%ST%sched(1)=iproc
           element%content%tN%ST%sched(2)=islot
@@ -94,10 +104,21 @@ CONTAINS
        islot=islot+1
     end do
 
-
     call repair_schedule(nSubtrees,schedule)
+    ! write new sortetd tree list to subtrees
+    do kk=1,nSubtrees
+      subtrees(kk)%tN=>newSubtrees(kk)%tN
+      subtrees(kk)%tN%ST%indST=kk
+    end do
+
+    deallocate(newSubtrees)
     
     call list_destroy(head)
+
+    !repair NpraeST
+    do kk=1,nSubtrees
+       subtrees(kk)%tN%ST%NpraeST=size(subtrees(kk)%tN%ST%praeST)
+    end do
 
   end subroutine create_schedule_hu
 
