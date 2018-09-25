@@ -29,7 +29,7 @@ MODULE mo_HRD_domain_decomposition
 
   use mo_HRD_decompose, only: decompose
 
-  use mo_HRD_schedule, only: create_schedule
+  use mo_HRD_schedule, only: create_schedule, create_schedule_hu
 
   use mo_HRD_subtree_meta_init_and_destroy
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
@@ -138,7 +138,7 @@ CONTAINS
        call get_number_of_basins_and_nodes(iBasin,nNodes,nBasins)
        call init_testarray(iBasin,testarray)
 
-       lowBound=3
+       lowBound=60
        uppBound=5
        ! In this subroutine the tree structure gets initialized for
        ! the flownetwork of the iBasin-th basin.
@@ -160,7 +160,11 @@ CONTAINS
        ! create schedule:
        ! to each process in the array schedule the number of trees, the
        ! indices of the trees and the over all size is assigned
-       call create_schedule(iBasin,nSubtrees,subtrees,schedule)
+       call create_schedule_hu(iBasin,nSubtrees,subtrees,schedule)
+       ! call write_graphviz_output(root)
+       !call schedule_destroy(iBasin,schedule)
+       !allocate(schedule(nproc-1))
+       ! call create_schedule(iBasin,nSubtrees,subtrees,schedule)
        ! A subtree data structrure makes communication between the subtrees
        ! much easier for the master. Processing the data is more efficient
        ! with array, so everything gets written into a nice array in
@@ -170,13 +174,12 @@ CONTAINS
 
        ! sends the meta data from master process to all the others
        call distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes,schedule,subtrees)
-       call write_graphviz_output(root)
        ! - sends data (testarray) corresponding to subtrees to nodes
        ! - collects processed data from roots from subtrees and sends this
        !   data to corresponding leaves in connected subtrees
        ! - collects the data in the end
        call routing(iBasin,subtrees,nSubtrees,STmeta,permNodes,schedule,testarray)
-       call write_tree_with_array(root, lowBound,testarray)
+      ! call write_tree_with_array(root, lowBound,testarray)
 
        call schedule_destroy(iBasin,schedule)
        deallocate(STmeta)

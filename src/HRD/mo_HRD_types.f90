@@ -71,7 +71,7 @@ MODULE mo_HRD_types
     integer(i4), dimension(2)                  :: levelST   ! component 1: distance to root
                                                             ! component 2: distance from farthest leave
                                                             
-    integer(i4), dimension(2)                  :: sched     ! component 1: processor
+    integer(i4), dimension(2)                  :: sched     ! component 1: process
                                                             ! component 2: time slot
   end type subtreeNode
 
