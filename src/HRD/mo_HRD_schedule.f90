@@ -15,7 +15,7 @@ MODULE mo_HRD_schedule
 
   IMPLICIT NONE
 
-  public :: create_schedule,create_schedule_hu
+  public :: create_schedule,create_schedule_hu, schedule_destroy
             
   private
 
@@ -429,5 +429,20 @@ CONTAINS
     deallocate(kLevel,newSubtrees)
 
   end subroutine sort_by_component
+
+  ! destroy schedule variable
+  subroutine schedule_destroy(iBasin,schedule)
+    implicit none
+    integer(i4),                     intent(in) :: iBasin
+    type(processSchedule), dimension(:), allocatable, intent(inout) :: schedule
+    ! local variables
+    integer(i4) :: kk
+
+    do kk=1,size(schedule)
+       deallocate(schedule(kk)%trees)
+    end do
+    deallocate(schedule)
+  end subroutine schedule_destroy
+
 
 END MODULE mo_HRD_schedule
