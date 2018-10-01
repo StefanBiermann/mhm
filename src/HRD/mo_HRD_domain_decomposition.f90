@@ -124,6 +124,7 @@ CONTAINS
                                                                 ! of subtrees assigned to it, the
                                                                 ! indices of the subtrees and the overall
                                                                 ! size of the subtrees
+    integer(i4) :: bufferLength                                 ! length of arrays buffered and send via MPI
     integer(i4) :: nproc,rank,ierror
 
     ! for testing purposes
@@ -136,6 +137,7 @@ CONTAINS
     call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
     ! find the number the process is referred to, called rank
     call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
+    bufferLength=5
     if (rank .eq. 0) then
        write(*,*) 'the domain decomposition with mRM gets implemented now...'
        ! this subroutine is called by all processes, but only the
@@ -200,7 +202,7 @@ CONTAINS
     else
        ! all other processes receive meta data for their
        ! individual subtrees from the master process
-       call get_subtree_meta(iBasin,STmeta,toNodes)
+       call get_subtree_meta(iBasin,bufferLength,STmeta,toNodes)
        ! - receives data corresponding to an array and assigned
        !   subtrees
        ! - receive input data from connected subtrees
@@ -245,15 +247,19 @@ CONTAINS
     call distribute_array(iBasin,nSubtrees,STmeta,permNodes,schedule,array)
 
     do kk=1,nSubtrees
-  !     call iST_to_iproc(kk,nproc,iproc)
+       ! the process where subtree kk is assigned to
        iproc=subtrees(kk)%tN%ST%sched(1)
        call MPI_Recv(value_ind,2,MPI_INTEGER,iproc,7,MPI_COMM_WORLD,status,ierror)
+       ! if the root node of the subtree has a parent
        if (associated(subtrees(value_ind(2))%tN%post%tN)) then
+          ! next becomes the index of the parent subtree root node
           next=subtrees(value_ind(2))%tN%ST%postST%tN%ST%indST
 
+          ! ind becomes the index of the parent of the root node
           ind=subtrees(value_ind(2))%tN%post%tN%ind
-  !        call iST_to_iproc(next,nproc,iproc)
+          ! iproc is the process the parent subtree is assigned to
           iproc=subtrees(next)%tN%ST%sched(1)
+          ! the index, where the value will be added to ToDo
           value_ind(2)=ind-STmeta(next)%iStart
           call MPI_Send(value_ind(:),2,MPI_INTEGER,iproc,next,MPI_COMM_WORLD,ierror)
           ! write(*,*) 'master sent', value_ind(1), 'to process',iproc,'tree',next, 'ind_diff', ind-STmeta(next)%iStart
@@ -278,7 +284,7 @@ CONTAINS
     integer(i4),       dimension(:), allocatable, intent(inout) :: array
     ! local
     integer(i4) :: nST ! number of subtrees scheduled on this computational node
-    integer(i4) :: kk,jj,next
+    integer(i4) :: kk,jj,next,iStart,iEnd
     integer(i4), dimension(2) :: value_ind
     integer(i4) :: nproc,rank,ierror
     integer status(MPI_STATUS_SIZE)
@@ -290,14 +296,19 @@ CONTAINS
     nST=size(STmeta)
     do kk=1,nST
        do jj=1,STmeta(kk)%nIn
+          ! receive the value from the root of the child subtree and the index
+          ! the value will be added to
           call MPI_Recv(value_ind,2,MPI_INTEGER,0,STmeta(kk)%indST,MPI_COMM_WORLD,status,ierror)
+          ! shift the index with respect to the start of the subtree
           next=value_ind(2)+STmeta(kk)%iStart
           array(next)=array(next)+value_ind(1)
        !   write(*,*) 'process',rank, 'tree', STmeta(kk)%indST, 'with indices', &
        !           STmeta(kk)%iStart,'-',STmeta(kk)%iEnd ,&
        !           'gets', value_ind(1), 'for ind', next, 'ind_diff', value_ind(2)
        end do
-       call nodeinternal_routing(kk,toNodes,STmeta,array)
+       iStart=STmeta(kk)%iStart
+       iEnd=STmeta(kk)%iEnd
+       call nodeinternal_routing(kk,toNodes(iStart:iEnd),array(iStart:iEnd))
        value_ind(1)=array(STmeta(kk)%iEnd)
        value_ind(2)=STmeta(kk)%indST
        call MPI_Send(value_ind(:),2,MPI_INTEGER,0,7,MPI_COMM_WORLD,ierror)
@@ -307,17 +318,16 @@ CONTAINS
     deallocate(array)
   end subroutine subtree_routing
 
-  subroutine nodeinternal_routing(kk,toNodes,STmeta,array)
+  subroutine nodeinternal_routing(kk,toNodes,array)
     implicit none
     integer(i4),                                  intent(in)    :: kk
     integer(i4),       dimension(:),              intent(in)    :: toNodes
-    type(subtreeMeta), dimension(:),              intent(in)    :: STmeta
     integer(i4),       dimension(:),              intent(inout) :: array
     ! local
     integer(i4) :: jj
     ! ToDo:remove
     integer(i4) :: ii
-    do jj=STmeta(kk)%iStart,STmeta(kk)%iEnd-1
+    do jj=1,size(toNodes)-1
        array(toNodes(jj))=array(toNodes(jj))+array(jj)
     end do
   end subroutine nodeinternal_routing

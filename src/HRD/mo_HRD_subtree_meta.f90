@@ -116,7 +116,7 @@ CONTAINS
           sizST=STmeta(iST)%iEnd+1-STmeta(iST)%iStart
           allocate(sendarray(sizST))
           do ii=STmeta(iST)%iStart,STmeta(iST)%iEnd
-             sendarray(ii-STmeta(iST)%iStart+1)=toNodes(ii)-STmeta(iST)%iStart
+             sendarray(ii-STmeta(iST)%iStart+1)=toNodes(ii)-STmeta(iST)%iStart+1
           end do
           call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,kk,2,MPI_COMM_WORLD,ierror)
           deallocate(sendarray)
@@ -126,9 +126,10 @@ CONTAINS
     deallocate(iSends)
   end subroutine distribute_subtree_meta
 
-  subroutine get_subtree_meta(iBasin,STmeta,toNodes)
+  subroutine get_subtree_meta(iBasin,bufferLength,STmeta,toNodes)
     implicit none
     integer(i4),               intent(in)                       :: iBasin
+    integer(i4),               intent(in)                       :: bufferLength
     type(subtreeMeta), dimension(:), allocatable, intent(inout) :: STmeta
     integer(i4),       dimension(:), allocatable, intent(inout) :: toNodes
     ! local variables
@@ -136,6 +137,7 @@ CONTAINS
     integer(i4), dimension(2) :: nDatasets ! number of incoming data sets
                                            ! total size of datasets
     integer(i4) :: sizST,indST
+    integer(i4) :: nSubtrees, totSizeOfSubtrees
     integer(i4) :: nproc,rank,ierror
     integer status(MPI_STATUS_SIZE)
     call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
@@ -144,29 +146,32 @@ CONTAINS
     ! recieves number of subtrees and total number of tree nodes assigned to
     ! this process
     call MPI_Recv(nDatasets(:),2,MPI_INTEGER,0,0,MPI_COMM_WORLD,status,ierror)
-    allocate(STmeta(nDatasets(1)))
-    allocate(toNodes(nDatasets(2)))
+    nSubtrees=nDatasets(1)
+    totSizeOfSubtrees=nDatasets(2)
+    allocate(STmeta(nSubtrees))
+    allocate(toNodes(totSizeOfSubtrees+nSubtrees*bufferLength))
     ! ToDo: case: less subtrees than processes
     call MPI_Recv(sizST,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
     STmeta(1)%iStart=1
     STmeta(1)%iEnd=sizST
     call MPI_Recv(STmeta(1)%indST,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
     call MPI_Recv(STmeta(1)%nIn,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
-    do kk=2,nDatasets(1)
+    do kk=2,nSubtrees
        call MPI_Recv(sizST,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
-       STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1
+       STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1+bufferLength
        STmeta(kk)%iEnd=STmeta(kk)%iStart+sizST-1
        call MPI_Recv(STmeta(kk)%indST,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
        call MPI_Recv(STmeta(kk)%nIn,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
     end do
 
-    do kk=1,nDatasets(1)
+    do kk=1,nSubtrees
        sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
        call MPI_Recv(toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,2,MPI_COMM_WORLD,status,ierror)
        ! ToDo: why not -1
        ! the toNodes have been moved, so they start from index 1, before sending
        ! now they get moved to the starting point of the subtree in the array
-       toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd)=toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd)+STmeta(kk)%iStart
+       ! toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd)=toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd)+STmeta(kk)%iStart
+       toNodes(STmeta(kk)%iEnd)=toNodes(STmeta(kk)%iEnd)+STmeta(kk)%iStart
     end do
 
   end subroutine get_subtree_meta
