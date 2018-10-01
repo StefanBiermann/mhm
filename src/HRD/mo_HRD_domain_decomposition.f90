@@ -25,7 +25,7 @@ MODULE mo_HRD_domain_decomposition
   use mo_HRD_write
   use mo_HRD_types, only: ptrTreeNode, subtreeMeta, processSchedule
 
-  use mo_HRD_tree_init_and_destroy
+  use mo_HRD_tree_init_and_destroy, only: tree_init_global, tree_init, tree_destroy
 
   use mo_HRD_decompose, only: decompose
 
@@ -116,7 +116,9 @@ CONTAINS
 
     type(subtreeMeta), dimension(:), allocatable :: STmeta
     integer(i4) , dimension(:), allocatable      :: permNodes   ! in-Nodes in routing order corresponding
-    integer(i4) , dimension(:), allocatable      :: toNodes     ! out-Nodes of corresponding in-Nodes
+    integer(i4) , dimension(:), allocatable      :: toNodes     ! out-Nodes of corresponding (in-)Nodes
+                                                                ! to decomposition
+    integer(i4) , dimension(:), allocatable      :: fromNodes   ! in-Nodes of corresponding Nodes
                                                                 ! to decomposition
     type(processSchedule), dimension(:), allocatable :: schedule! knows for each process the number
                                                                 ! of subtrees assigned to it, the
@@ -140,6 +142,7 @@ CONTAINS
        ! (perhaps) master process knows global variables
        ! so these should not be loaded from other modules inside this subroutine
        call get_number_of_basins_and_nodes(iBasin,nNodes,nBasins)
+       call get_L11_information(iBasin, toNodes, fromNodes, permNodes)
        call init_testarray(iBasin,testarray)
 
        lowBound=3
@@ -147,11 +150,13 @@ CONTAINS
        ! In this subroutine the tree structure gets initialized for
        ! the flownetwork of the iBasin-th basin.
        ! In each tree node the size of the smallest subtree
-       ! larger than lowBound is saved, so cutting of
+       ! larger than lowBound is saved, so cutting off
        ! subtrees can be done efficiently.
        ! Root is the root node of the tree. All other tree nodes
        ! can be accessed through it.
-       call init_tree(iBasin, lowBound, root)
+       ! call tree_init_global(iBasin, lowBound, root)
+       call tree_init(iBasin,nNodes,toNodes,fromNodes,permNodes,lowBound,root)
+       deallocate(toNodes,permNodes,fromNodes)
 
        ! ToDo: that's possibly a bit too much, but maybe more efficient than reallocating?
        allocate(subtrees(nNodes/lowBound+1))
@@ -164,10 +169,10 @@ CONTAINS
        ! create schedule:
        ! to each process in the array schedule the number of trees, the
        ! indices of the trees and the over all size is assigned
-       ! call create_schedule_hu(iBasin,nSubtrees,subtrees,schedule)
+       call create_schedule_hu(iBasin,nSubtrees,subtrees,schedule)
        !call schedule_destroy(iBasin,schedule)
        !allocate(schedule(nproc-1))
-        call create_schedule(iBasin,nSubtrees,subtrees,schedule)
+       ! call create_schedule(iBasin,nSubtrees,subtrees,schedule)
       !  call write_graphviz_output(root)
        ! A subtree data structrure makes communication between the subtrees
        ! much easier for the master. Processing the data is more efficient
@@ -183,7 +188,7 @@ CONTAINS
        !   data to corresponding leaves in connected subtrees
        ! - collects the data in the end
        call routing(iBasin,subtrees,nSubtrees,STmeta,permNodes,schedule,testarray)
-      ! call write_tree_with_array(root, lowBound,testarray)
+       call write_tree_with_array(root, lowBound,testarray)
 
        call schedule_destroy(iBasin,schedule)
        deallocate(STmeta)
@@ -231,7 +236,7 @@ CONTAINS
     integer(i4),       dimension(:), intent(inout)  :: array
     ! local
     integer(i4) :: kk,iproc,next,ind
-    integer(i4), dimension(1001) :: value_ind
+    integer(i4), dimension(2) :: value_ind
     integer(i4) :: nproc,rank,ierror
     integer status(MPI_STATUS_SIZE)
 
@@ -242,15 +247,15 @@ CONTAINS
     do kk=1,nSubtrees
   !     call iST_to_iproc(kk,nproc,iproc)
        iproc=subtrees(kk)%tN%ST%sched(1)
-       call MPI_Recv(value_ind,1001,MPI_INTEGER,iproc,7,MPI_COMM_WORLD,status,ierror)
-       if (associated(subtrees(value_ind(1001))%tN%post%tN)) then
-          next=subtrees(value_ind(1001))%tN%ST%postST%tN%ST%indST
+       call MPI_Recv(value_ind,2,MPI_INTEGER,iproc,7,MPI_COMM_WORLD,status,ierror)
+       if (associated(subtrees(value_ind(2))%tN%post%tN)) then
+          next=subtrees(value_ind(2))%tN%ST%postST%tN%ST%indST
 
-          ind=subtrees(value_ind(1001))%tN%post%tN%ind
+          ind=subtrees(value_ind(2))%tN%post%tN%ind
   !        call iST_to_iproc(next,nproc,iproc)
           iproc=subtrees(next)%tN%ST%sched(1)
-          value_ind(1001)=ind-STmeta(next)%iStart
-          call MPI_Send(value_ind(:),1001,MPI_INTEGER,iproc,next,MPI_COMM_WORLD,ierror)
+          value_ind(2)=ind-STmeta(next)%iStart
+          call MPI_Send(value_ind(:),2,MPI_INTEGER,iproc,next,MPI_COMM_WORLD,ierror)
           ! write(*,*) 'master sent', value_ind(1), 'to process',iproc,'tree',next, 'ind_diff', ind-STmeta(next)%iStart
        end if
     end do
@@ -274,7 +279,7 @@ CONTAINS
     ! local
     integer(i4) :: nST ! number of subtrees scheduled on this computational node
     integer(i4) :: kk,jj,next
-    integer(i4), dimension(1001) :: value_ind
+    integer(i4), dimension(2) :: value_ind
     integer(i4) :: nproc,rank,ierror
     integer status(MPI_STATUS_SIZE)
 
@@ -285,17 +290,17 @@ CONTAINS
     nST=size(STmeta)
     do kk=1,nST
        do jj=1,STmeta(kk)%nIn
-          call MPI_Recv(value_ind,1001,MPI_INTEGER,0,STmeta(kk)%indST,MPI_COMM_WORLD,status,ierror)
-          next=value_ind(1001)+STmeta(kk)%iStart
+          call MPI_Recv(value_ind,2,MPI_INTEGER,0,STmeta(kk)%indST,MPI_COMM_WORLD,status,ierror)
+          next=value_ind(2)+STmeta(kk)%iStart
           array(next)=array(next)+value_ind(1)
        !   write(*,*) 'process',rank, 'tree', STmeta(kk)%indST, 'with indices', &
        !           STmeta(kk)%iStart,'-',STmeta(kk)%iEnd ,&
        !           'gets', value_ind(1), 'for ind', next, 'ind_diff', value_ind(2)
        end do
        call nodeinternal_routing(kk,toNodes,STmeta,array)
-       value_ind(:)=array(STmeta(kk)%iEnd)
-       value_ind(1001)=STmeta(kk)%indST
-       call MPI_Send(value_ind(:),1001,MPI_INTEGER,0,7,MPI_COMM_WORLD,ierror)
+       value_ind(1)=array(STmeta(kk)%iEnd)
+       value_ind(2)=STmeta(kk)%indST
+       call MPI_Send(value_ind(:),2,MPI_INTEGER,0,7,MPI_COMM_WORLD,ierror)
     end do
 
     call send_array(iBasin,STmeta,array)
@@ -310,6 +315,8 @@ CONTAINS
     integer(i4),       dimension(:),              intent(inout) :: array
     ! local
     integer(i4) :: jj
+    ! ToDo:remove
+    integer(i4) :: ii
     do jj=STmeta(kk)%iStart,STmeta(kk)%iEnd-1
        array(toNodes(jj))=array(toNodes(jj))+array(jj)
     end do
@@ -327,6 +334,27 @@ CONTAINS
     nNodes=level11(iBasin)%ncells
     numBasins=nBasins
   end subroutine get_number_of_basins_and_nodes
+
+  subroutine get_L11_information(iBasin, toNodes, fromNodes, permNodes)
+    use mo_mrm_global_variables, only : &
+            level11,      & ! IN: for number of nCells
+            L11_fromN,    & ! IN: for an edge this is the incoming tree node
+            L11_toN,      & ! IN: for an edge this is the outgoing tree node
+            L11_netPerm     ! IN: network routing order
+    implicit none
+    integer(i4),                            intent(in)    :: iBasin
+    integer(i4), dimension(:), allocatable, intent(out)   :: toNodes
+    integer(i4), dimension(:), allocatable, intent(out)   :: fromNodes
+    integer(i4), dimension(:), allocatable, intent(out)   :: permNodes
+
+   allocate(toNodes(size(L11_toN)))
+   toNodes(:)=L11_toN(:)
+   allocate(fromNodes(size(L11_fromN)))
+   fromNodes(:)=L11_fromN(:)
+   allocate(permNodes(size(L11_netPerm)))
+   permNodes(:)=L11_netPerm(:)
+
+  end subroutine get_L11_information
 
   subroutine init_testarray(iBasin,testarray)
     use mo_mrm_global_variables, only : &
