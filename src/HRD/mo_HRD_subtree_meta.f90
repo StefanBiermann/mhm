@@ -126,10 +126,9 @@ CONTAINS
     deallocate(iSends)
   end subroutine distribute_subtree_meta
 
-  subroutine get_subtree_meta(iBasin,bufferLength,STmeta,toNodes)
+  subroutine get_subtree_meta(iBasin,STmeta,toNodes)
     implicit none
     integer(i4),               intent(in)                       :: iBasin
-    integer(i4),               intent(in)                       :: bufferLength
     type(subtreeMeta), dimension(:), allocatable, intent(inout) :: STmeta
     integer(i4),       dimension(:), allocatable, intent(inout) :: toNodes
     ! local variables
@@ -149,7 +148,7 @@ CONTAINS
     nSubtrees=nDatasets(1)
     totSizeOfSubtrees=nDatasets(2)
     allocate(STmeta(nSubtrees))
-    allocate(toNodes(totSizeOfSubtrees+nSubtrees*bufferLength))
+    allocate(toNodes(totSizeOfSubtrees))
     ! ToDo: case: less subtrees than processes
     call MPI_Recv(sizST,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
     STmeta(1)%iStart=1
@@ -158,7 +157,7 @@ CONTAINS
     call MPI_Recv(STmeta(1)%nIn,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
     do kk=2,nSubtrees
        call MPI_Recv(sizST,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
-       STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1+bufferLength
+       STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1
        STmeta(kk)%iEnd=STmeta(kk)%iStart+sizST-1
        call MPI_Recv(STmeta(kk)%indST,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
        call MPI_Recv(STmeta(kk)%nIn,1,MPI_INTEGER,0,1,MPI_COMM_WORLD,status,ierror)
@@ -169,7 +168,7 @@ CONTAINS
        call MPI_Recv(toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,2,MPI_COMM_WORLD,status,ierror)
        ! ToDo: why not -1
        ! the toNodes have been moved, so they start from index 1, before sending
-       ! now they get moved to the starting point of the subtree in the array
+       ! now the last entry gets moved to the starting point of the subtree in the array
        ! toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd)=toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd)+STmeta(kk)%iStart
        toNodes(STmeta(kk)%iEnd)=toNodes(STmeta(kk)%iEnd)+STmeta(kk)%iStart
     end do
