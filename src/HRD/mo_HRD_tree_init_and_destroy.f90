@@ -122,15 +122,14 @@ CONTAINS
    deallocate(tree,Nprae)
   end subroutine tree_init_global
 
-  subroutine tree_init(iBasin,nLinks,toNodes,fromNodes,perm,lowBound,root)
+  subroutine tree_init(nLinks,toNodes,lowBound,root,fromNodes,perm)
     implicit none
-    integer(i4),                         intent(in)    :: iBasin
     integer(i4),                         intent(in)    :: nLinks
     integer(i4), dimension(:),           intent(in)    :: toNodes
-    integer(i4), dimension(:), optional, intent(in)    :: fromNodes
-    integer(i4), dimension(:), optional, intent(in)    :: perm
     integer(i4),                         intent(in)    :: lowBound
     type(ptrTreeNode),                   intent(inout) :: root
+    integer(i4), dimension(:), optional, intent(in)    :: fromNodes
+    integer(i4), dimension(:), optional, intent(in)    :: perm
 
     ! local variables
     integer(i4) :: kk ! loop variable to run over all edges/links
@@ -145,7 +144,7 @@ CONTAINS
     end do
     ! for every edge the tree node where it points to
     ! gets another child count
-    call count_children(nLinks-1,toNodes,perm,Nprae)
+    call count_children(nLinks-1,toNodes,Nprae,perm=perm)
     ! allocate array for children, initialize tree node
     do kk = 1, nLinks
        call treenode_init(Nprae(kk),kk,tree(kk))
@@ -153,9 +152,9 @@ CONTAINS
     ! assign the pointers of the children and the parent
     ! use the array of number of children:
     ! if a child is assigned, reduce the number by one
-    call set_edges(nLinks-1,toNodes,fromNodes,perm,tree,Nprae,root)
+    call set_edges(nLinks-1,toNodes,tree,Nprae,root,fromNodes=fromNodes,perm=perm)
     ! set level
-    call set_level(nLinks-1,fromNodes,perm,tree)
+    call set_level(nLinks-1,tree,fromNodes=fromNodes,perm=perm)
     ! assign size of smallest subtree greater lowBound to each tree node
     ! assign farthest distant to a leave
     do kk = 1, nLinks-1
@@ -201,12 +200,12 @@ CONTAINS
     treenode%tN%ST=>null()
   end subroutine treenode_init
 
-  subroutine set_level(nLinks,fromNodes,perm,tree)
+  subroutine set_level(nLinks,tree,fromNodes,perm)
     implicit none
     integer(i4),                         intent(in)    :: nLinks
+    type(ptrTreeNode), dimension(:),     intent(in)    :: tree
     integer(i4), dimension(:), optional, intent(in)    :: fromNodes
     integer(i4), dimension(:), optional, intent(in)    :: perm
-    type(ptrTreeNode), dimension(:),     intent(in)    :: tree
     ! local
     integer(i4) :: kk, i, iNode
 
@@ -225,17 +224,18 @@ CONTAINS
     end do
   end subroutine set_level
 
-  subroutine set_edges(nLinks,toNodes,fromNodes,perm,tree,Nprae,root)
+  subroutine set_edges(nLinks,toNodes,tree,Nprae,root,fromNodes,perm)
     implicit none
     integer(i4),                         intent(in)    :: nLinks
     integer(i4), dimension(:),           intent(in)    :: toNodes
-    integer(i4), dimension(:), optional, intent(in)    :: fromNodes
-    integer(i4), dimension(:), optional, intent(in)    :: perm
     type(ptrTreeNode), dimension(:),     intent(in)    :: tree
     integer(i4), dimension(:),           intent(inout) :: Nprae
     type(ptrTreeNode),                   intent(inout) :: root
+    integer(i4), dimension(:), optional, intent(in)    :: fromNodes
+    integer(i4), dimension(:), optional, intent(in)    :: perm
     ! local
     integer(i4) :: kk, i, iNode, tNode
+    logical :: found
     do kk = 1, nLinks
        if (present(perm)) then
           i = perm(kk)
@@ -268,19 +268,29 @@ CONTAINS
        tree(tNode)%tN%siz=tree(tNode)%tN%siz+tree(iNode)%tN%siz
     end do
     ! find root node
-    do kk = 1, nLinks
+    found=.false.
+    do kk = 1, nLinks+1
        if (.not. associated(tree(kk)%tN%post%tN)) then
           root%tN => tree(kk)%tN
+          found=.true.
        end if
     end do
+   ! ! another attempt to find root node, if we search in subtrees
+   ! if (.not. found) then
+   !    do kk=1, nLinks
+   !       if tree(kk)%tN%
+   !    end do
+   ! end if
+   
+
   end subroutine set_edges
 
-  subroutine count_children(nLinks,toNodes,perm,Nprae)
+  subroutine count_children(nLinks,toNodes,Nprae,perm)
     implicit none
     integer(i4),                         intent(in)    :: nLinks
     integer(i4), dimension(:),           intent(in)    :: toNodes
-    integer(i4), dimension(:), optional, intent(in)    :: perm
     integer(i4), dimension(:),           intent(inout) :: Nprae
+    integer(i4), dimension(:), optional, intent(in)    :: perm
     ! local
     integer(i4) :: i,iNode,tNode, kk
 
@@ -296,16 +306,15 @@ CONTAINS
   end subroutine count_children
 
   ! better destroy virtual trees than real ones
-  recursive subroutine tree_destroy(iBasin,root)
+  recursive subroutine tree_destroy(root)
     implicit none
-    integer(i4),               intent(in)    :: iBasin
     type(ptrTreeNode),         intent(inout) :: root
 
     ! local variables
     integer(i4)          :: kk
     
     do kk=1,size(root%tN%prae)
-       call tree_destroy(iBasin,root%tN%prae(kk))
+       call tree_destroy(root%tN%prae(kk))
     enddo
     if (associated(root%tN%ST)) then
        deallocate(root%tN%ST%praeST)

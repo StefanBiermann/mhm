@@ -123,11 +123,11 @@ proj     :=
 # IMSL (IMSL Numerical Libraries): vendor, imsl, [anything else]
 imsl     :=
 # OpenMP parallelization: true, [anything else]
-openmp   := false
+openmp   := true
 # MPI parallelization - experimental: true, [anything else]
 mpi      := true
 # Linking: static, shared, dynamic (last two are equal)
-static   := shared
+static   := dynamic
 
 # The Makefile sets the following variables depending on the above options:
 # FC, FCFLAGS, F90, F90FLAGS, CC, CFLAGS, CPP, DEFINES, INCLUDES, LD, LDFLAGS, LIBS
@@ -486,7 +486,11 @@ ifeq ($(openmp),true)
     ifneq (,$(findstring $(icompiler),$(gnucompilers)))
         iopenmp += -fopenmp
     else
-        iopenmp += -openmp
+        ifneq (,$(findstring $(icompiler),$(intelcompilers)))
+            iopenmp += -qopenmp
+        else
+            iopenmp += -openmp
+        endif
     endif
     DEFINES += -DOPENMP
 endif

@@ -147,7 +147,7 @@ CONTAINS
        call get_L11_information(iBasin, toNodes, fromNodes, permNodes)
        call init_testarray(iBasin,testarray)
 
-       lowBound=3
+       lowBound=50
        uppBound=5
        ! In this subroutine the tree structure gets initialized for
        ! the flownetwork of the iBasin-th basin.
@@ -157,7 +157,7 @@ CONTAINS
        ! Root is the root node of the tree. All other tree nodes
        ! can be accessed through it.
        ! call tree_init_global(iBasin, lowBound, root)
-       call tree_init(iBasin,nNodes,toNodes,fromNodes,permNodes,lowBound,root)
+       call tree_init(nNodes,toNodes,lowBound,root,fromNodes=fromNodes,perm=permNodes)
        deallocate(toNodes,permNodes,fromNodes)
 
        ! ToDo: that's possibly a bit too much, but maybe more efficient than reallocating?
@@ -190,26 +190,32 @@ CONTAINS
        !   data to corresponding leaves in connected subtrees
        ! - collects the data in the end
        call routing(iBasin,bufferLength,subtrees,nSubtrees,STmeta,permNodes,schedule,testarray)
-       call write_tree_with_array(root, lowBound,testarray)
+        call write_tree_with_array(root, lowBound,testarray)
 
        call schedule_destroy(iBasin,schedule)
        deallocate(STmeta)
 
-       call tree_destroy(iBasin,root)
+       call tree_destroy(root)
        deallocate(subtrees,permNodes,toNodes)
 
        call destroy_testarray(testarray)
     else
+       lowBound=3
        ! all other processes receive meta data for their
        ! individual subtrees from the master process
        call get_subtree_meta(iBasin,STmeta,toNodes)
+       call subtree_init(lowBound,STmeta,toNodes,subtrees)
        ! - receives data corresponding to an array and assigned
        !   subtrees
        ! - receive input data from connected subtrees
        ! - processes data
        ! - sends root data to master
        ! - send data to master
-       call subtree_routing(iBasin,bufferLength,toNodes,STmeta,testarray)
+       call subtree_routing(iBasin,bufferLength,toNodes,subtrees,STmeta,testarray)
+       do kk=1, size(subtrees)
+          call tree_destroy(subtrees(kk))
+       end do
+       deallocate(subtrees)
        ! ToDo: deallocating might be nicer on the same level, so
        ! either outside or an extra subroutine?
        deallocate(STmeta,toNodes)
@@ -272,17 +278,44 @@ CONTAINS
     call collect_array(iBasin,nSubtrees,STmeta,permNodes,schedule,array)
   end subroutine
 
+  subroutine subtree_init(lowBound,STmeta,toNodes,subtrees)
+    implicit none
+    integer(i4),                                  intent(in)    :: lowBound
+    type(subtreeMeta), dimension(:),              intent(in)    :: STmeta
+    integer(i4),       dimension(:),              intent(in)    :: toNodes
+    type(ptrTreeNode), dimension(:), allocatable, intent(inout) :: subtrees ! the array of
+    ! local
+    integer(i4) :: nST ! number of subtrees scheduled on this computational node
+    integer(i4) :: kk
+    integer(i4) :: sizST,iStart,iEnd
+
+    nST=size(STmeta)
+
+    allocate(subtrees(nST))
+
+    do kk=1,nST
+      iStart=STmeta(kk)%iStart
+      iEnd=STmeta(kk)%iEnd
+      sizST=iEnd-iStart+1
+     ! write(*,*) sizST
+      call tree_init(sizST,toNodes(iStart:iEnd),lowBound,subtrees(kk))
+     ! call write_subtree(subtrees(kk), lowBound)
+    end do
+    
+  end subroutine subtree_init
+
   ! - receives data corresponding to an array and assigned
   !   subtrees
   ! - receive input data from connected subtrees
   ! - processes data
   ! - sends root data to master
   ! - send data to master
-  subroutine subtree_routing(iBasin,bufferLength,toNodes,STmeta,array)
+  subroutine subtree_routing(iBasin,bufferLength,toNodes,subtrees,STmeta,array)
     implicit none
     integer(i4),                                  intent(in)    :: iBasin
     integer(i4),                                  intent(in)    :: bufferLength
     integer(i4),       dimension(:),              intent(in)    :: toNodes
+    type(ptrTreeNode), dimension(:),              intent(in)    :: subtrees ! the array of
     type(subtreeMeta), dimension(:),              intent(in)    :: STmeta
     integer(i4),       dimension(:), allocatable, intent(inout) :: array
     ! local
@@ -316,7 +349,14 @@ CONTAINS
              next=buffer(jj,bufferLength+1)+STmeta(kk)%iStart
              array(next)=array(next)+buffer(jj,ii)
           end do
-          call nodeinternal_routing(kk,toNodes(iStart:iEnd),array(iStart:iEnd))
+          !call nodeinternal_routing_array(toNodes(iStart:iEnd),array(iStart:iEnd))
+          !!$OMP parallel num_threads(jj) private(rank) shared(testarray)
+          !$OMP parallel private(rank) shared(array,subtrees)
+          !$OMP single
+          call nodeinternal_routing(subtrees(kk),array(iStart:iEnd))
+          !$OMP end single
+          !$OMP barrier
+          !$OMP end parallel
           buffer(STmeta(kk)%nIn+1,ii)=array(STmeta(kk)%iEnd)
        end do
        buffer(STmeta(kk)%nIn+1,bufferLength+1)=STmeta(kk)%indST
@@ -328,17 +368,42 @@ CONTAINS
     deallocate(array)
   end subroutine subtree_routing
 
-  subroutine nodeinternal_routing(kk,toNodes,array)
+  subroutine nodeinternal_routing_array(toNodes,array)
     implicit none
-    integer(i4),                                  intent(in)    :: kk
     integer(i4),       dimension(:),              intent(in)    :: toNodes
     integer(i4),       dimension(:),              intent(inout) :: array
     ! local
     integer(i4) :: jj
     integer(i4) :: ii
+
     do jj=1,size(toNodes)-1
        array(toNodes(jj))=array(toNodes(jj))+array(jj)
     end do
+  end subroutine nodeinternal_routing_array
+
+  subroutine nodeinternal_routing(root,array)
+    implicit none
+    type(ptrTreeNode),                            intent(in)    :: root ! the array of
+    integer(i4),       dimension(:),              intent(inout) :: array
+    ! local
+    integer(i4) :: jj
+    integer(i4) :: ii,ithread
+    integer(i4) :: tNode
+
+    do jj=1,root%tN%Nprae
+       !$OMP task shared(root,array)
+       call nodeinternal_routing(root%tN%prae(jj),array)
+       !$OMP end task
+    end do
+    !$OMP taskwait
+    if (associated(root%tN%post%tN)) then
+       tNode=root%tN%post%tN%origind
+       !$OMP critical
+      ! !$ ithread=omp_get_thread_num()
+      ! !$ write(*,*) ithread
+       array(tNode)=array(tNode)+array(root%tN%origind)
+       !$OMP end critical
+    end if
   end subroutine nodeinternal_routing
 
   subroutine get_number_of_basins_and_nodes(iBasin,nNodes,numBasins)

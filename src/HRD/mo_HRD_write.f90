@@ -13,7 +13,7 @@ MODULE mo_HRD_write
 
   IMPLICIT NONE
 
-  public :: write_tree, write_tree_with_array, &
+  public :: write_tree, write_subtree, write_tree_with_array, &
             write_domain_decomposition, write_graphviz_output
 
   private
@@ -48,6 +48,35 @@ CONTAINS
     end do
 
   end subroutine write_tree
+
+  recursive subroutine write_subtree(root, lowBound)
+    implicit none
+    type(ptrTreeNode),         intent(in) :: root
+    integer(i4),               intent(in) :: lowBound
+    ! local variables
+    integer(i4) :: kk ! loop variable to run over all tree nodes
+    integer(i4) :: NChildren
+
+    NChildren=size(root%tN%prae)
+    write(*,*) '**********************************************************************'
+    write(*,*) '* node:', root%tN%origind, 'new:',root%tN%ind, '                     *'
+    write(*,*) '**********************************************************************'
+    write(*,*) 'has size: ', root%tN%siz
+    write(*,*) 'size of smallest subtree larger than', lowBound, 'is: ', root%tN%sizUp
+    if (.not. associated(root%tN%post%tN)) then
+       write(*,*) 'it is the root node'
+    else
+       write(*,*) 'its parent is', root%tN%post%tN%origind, 'new:', root%tN%post%tN%ind
+    end if
+    write(*,*) 'has', root%tN%Nprae ,'children: '
+    do kk = 1, NChildren
+       write(*,*) '  old:', root%tN%prae(kk)%tN%origind, 'new:', root%tN%prae(kk)%tN%ind
+    end do
+    do kk = 1, NChildren
+       call write_subtree(root%tN%prae(kk),lowBound)
+    end do
+
+  end subroutine write_subtree
 
   recursive subroutine write_tree_with_array(root, lowBound,array)
     implicit none
