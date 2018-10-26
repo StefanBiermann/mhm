@@ -7,7 +7,6 @@ MODULE mo_HRD_write
   use mo_kind, only : i4, dp
   use mo_HRD_types
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
-  use mpi
 
   ! Written Maren Kaluza, June 2018
 

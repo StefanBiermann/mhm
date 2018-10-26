@@ -21,9 +21,8 @@ MODULE mo_HRD_schedule
 
 CONTAINS
 
-  subroutine create_schedule_hu(iBasin,nSubtrees,subtrees,schedule)
+  subroutine create_schedule_hu(nSubtrees,subtrees,schedule)
     implicit none
-    integer(i4),                     intent(in)  :: iBasin
     integer(i4),                     intent(in)  :: nSubtrees
     type(ptrTreeNode), dimension(:), intent(inout)     :: subtrees ! the array of
     type(processSchedule), dimension(:), allocatable, intent(inout) :: schedule
@@ -37,7 +36,7 @@ CONTAINS
     type(ptrTreeNode), dimension(:), allocatable :: newSubtrees
     integer(i4)                :: iSubtree
 
-    call init_list_of_leaves(iBasin,nSubtrees,subtrees,head)
+    call init_list_of_leaves(nSubtrees,subtrees,head)
     ! find number of processes nproc
     call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
 
@@ -186,9 +185,8 @@ CONTAINS
     treeDepth=treeDepth+1
   end subroutine
 
-  subroutine init_list_of_leaves(iBasin,nSubtrees,subtrees,head)
+  subroutine init_list_of_leaves(nSubtrees,subtrees,head)
     implicit none
-    integer(i4),                     intent(in)  :: iBasin
     integer(i4),                     intent(in)  :: nSubtrees
     type(ptrTreeNode), dimension(:), intent(in)  :: subtrees ! the array of
     type(dLinkedList), pointer,      intent(inout):: head
@@ -213,9 +211,8 @@ CONTAINS
     end do
   end subroutine init_list_of_leaves
 
-  subroutine create_schedule(iBasin,nSubtrees,subtrees,schedule)
+  subroutine create_schedule(nSubtrees,subtrees,schedule)
     implicit none
-    integer(i4),                     intent(in)  :: iBasin
     integer(i4),                     intent(in)  :: nSubtrees
     type(ptrTreeNode), dimension(:), intent(inout)     :: subtrees ! the array of
     type(processSchedule), dimension(:), allocatable, intent(inout) :: schedule
@@ -265,13 +262,12 @@ CONTAINS
     do kk=1,nproc-1
        schedule(kk)%Ntrees=size(schedule(kk)%trees)
     end do
-    call schedule_to_subtree_nodes(iBasin,schedule,nSubtrees,subtrees)
+    call schedule_to_subtree_nodes(schedule,nSubtrees,subtrees)
   end subroutine create_schedule
 
  !ToDo: remove parts of this, if necessary, debugging information
-  subroutine schedule_to_subtree_nodes(iBasin,schedule,nSubtrees,subtrees)
+  subroutine schedule_to_subtree_nodes(schedule,nSubtrees,subtrees)
     implicit none
-    integer(i4),                     intent(in)  :: iBasin
     type(processSchedule), dimension(:), allocatable, intent(in) :: schedule
     integer(i4),                     intent(in)  :: nSubtrees
     type(ptrTreeNode), dimension(:), intent(inout)     :: subtrees ! the array of
@@ -431,9 +427,8 @@ CONTAINS
   end subroutine sort_by_component
 
   ! destroy schedule variable
-  subroutine schedule_destroy(iBasin,schedule)
+  subroutine schedule_destroy(schedule)
     implicit none
-    integer(i4),                     intent(in) :: iBasin
     type(processSchedule), dimension(:), allocatable, intent(inout) :: schedule
     ! local variables
     integer(i4) :: kk

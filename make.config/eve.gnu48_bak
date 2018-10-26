@@ -1,7 +1,7 @@
 # -*- Makefile -*-
 
 #
-# Setup file for Intel compiler 13.1.0 at eve.ufz.de
+# Setup file for Gnu compiler 4.7 with easybuild/goolf/1.4.10 at eve.ufz.de
 #
 # LICENSE
 #    This file is part of the UFZ makefile project.
@@ -28,50 +28,34 @@
 # Define subirectories if another structure
 
 # Paths
-# INTEL    := /opt/intel/composer_xe_2013.1.117
-# INTELDIR := /usr/local/intel/13.0.1
-INTEL    := /opt/intel/composer_xe_2013.2.146
-INTELDIR := /usr/local/intel/13.1.0
-INTELLIB := $(INTELDIR)
-INTELBIN := $(INTEL)/bin/intel64
-
 GNUDIR := /usr/local/gcc/4.8.1-3_CentOS6/
 GNULIB := $(GNUDIR)/lib64
 GNUBIN := $(GNUDIR)/bin
 
 # Compiling
-F90 := $(INTELBIN)/ifort
+F90 := $(GNUBIN)/gfortran
 FC  := $(F90)
-CC  := $(INTELBIN)/icc
+CC  := $(GNUBIN)/gcc
 CPP := /usr/bin/cpp
+# GNU Fortran version >= 4.4
 ifeq ($(release),debug)
-    F90FLAGS += -warn all -g -debug -traceback -fp-stack-check -O0 -debug
-    F90FLAGS += -check all
-    # F90FLAGS += -check all,noarg_temp_created
-    FCFLAGS  += -g -debug -traceback -fp-stack-check -O0 -debug
-    CFLAGS   += -g -debug -traceback -fp-stack-check -O0 -debug -Wall -Wcheck
+    F90FLAGS += -pedantic-errors -Wall -W -O -g -Wno-maybe-uninitialized
+    FCFLAGS  += -pedantic-errors -Wall -W -O -g -Wno-maybe-uninitialized
+    CFLAGS   += -pedantic -Wall -W -O -g -Wno-maybe-uninitialized
 else
-    # -fast (=-ipo -O3 -static) Multifile interprocedure optimization
-    # -vec-report1 to see vectorized loops; -vec-report2 to see also non-vectorized loops
-    F90FLAGS += -O3 -vec-report0 -override-limits
-    FCFLAGS  += -O3 -vec-report0 -override-limits
+    F90FLAGS += -O3
+    FCFLAGS  += -O3
     CFLAGS   += -O3
 endif
-F90FLAGS += -nofixed -assume byterecl -cpp -fp-model source -m64 -assume realloc-lhs # precise -> source: suppress warning, computation identical
-MODFLAG  := -module # space significant
-FCFLAGS  += -assume byterecl -cpp -fp-model source -m64 -fixed
-CFLAGS   += -m64 -std=c99
-DEFINES  += -DINTEL -DINTEL_COMPILER
+F90FLAGS += -cpp -ffree-form -ffixed-line-length-132
+FCFLAGS  += -ffixed-form -ffixed-line-length-132
+CFLAGS   +=
+MODFLAG  := -J# space significant
+DEFINES  += -DGFORTRAN -DgFortran
 
 # Linking
-ifeq ($(istatic),static)
-    LIBS += -static-intel
-endif
-LIBS += -L$(INTELLIB) -limf -lm -lsvml
-ifneq ($(istatic),static)
-     LIBS += -lintlc
-endif
-RPATH += -Wl,-rpath,$(INTELLIB)
+LIBS  += -L$(GNULIB)
+RPATH += -Wl,-rpath,$(GNULIB)
 iLDPATH = $(GNUDIR)/lib/gcc/x86_64-unknown-linux-gnu/4.8.1:/usr/local/cloog/0.18.0-2/lib:/usr/local/isl/0.11.1-2/lib:/usr/local/mpc/1.0.1-3/lib:/usr/local/mpfr/3.1.2-2/lib:/usr/local/gmp/5.1.2-1/lib
 ifneq ($(LDPATH),)
     LDPATH += :$(iLDPATH)
@@ -80,41 +64,38 @@ else
 endif
 
 # IMSL
-IMSLDIR := /usr/local/imsl/imsl/fnl700/rdhin111e64
+IMSLDIR :=
 
 # MKL
+INTEL  := /usr/local/intel/composerxe-2011.4.191
 MKLDIR := $(INTEL)/mkl
 MKLINC := $(MKLDIR)/include/intel64/lp64
-MKLLIB := $(INTELDIR)/mkl/lib/intel64
-MKL95DIR := $(MKLDIR)
-MKL95INC := $(MKL95DIR)/include/intel64/lp64
-MKL95LIB := $(MKL95DIR)/lib/intel64
+MKLLIB := $(MKLDIR)/lib/intel64
+INTELLIB := $(INTEL)/compiler/lib/intel64
+MKL95DIR :=
 
 # NETCDF
 ifeq ($(netcdf),netcdf3)
-    NCDIR := /usr/local/netcdf/3.6.3_intel_12.0.4
+    NCDIR :=
 else
-    ZLIB    := /usr/local/zlib/1.2.8-3_icc_13.1.0_CentOS6/lib
-    SZLIB   := /usr/local/szip/2.1_intel_13.1.0_CentOS6/lib
-    HDF5LIB := /usr/local/hdf5/1.8.12-1_intel_13.1.0_CentOS6/lib
-    NCDIR   := /usr/local/netcdf/4.3.2-2_intel_13.1.0_CentOS6
-    NCFDIR  := /usr/local/netcdf-fortran/4.2_intel_13.1.0_CentOS6
+    ZLIB    := /usr/local/zlib/1.2.8-2_gcc_4.8.1_CentOS6/lib
+    SZLIB   := /usr/local/szip/2.1_gcc_4.8.1_CentOS6/lib
+    HDF5LIB := /usr/local/hdf5/1.8.12-1_gcc_4.8.1_CentOS6/lib
+    NCDIR   := /usr/local/netcdf/4.3.2_gcc_4.8.1_CentOS6
+    NCFDIR  := /usr/local/netcdf-fortran/4.2_gcc_4.8.1_CentOS6
 endif
 
 # PROJ
-PROJ4DIR := /usr/local/proj/4.7.0
-FPROJDIR := /usr/local/fproj/4.7.0_intel11.1.075
+PROJ4DIR := /usr/local/proj/4.8.0-2_gcc_4.8.1_CentOS6
+FPROJDIR :=
 
 # LAPACK
 LAPACKDIR   := /usr/local/lapack/3.5.0-1_gcc_4.8.1_CentOS6
-#GFORTRANDIR := /usr/local/gcc/4.8.1-3_CentOS6/
-#GFORTRANLIB := $(GFORTRANDIR)/lib64
 GFORTRANDIR := $(GNUDIR)
 GFORTRANLIB := $(GNULIB)
 
 # MPI
-MPIDIR := /usr/local/openmpi/intel/1.8.4-2
-#MPIDIR := /usr/local/openmpi/1.8.2-1_gcc_4.8.1_CentOS6
+MPIDIR := /usr/local/openmpi/1.8.2-1_gcc_4.8.1_CentOS6
 
 # Documentation
 DOXYGENDIR := /usr/local/doxygen/1.8.7-1_gcc_4.8.1_CentOS6/bin
@@ -140,14 +121,4 @@ ifneq (,$(findstring $(system),eve))
             endif
         endif
     endif
-endif
-
-# Lapack on Eve needs libgfortran
-ifeq ($(lapack),true)
-    ifneq (exists, $(shell if [ -d "$(GFORTRANDIR)" ] ; then echo 'exists' ; fi))
-        $(error Error: GFORTRAN path '$(GFORTRANDIR)' not found.)
-    endif
-    GFORTRANLIB ?= $(GFORTRANDIR)/lib
-    iLIBS        += -L$(GFORTRANLIB) -lgfortran
-    RPATH       += -Wl,-rpath,$(GFORTRANLIB)
 endif

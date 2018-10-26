@@ -1,4 +1,4 @@
-!> \file mo_HRD_domain_decomposition.f90
+!> \file mo_HRD_domain_decomposition.f91
 
 !> \brief decomposes the basins into subdomains for parallel computing
 
@@ -145,9 +145,9 @@ CONTAINS
        ! so these should not be loaded from other modules inside this subroutine
        call get_number_of_basins_and_nodes(iBasin,nNodes,nBasins)
        call get_L11_information(iBasin, toNodes, fromNodes, permNodes)
-       call init_testarray(iBasin,testarray)
+       call init_testarray(nNodes-1,testarray)
 
-       lowBound=50
+       lowBound=3
        uppBound=5
        ! In this subroutine the tree structure gets initialized for
        ! the flownetwork of the iBasin-th basin.
@@ -164,17 +164,17 @@ CONTAINS
        allocate(subtrees(nNodes/lowBound+1))
        ! this subroutine cuts down the tree into a subtreetree and
        ! writes each subtreetree node into an array (subtrees) in routing order
-       call decompose(iBasin,lowBound,root,subtrees,nSubtrees)
+       call decompose(lowBound,root,subtrees,nSubtrees)
 
        ! call write_domain_decomposition(root)
        allocate(STmeta(nSubtrees),permNodes(nNodes),toNodes(nNodes),schedule(nproc-1))
        ! create schedule:
        ! to each process in the array schedule the number of trees, the
        ! indices of the trees and the over all size is assigned
-       call create_schedule_hu(iBasin,nSubtrees,subtrees,schedule)
+       call create_schedule_hu(nSubtrees,subtrees,schedule)
        !call schedule_destroy(iBasin,schedule)
        !allocate(schedule(nproc-1))
-       ! call create_schedule(iBasin,nSubtrees,subtrees,schedule)
+       ! call create_schedule(nSubtrees,subtrees,schedule)
       !  call write_graphviz_output(root)
        ! A subtree data structrure makes communication between the subtrees
        ! much easier for the master. Processing the data is more efficient
@@ -189,10 +189,19 @@ CONTAINS
        ! - collects processed data from roots from subtrees and sends this
        !   data to corresponding leaves in connected subtrees
        ! - collects the data in the end
+      ! iTimer=26
+      ! do ll=1,10
+      ! call timer_start(itimer)
+      ! do kk=1,1000
        call routing(iBasin,bufferLength,subtrees,nSubtrees,STmeta,permNodes,schedule,testarray)
-        call write_tree_with_array(root, lowBound,testarray)
+      ! end do
+      ! call timer_stop(itimer)
+      ! write(*,*) timer_get(itimer), 'seconds.', nSubtrees, 'subtrees, lowBound:', lowBound
+      ! call timer_clear(itimer)
+      ! end do
+       call write_tree_with_array(root, lowBound,testarray)
 
-       call schedule_destroy(iBasin,schedule)
+       call schedule_destroy(schedule)
        deallocate(STmeta)
 
        call tree_destroy(root)
@@ -211,7 +220,11 @@ CONTAINS
        ! - processes data
        ! - sends root data to master
        ! - send data to master
+     !  do ll=1,10
+     !  do kk=1,1000
        call subtree_routing(iBasin,bufferLength,toNodes,subtrees,STmeta,testarray)
+     !  end do
+     !  end do
        do kk=1, size(subtrees)
           call tree_destroy(subtrees(kk))
        end do
@@ -354,6 +367,7 @@ CONTAINS
           !$OMP parallel private(rank) shared(array,subtrees)
           !$OMP single
           call nodeinternal_routing(subtrees(kk),array(iStart:iEnd))
+       !   call nodeinternal_routing_array(toNodes(iStart:iEnd),array(iStart:iEnd))
           !$OMP end single
           !$OMP barrier
           !$OMP end parallel
@@ -381,7 +395,7 @@ CONTAINS
     end do
   end subroutine nodeinternal_routing_array
 
-  subroutine nodeinternal_routing(root,array)
+  recursive subroutine nodeinternal_routing(root,array)
     implicit none
     type(ptrTreeNode),                            intent(in)    :: root ! the array of
     integer(i4),       dimension(:),              intent(inout) :: array
@@ -440,16 +454,11 @@ CONTAINS
 
   end subroutine get_L11_information
 
-  subroutine init_testarray(iBasin,testarray)
-    use mo_mrm_global_variables, only : &
-            level11       ! IN: for number of nCells
+  subroutine init_testarray(nLinks,testarray)
     implicit none
-    integer(i4),               intent(in)                  :: iBasin
+    integer(i4),               intent(in)                  :: nLinks
     integer(i4), dimension(:), allocatable, intent(inout)  :: testarray
     integer(i4) :: kk ! loop variable to run over all edges/links
-    integer(i4) :: nLinks ! number of edges
-
-   nLinks=level11(iBasin)%ncells - 1
 
    allocate(testarray(nLinks+1))
    do kk=1,nLinks+1
@@ -499,5 +508,5 @@ CONTAINS
       L11_fAcc(tNode)=L11_fAcc(tNode)+L11_fAcc(iNode)
    end do
   end subroutine find_L11_fAcc
-
+  
 END MODULE mo_HRD_domain_decomposition

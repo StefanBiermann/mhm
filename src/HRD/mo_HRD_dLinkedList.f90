@@ -7,7 +7,6 @@ MODULE mo_HRD_dLinkedList
   use mo_kind, only : i4, dp
   use mo_HRD_types, only: ptrTreeNode
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
-  use mpi
 
   ! Written Maren Kaluza, June 2018
 
@@ -26,7 +25,7 @@ MODULE mo_HRD_dLinkedList
   end type dLinkedList
 
 CONTAINS
-! Initialize a head node SELF and optionally store the provided DATA.
+! Initialize a head node self
   subroutine list_init(tN, self)
     implicit none
     type(ptrTreeNode),          intent(in)    :: tN

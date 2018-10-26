@@ -8,7 +8,6 @@ MODULE mo_HRD_decompose
   use mo_HRD_types, only: ptrTreeNode
   use mo_HRD_tree_tools, only : update_sizes,find_sizUp_of_node
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
-  use mpi
 
   ! Written Maren Kaluza, June 2018
 
@@ -29,9 +28,8 @@ CONTAINS
   ! From root we crawl along a fitting branch to the
   ! subtree, we want to cut of. We know which
   ! path to go because of metadata in the tree nodes
-  subroutine decompose(iBasin,lowBound,root,subtrees,nSubtrees)
+  subroutine decompose(lowBound,root,subtrees,nSubtrees)
     implicit none
-    integer(i4),                     intent(in)    :: iBasin
     integer(i4),                     intent(in)    :: lowBound
     type(ptrTreeNode),               intent(inout) :: root
     type(ptrTreeNode), dimension(:), intent(inout) :: subtrees

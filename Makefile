@@ -94,7 +94,7 @@ SHELL = /bin/bash
 #
 
 # . is current directory, .. is parent directory
-SRCPATH    := ./src/lib ./src/common ./src/mRM ./src/common_mHM_mRM ./src/MPR ./src/mHM ./src/HRD# where are the source files
+SRCPATH    := ./src/lib ./src/common ./src/mRM ./src/common_mHM_mRM ./src/MPR ./src/mHM ./src/HRD # where are the source files
 PROGPATH   := .             # where shall be the executable
 CONFIGPATH := make.config   # where are the $(system).$(compiler) files
 MAKEDPATH  := $(CONFIGPATH) # where is the make.d.sh script
@@ -106,7 +106,7 @@ LIBNAME  := #libminpack.a # Name of library
 #
 # Options
 # Systems: eve and personal computers such as mcimac for Matthias Cuntz' iMac; look in $(MAKEDPATH) or type 'make info'
-system   := eve2
+system   := eve
 # Compiler: intelX, gnuX, nagX, sunX, where X stands for version number, e.g. intel13;
 #   look at $(MAKEDPATH)/$(system).alias for shortcuts or type 'make info'
 compiler := gnu
@@ -123,7 +123,7 @@ proj     :=
 # IMSL (IMSL Numerical Libraries): vendor, imsl, [anything else]
 imsl     :=
 # OpenMP parallelization: true, [anything else]
-openmp   := true
+openmp   := false
 # MPI parallelization - experimental: true, [anything else]
 mpi      := true
 # Linking: static, shared, dynamic (last two are equal)
@@ -464,7 +464,7 @@ ifneq (,$(findstring $(imsl),vendor imsl))
     ifeq (,$(findstring $(iOS),Darwin))
         iLIBS     += -z muldefs
         ifneq ($(istatic),static)
-            iLIBS += -i_dynamic
+            iLIBS += -shared-intel
         endif
     endif
 
@@ -504,7 +504,7 @@ ifneq ($(openmp),true)
         ifneq (,$(findstring $(icompiler),$(gnucompilers)))
             LDFLAGS += -fopenmp
         else
-            LDFLAGS += -openmp
+            LDFLAGS += -qopenmp
         endif
     endif
 endif
@@ -803,7 +803,6 @@ ifneq ($(LDPATH),)
     empty:=
     space:= $(empty) $(empty)
     export LD_LIBRARY_PATH=$(subst $(space),$(empty),$(LDPATH))
-    export DYLD_FALLBACK_LIBRARY_PATH=$(subst $(space),$(empty),$(LDPATH))
 endif
 
 INCLUDES += $(addprefix -I,$(OBJPATH))

@@ -8,7 +8,6 @@ MODULE mo_HRD_tree_init_and_destroy
   use mo_HRD_types, only : ptrTreeNode
   use mo_HRD_tree_tools, only : find_sizUp_of_node,find_revLevel_of_node
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
-  use mpi
 
   ! Written Maren Kaluza, June 2018
 
