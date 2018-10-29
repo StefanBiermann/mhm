@@ -66,9 +66,10 @@ CONTAINS
     end do
   end subroutine init_subtree_metadata
 
-  subroutine distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes,schedule,subtrees)
+  subroutine distribute_subtree_meta(iBasin,nproc,nSubtrees,STmeta,toNodes,schedule,subtrees)
     implicit none
     integer(i4),                     intent(in)  :: iBasin
+    integer(i4),                     intent(in)  :: nproc
     integer(i4),                     intent(in)  :: nSubtrees
     type(subtreeMeta), dimension(:), intent(in)  :: STmeta
     integer(i4),       dimension(:), intent(in)  :: toNodes
@@ -76,15 +77,11 @@ CONTAINS
     type(ptrTreeNode), dimension(:), intent(inout)     :: subtrees ! the array of
     ! local variables
     integer(i4) :: kk,ii,jj,iPerm,iproc,sizST,iST
-    integer(i4) :: nproc,rank,ierror
+    integer(i4) :: ierror
     integer(i4), dimension(:,:), allocatable :: iSends ! the number and over all
                                                        ! length of arrays to be send to a process
     integer(i4), dimension(:), allocatable :: sendarray
 
-    ! find number of processes nproc
-    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
-    ! find the number the process is referred to, called rank
-    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
     ! send number of subtrees and total number of tree nodes assigned
     ! to the processes to the corresponding process, so arrays can be
     ! allocated in the receiving subroutines
@@ -126,9 +123,11 @@ CONTAINS
     deallocate(iSends)
   end subroutine distribute_subtree_meta
 
-  subroutine get_subtree_meta(iBasin,STmeta,toNodes)
+  subroutine get_subtree_meta(iBasin,nproc,rank,STmeta,toNodes)
     implicit none
     integer(i4),               intent(in)                       :: iBasin
+    integer(i4),               intent(in)                       :: nproc
+    integer(i4),               intent(in)                       :: rank
     type(subtreeMeta), dimension(:), allocatable, intent(inout) :: STmeta
     integer(i4),       dimension(:), allocatable, intent(inout) :: toNodes
     ! local variables
@@ -137,10 +136,8 @@ CONTAINS
                                            ! total size of datasets
     integer(i4) :: sizST,indST
     integer(i4) :: nSubtrees, totSizeOfSubtrees
-    integer(i4) :: nproc,rank,ierror
+    integer(i4) :: ierror
     integer status(MPI_STATUS_SIZE)
-    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
-    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
 
     ! recieves number of subtrees and total number of tree nodes assigned to
     ! this process

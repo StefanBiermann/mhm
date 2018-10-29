@@ -21,24 +21,23 @@ MODULE mo_HRD_schedule
 
 CONTAINS
 
-  subroutine create_schedule_hu(nSubtrees,subtrees,schedule)
+  subroutine create_schedule_hu(nSubtrees,nproc,subtrees,schedule)
     implicit none
     integer(i4),                     intent(in)  :: nSubtrees
+    integer(i4),                     intent(in)  :: nproc
     type(ptrTreeNode), dimension(:), intent(inout)     :: subtrees ! the array of
     type(processSchedule), dimension(:), allocatable, intent(inout) :: schedule
     ! local variables
     type(dLinkedList), pointer :: head, element, newNodes
     integer(i4)                :: kk,iproc,islot
     integer(i4)                :: treeDepth,treeInd
-    integer(i4)                :: nproc,ierror
+    integer(i4)                :: ierror
     logical                    :: free
     type(ptrTreeNode)          :: parent
     type(ptrTreeNode), dimension(:), allocatable :: newSubtrees
     integer(i4)                :: iSubtree
 
     call init_list_of_leaves(nSubtrees,subtrees,head)
-    ! find number of processes nproc
-    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
 
     call find_tree_depth(head,treeDepth)
     ! initialize schedule, too much space for the subtrees, repair later
@@ -211,18 +210,16 @@ CONTAINS
     end do
   end subroutine init_list_of_leaves
 
-  subroutine create_schedule(nSubtrees,subtrees,schedule)
+  subroutine create_schedule(nSubtrees,nproc,subtrees,schedule)
     implicit none
     integer(i4),                     intent(in)  :: nSubtrees
+    integer(i4),                     intent(in)  :: nproc
     type(ptrTreeNode), dimension(:), intent(inout)     :: subtrees ! the array of
     type(processSchedule), dimension(:), allocatable, intent(inout) :: schedule
     ! local variables
     integer(i4) :: kk,iproc,sizST,place
-    integer(i4) :: nproc,ierror
+    integer(i4) :: ierror
     integer(i4), dimension(:), allocatable :: sendarray
-
-    ! find number of processes nproc
-    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
 
     ! sort the array of subtrees, so that distant leaves come first
     call sort_subtrees(nSubtrees,subtrees)
