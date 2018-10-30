@@ -47,6 +47,7 @@ CONTAINS
        subtree%tN => root%tN
        nSubtrees=1
        subtrees(nSubtrees)%tN => root%tN
+       call  initiate_subtreetreenode(subtree)
        subtree%tN%ST%indST = nSubtrees
     else
        ! set subtree to a subtree with a parent

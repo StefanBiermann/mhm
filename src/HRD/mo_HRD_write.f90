@@ -13,7 +13,8 @@ MODULE mo_HRD_write
   IMPLICIT NONE
 
   public :: write_tree, write_subtree, write_tree_with_array, &
-            write_domain_decomposition, write_graphviz_output
+            write_domain_decomposition, write_graphviz_output, &
+            write_graphviz_output_forest
 
   private
 
@@ -47,6 +48,40 @@ CONTAINS
     end do
 
   end subroutine write_tree
+
+  recursive subroutine write_graphviz_output_forest(roots)
+    implicit none
+    type(ptrTreeNode), dimension(:), intent(in) :: roots
+    ! local variables
+    integer(i4) :: kk
+    write(*,*) 'graph ""'
+    write(*,*) '{'
+    do kk=1,size(roots)
+      call write_graphviz_output_nodes_forest(roots(kk))
+    end do
+    write(*,*) '}'
+
+  end subroutine write_graphviz_output_forest
+
+  recursive subroutine write_graphviz_output_nodes_forest(root)
+    implicit none
+    type(ptrTreeNode),         intent(in) :: root
+    ! local variables
+    integer(i4) :: kk ! loop variable to run over all tree nodes
+    integer(i4) :: NChildren
+    NChildren=size(root%tN%prae)
+    if (.not. associated(root%tN%post%tN)) then
+       write(*,*) root%tN%origind,';'
+    end if
+    write(*,*) root%tN%origind, '[label="',root%tN%origind
+    write(*,*) '"]', ';'
+    do kk = 1, NChildren
+       write(*,*) root%tN%origind,'--', root%tN%prae(kk)%tN%origind
+    end do
+    do kk = 1, NChildren
+       call write_graphviz_output_nodes_forest(root%tN%prae(kk))
+    end do
+  end subroutine write_graphviz_output_nodes_forest
 
   recursive subroutine write_subtree(root, lowBound)
     implicit none

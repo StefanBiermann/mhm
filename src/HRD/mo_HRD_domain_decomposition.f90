@@ -25,7 +25,8 @@ MODULE mo_HRD_domain_decomposition
   use mo_HRD_write
   use mo_HRD_types, only: ptrTreeNode, subtreeMeta, processSchedule
 
-  use mo_HRD_tree_init_and_destroy, only: tree_init_global, tree_init, tree_destroy
+  use mo_HRD_tree_init_and_destroy, only: tree_init_global, tree_init, tree_destroy, &
+                                          forest_init, forest_destroy
 
   use mo_HRD_decompose, only: decompose
 
@@ -107,10 +108,12 @@ CONTAINS
     integer(i4) :: lowBound,uppBound ! a subdomain should include at least
                                      ! lowBound tree nodes and at most uppBound
     integer(i4) :: ind               ! index of link/edge for subdomain
-    type(ptrTreeNode) :: root        ! the root node of the tree structure
+    type(ptrTreeNode), dimension(:), allocatable :: roots        ! the root node of the tree structure
+    type(ptrTreeNode)                            :: root         ! the root node of the tree structure
     type(ptrTreeNode), dimension(:), allocatable :: subtrees ! the array of
                                      ! subtrees in routing order
-    integer(i4)       :: nNodes      ! the number of tree nodes in the original tree
+    integer(i4)       :: nNodes      ! the number of forest nodes in the original forest
+    integer(i4)       :: nLinks      ! the number of edges in the forest
     integer(i4)       :: nBasins     ! nBasins
     integer(i4)       :: nSubtrees   ! number of subtrees in treedecomposition
 
@@ -143,8 +146,8 @@ CONTAINS
        ! this subroutine is called by all processes, but only the
        ! (perhaps) master process knows global variables
        ! so these should not be loaded from other modules inside this subroutine
-       call get_number_of_basins_and_nodes(iBasin,nNodes,nBasins)
-       call get_L11_information(iBasin, toNodes, fromNodes, permNodes)
+       call get_number_of_basins(iBasin,nBasins)
+       call get_L11_information(iBasin, nLinks, nNodes, toNodes, fromNodes, permNodes)
        call init_testarray(nNodes-1,testarray)
 
        lowBound=3
@@ -157,21 +160,27 @@ CONTAINS
        ! Root is the root node of the tree. All other tree nodes
        ! can be accessed through it.
        ! call tree_init_global(iBasin, lowBound, root)
-       call tree_init(nNodes,toNodes,lowBound,root,fromNodes=fromNodes,perm=permNodes)
+       call forest_init(nLinks,nNodes,toNodes,lowBound,roots,fromNodes=fromNodes,perm=permNodes)
+       do kk = 1, size(roots)
+         if (roots(kk)%tN%siz > 900) then
+           root%tN => roots(kk)%tN
+         end if
+       end do
+       root%tN => roots(1)%tN
        deallocate(toNodes,permNodes,fromNodes)
 
-       ! ToDo: that's possibly a bit too much, but maybe more efficient than reallocating?
-       allocate(subtrees(nNodes/lowBound+1))
+       ! ToDo: that's possibly too much, but maybe more efficient than reallocating?
+       allocate(subtrees(nNodes))
        ! this subroutine cuts down the tree into a subtreetree and
        ! writes each subtreetree node into an array (subtrees) in routing order
-       call decompose(lowBound,root,subtrees,nSubtrees)
+       call decompose(lowBound,root,subtrees(:),nSubtrees)
 
        ! call write_domain_decomposition(root)
        allocate(STmeta(nSubtrees),permNodes(nNodes),toNodes(nNodes),schedule(nproc-1))
        ! create schedule:
        ! to each process in the array schedule the number of trees, the
        ! indices of the trees and the over all size is assigned
-       call create_schedule_hu(nSubtrees,subtrees,schedule)
+       call create_schedule_hu(nSubtrees,subtrees(:),schedule)
        !call schedule_destroy(iBasin,schedule)
        !allocate(schedule(nproc-1))
        ! call create_schedule(nSubtrees,subtrees,schedule)
@@ -181,10 +190,10 @@ CONTAINS
        ! with array, so everything gets written into a nice array in
        ! routing order. Therefore we need a permutation array permNodes
        ! which is at the same time fromNodes, and a toNode array
-       call init_subtree_metadata(iBasin,subtrees,STmeta,permNodes,toNodes)
+       call init_subtree_metadata(iBasin,subtrees(:),STmeta,permNodes,toNodes)
 
        ! sends the meta data from master process to all the others
-       call distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes,schedule,subtrees)
+       call distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes,schedule,subtrees(:))
        ! - sends data (testarray) corresponding to subtrees to nodes
        ! - collects processed data from roots from subtrees and sends this
        !   data to corresponding leaves in connected subtrees
@@ -193,18 +202,18 @@ CONTAINS
       ! do ll=1,10
       ! call timer_start(itimer)
       ! do kk=1,1000
-       call routing(iBasin,bufferLength,subtrees,nSubtrees,STmeta,permNodes,schedule,testarray)
+       call routing(iBasin,bufferLength,subtrees(:),nSubtrees,STmeta,permNodes,schedule,testarray)
       ! end do
       ! call timer_stop(itimer)
       ! write(*,*) timer_get(itimer), 'seconds.', nSubtrees, 'subtrees, lowBound:', lowBound
       ! call timer_clear(itimer)
       ! end do
-       call write_tree_with_array(root, lowBound,testarray)
+      ! call write_tree_with_array(roots(1), lowBound,testarray)
 
        call schedule_destroy(schedule)
        deallocate(STmeta)
 
-       call tree_destroy(root)
+       call forest_destroy(roots)
        deallocate(subtrees,permNodes,toNodes)
 
        call destroy_testarray(testarray)
@@ -311,7 +320,7 @@ CONTAINS
       iEnd=STmeta(kk)%iEnd
       sizST=iEnd-iStart+1
      ! write(*,*) sizST
-      call tree_init(sizST,toNodes(iStart:iEnd),lowBound,subtrees(kk))
+      call tree_init(sizST-1,sizST,toNodes(iStart:iEnd),lowBound,subtrees(kk))
      ! call write_subtree(subtrees(kk), lowBound)
     end do
     
@@ -420,37 +429,39 @@ CONTAINS
     end if
   end subroutine nodeinternal_routing
 
-  subroutine get_number_of_basins_and_nodes(iBasin,nNodes,numBasins)
-    use mo_mrm_global_variables, only : &
-            level11        ! IN: for number of nCells
+  subroutine get_number_of_basins(iBasin,numBasins)
     use mo_common_variables, only : &
             nBasins
     implicit none
     integer, intent(in)    :: iBasin
-    integer, intent(inout) :: nNodes
     integer, intent(inout) :: numBasins
-    nNodes=level11(iBasin)%ncells
     numBasins=nBasins
-  end subroutine get_number_of_basins_and_nodes
+  end subroutine get_number_of_basins
 
-  subroutine get_L11_information(iBasin, toNodes, fromNodes, permNodes)
+  subroutine get_L11_information(iBasin, nLinks, nNodes, toNodes, fromNodes, permNodes)
     use mo_mrm_global_variables, only : &
             level11,      & ! IN: for number of nCells
             L11_fromN,    & ! IN: for an edge this is the incoming tree node
             L11_toN,      & ! IN: for an edge this is the outgoing tree node
-            L11_netPerm     ! IN: network routing order
+            L11_netPerm,  & ! IN: network routing order
+            L11_nOutlets    ! IN: number of nodes minus number of outlets is the
+                            !        number of links
     implicit none
     integer(i4),                            intent(in)    :: iBasin
+    integer(i4),                            intent(out)   :: nLinks
+    integer(i4),                            intent(out)   :: nNodes
     integer(i4), dimension(:), allocatable, intent(out)   :: toNodes
     integer(i4), dimension(:), allocatable, intent(out)   :: fromNodes
     integer(i4), dimension(:), allocatable, intent(out)   :: permNodes
 
-   allocate(toNodes(size(L11_toN)))
-   toNodes(:)=L11_toN(:)
-   allocate(fromNodes(size(L11_fromN)))
-   fromNodes(:)=L11_fromN(:)
-   allocate(permNodes(size(L11_netPerm)))
-   permNodes(:)=L11_netPerm(:)
+   nNodes = level11(iBasin)%nCells
+   nLinks = nNodes - L11_nOutlets(iBasin)
+   allocate(toNodes(nLinks))
+   toNodes(:)=L11_toN(1:nLinks)
+   allocate(fromNodes(nLinks))
+   fromNodes(:)=L11_fromN(1:nLinks)
+   allocate(permNodes(nLinks))
+   permNodes(:)=L11_netPerm(1:nLinks)
 
   end subroutine get_L11_information
 
