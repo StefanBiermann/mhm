@@ -20,15 +20,34 @@ MODULE mo_HRD_decompose
 
 CONTAINS
 
+  subroutine decompose(lowBound,roots,subtrees,nSubtrees)
+    implicit none
+    integer(i4),                     intent(in)    :: lowBound
+    type(ptrTreeNode), dimension(:), intent(inout) :: roots
+    type(ptrTreeNode), dimension(:), intent(inout) :: subtrees
+    integer(i4),                     intent(out)   :: nSubtrees ! number of subtrees
+
+    ! local variables
+    integer(i4)       :: kk, test
+    integer(i4),dimension(size(roots))    :: nSubtreesOfTrees
+
+    nSubtrees = 0
+    ! ToDo: Test
+    do kk = 1, size(roots)
+      call decompose_tree(lowBound,roots(kk),subtrees(nSubtrees+1:),nSubtreesOfTrees(kk))
+      nSubtrees = nSubtrees + nSubtreesOfTrees(kk)
+    end do
+    
+  end subroutine decompose
   ! subtrees is an array of pointers to subtrees, where we
   ! write the subtrees in routing order to.
-  ! It is at least as long as the numnber we will get
+  ! It is at least as long as the number we will get
   ! nSubtrees counts the subtrees.
   !
   ! From root we crawl along a fitting branch to the
   ! subtree, we want to cut of. We know which
   ! path to go because of metadata in the tree nodes
-  subroutine decompose(lowBound,root,subtrees,nSubtrees)
+  subroutine decompose_tree(lowBound,root,subtrees,nSubtrees)
     implicit none
     integer(i4),                     intent(in)    :: lowBound
     type(ptrTreeNode),               intent(inout) :: root
@@ -43,7 +62,7 @@ CONTAINS
 
     ! if root has no children, the tree is probably too small
     if (root%tN%Nprae .eq. 0) then
-       write(*,*) 'warning: There came a tree in with only one tree node'
+       ! write(*,*) 'warning: There came a tree in with only one tree node'
        subtree%tN => root%tN
        nSubtrees=1
        subtrees(nSubtrees)%tN => root%tN
@@ -75,7 +94,7 @@ CONTAINS
     ! children in the subtreetree
     call init_subtreetree(nSubtrees,root,subtrees)
 
-  end subroutine decompose
+  end subroutine decompose_tree
 
   recursive subroutine cut_of_subtree(lowBound,childInd,root,subtree)
     implicit none

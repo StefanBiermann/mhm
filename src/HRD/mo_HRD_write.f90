@@ -69,17 +69,19 @@ CONTAINS
     ! local variables
     integer(i4) :: kk ! loop variable to run over all tree nodes
     integer(i4) :: NChildren
-    NChildren=size(root%tN%prae)
+    NChildren=size(root%tN%ST%praeST)
     if (.not. associated(root%tN%post%tN)) then
        write(*,*) root%tN%origind,';'
     end if
-    write(*,*) root%tN%origind, '[label="',root%tN%origind
+    write(*,*) root%tN%origind, '[label="',root%tN%ST%indST
+    write(*,*) 'proc:',root%tN%ST%sched(1),'slot:',root%tN%ST%sched(2)
+    write(*,*) 'siz:', root%tN%ST%sizST
     write(*,*) '"]', ';'
     do kk = 1, NChildren
-       write(*,*) root%tN%origind,'--', root%tN%prae(kk)%tN%origind
+       write(*,*) root%tN%origind,'--', root%tN%ST%praeST(kk)%tN%origind
     end do
     do kk = 1, NChildren
-       call write_graphviz_output_nodes_forest(root%tN%prae(kk))
+       call write_graphviz_output_nodes_forest(root%tN%ST%praeST(kk))
     end do
   end subroutine write_graphviz_output_nodes_forest
 

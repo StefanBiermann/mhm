@@ -75,6 +75,10 @@ CONTAINS
     end do
 
     allocate(newSubtrees(nSubtrees))
+    ! initialize newSubtrees
+    do iSubtree = 1, nSubtrees
+      nullify(newSubtrees(iSubtree)%tN)
+    end do
     islot=1
     newNodes=>null()
     iSubtree=1

@@ -150,7 +150,7 @@ CONTAINS
        call get_L11_information(iBasin, nLinks, nNodes, toNodes, fromNodes, permNodes)
        call init_testarray(nNodes-1,testarray)
 
-       lowBound=3
+       lowBound=30
        uppBound=5
        ! In this subroutine the tree structure gets initialized for
        ! the flownetwork of the iBasin-th basin.
@@ -161,19 +161,13 @@ CONTAINS
        ! can be accessed through it.
        ! call tree_init_global(iBasin, lowBound, root)
        call forest_init(nLinks,nNodes,toNodes,lowBound,roots,fromNodes=fromNodes,perm=permNodes)
-       do kk = 1, size(roots)
-         if (roots(kk)%tN%siz > 900) then
-           root%tN => roots(kk)%tN
-         end if
-       end do
-       root%tN => roots(1)%tN
        deallocate(toNodes,permNodes,fromNodes)
 
        ! ToDo: that's possibly too much, but maybe more efficient than reallocating?
        allocate(subtrees(nNodes))
        ! this subroutine cuts down the tree into a subtreetree and
        ! writes each subtreetree node into an array (subtrees) in routing order
-       call decompose(lowBound,root,subtrees(:),nSubtrees)
+       call decompose(lowBound,roots,subtrees(:),nSubtrees)
 
        ! call write_domain_decomposition(root)
        allocate(STmeta(nSubtrees),permNodes(nNodes),toNodes(nNodes),schedule(nproc-1))
@@ -184,7 +178,7 @@ CONTAINS
        !call schedule_destroy(iBasin,schedule)
        !allocate(schedule(nproc-1))
        ! call create_schedule(nSubtrees,subtrees,schedule)
-      !  call write_graphviz_output(root)
+       ! call write_graphviz_output_forest(roots)
        ! A subtree data structrure makes communication between the subtrees
        ! much easier for the master. Processing the data is more efficient
        ! with array, so everything gets written into a nice array in
