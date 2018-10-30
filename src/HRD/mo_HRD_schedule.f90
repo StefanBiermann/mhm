@@ -29,16 +29,18 @@ CONTAINS
   ! then deletes it from the tree and goes back to step 1
   !
   ! we do this in a really simple but unefficient way. The
-  ! reason is, that in the and we may even find a better
+  ! reason is, that we may even find a better
   ! way to schedule and also it only needs running time
   ! while setup, not while calculating in the end.
   !
-  ! we write all leaves into a doubly linked list, ordered
-  ! by the distance. If we remove a leaf from there, we
-  ! check, if there is a new leaf in the tree and sort it
-  ! into the doubly linked list
-  ! The list therefore is a priority queue and sorting
-  ! a new element into it is faster than sorting an
+  ! we write all leaves into a doubly linked list. In each
+  ! step we search in this list for the farthest
+  ! distant leaf, schedule it and remove it from list and
+  ! tree. If we remove a leaf from there, we
+  ! check, if there is a new leaf in the tree and put it
+  ! into the doubly linked list.
+  ! The list therefore is a priority queue and finding
+  ! a new element in it is faster than sorting an
   ! array. But with a heap sorting in a new leaf would
   ! take O(log(n)) instead of O(n) if n is the length of
   ! the list
@@ -57,10 +59,12 @@ CONTAINS
     type(ptrTreeNode), dimension(:), allocatable :: newSubtrees
     integer(i4)                :: iSubtree
 
+    ! find all leaves and write them into a doubly linked list
     call init_list_of_leaves(nSubtrees,subtrees,head)
     ! find number of processes nproc
     call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
 
+    ! find farthest distance between root and a leaf, called the tree depth
     call find_tree_depth(head,treeDepth)
     ! initialize schedule, too much space for the subtrees, repair later
     do kk=1,nproc-1
@@ -74,11 +78,20 @@ CONTAINS
     islot=1
     newNodes=>null()
     iSubtree=1
+    ! while the list is not empty
     do while (associated(head))
        iproc=1
        nullify(newNodes)
+       ! we sort everything to the first node, if it is dependend. By
+       ! this, the longest chain in a tree is calculated on the same processor
+       ! we put leaves onto the nodes round robin until either there
+       ! are no leaves or there are no processors anymore
+       ! then append the old list of leaves with the new ones we
+       ! get by deleting the old ones from the tree
        do while (associated(head) .and. iproc<=nproc-1)
           element=>head
+          ! the content of element will point to the farthest distant leaf after
+          ! this call
           call find_farthest_leaf(head,element)
           ! write tree into new order list
           newSubtrees(iSubtree)%tN=>subtrees(element%content%tN%ST%indST)%tN
@@ -99,6 +112,9 @@ CONTAINS
           if (associated(parent%tN)) then
              parent%tN%ST%NpraeST=parent%tN%ST%NpraeST-1
              ! if parent is now free, prepare appending
+             ! newNodes is another doubly linked list, that
+             ! will be appended to the old list as soon as this
+             ! slot is filled
              if (parent%tN%ST%NpraeST==0) then
                 if (.not. associated(newNodes)) then
                    call list_init(parent,newNodes)
@@ -108,6 +124,7 @@ CONTAINS
                 end if
              end if
           end if
+          ! ToDo: why is this if
           if (.not. associated(element%prev)) then
              head=>element%next
           end if
@@ -117,10 +134,12 @@ CONTAINS
        ! put new free nodes into queue
        if (associated(head) .or. associated(newNodes)) then
           call list_prepend(newNodes,head)
+          ! move to top of the list
           do while(associated(head%prev))
              head=>head%prev
           end do
        end if
+       ! go to next time slot
        islot=islot+1
     end do
 
