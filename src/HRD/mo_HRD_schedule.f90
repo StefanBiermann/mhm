@@ -21,11 +21,32 @@ MODULE mo_HRD_schedule
 
 CONTAINS
 
+  ! this subroutine could be improved with additional data
+  ! structures like heaps and priority queues
+  ! Hu created an algorithm to schedule a tree with unit sized
+  ! tree nodes optimally.
+  ! The algorithm schedules the farthest distant leaf first
+  ! then deletes it from the tree and goes back to step 1
+  !
+  ! we do this in a really simple but unefficient way. The
+  ! reason is, that in the and we may even find a better
+  ! way to schedule and also it only needs running time
+  ! while setup, not while calculating in the end.
+  !
+  ! we write all leaves into a doubly linked list, ordered
+  ! by the distance. If we remove a leaf from there, we
+  ! check, if there is a new leaf in the tree and sort it
+  ! into the doubly linked list
+  ! The list therefore is a priority queue and sorting
+  ! a new element into it is faster than sorting an
+  ! array. But with a heap sorting in a new leaf would
+  ! take O(log(n)) instead of O(n) if n is the length of
+  ! the list
   subroutine create_schedule_hu(nSubtrees,subtrees,schedule)
     implicit none
     integer(i4),                     intent(in)  :: nSubtrees
     type(ptrTreeNode), dimension(:), intent(inout)     :: subtrees ! the array of
-    type(processSchedule), dimension(:), allocatable, intent(inout) :: schedule
+    type(processSchedule), dimension(:), intent(inout) :: schedule
     ! local variables
     type(dLinkedList), pointer :: head, element, newNodes
     integer(i4)                :: kk,iproc,islot
