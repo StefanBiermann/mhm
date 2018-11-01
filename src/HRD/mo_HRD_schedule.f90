@@ -86,7 +86,7 @@ CONTAINS
     do while (associated(head))
        iproc=1
        nullify(newNodes)
-       ! we sort everything to the first node, if it is dependend. By
+       ! we start with the first node again if everything left is dependend. By
        ! this, the longest chain in a tree is calculated on the same processor
        ! we put leaves onto the nodes round robin until either there
        ! are no leaves or there are no processors anymore

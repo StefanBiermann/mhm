@@ -251,14 +251,14 @@ CONTAINS
   ! - collects the data in the end
   subroutine routing(iBasin,bufferLength,subtrees,nSubtrees,STmeta,permNodes,schedule,array)
     implicit none
-    integer(i4),                     intent(in)     :: iBasin
-    integer(i4),                     intent(in)     :: bufferLength
-    type(ptrTreeNode), dimension(:), intent(in)     :: subtrees ! the array of
-    integer(i4),                     intent(in)     :: nSubtrees
-    type(subtreeMeta), dimension(:), intent(in)     :: STmeta
-    integer(i4),       dimension(:), intent(in)     :: permNodes
-    type(processSchedule), dimension(:), intent(in) :: schedule
-    integer(i4),       dimension(:), intent(inout)  :: array
+    integer(i4),                         intent(in)    :: iBasin
+    integer(i4),                         intent(in)    :: bufferLength
+    type(ptrTreeNode),     dimension(:), intent(in)    :: subtrees ! the array of
+    integer(i4),                         intent(in)    :: nSubtrees
+    type(subtreeMeta),     dimension(:), intent(in)    :: STmeta
+    integer(i4),           dimension(:), intent(in)    :: permNodes
+    type(processSchedule), dimension(:), intent(in)    :: schedule
+    integer(i4),           dimension(:), intent(inout) :: array
     ! local
     integer(i4) :: kk,iproc,next,ind, indST
     integer(i4), dimension(bufferLength+1) :: buffer
@@ -272,21 +272,29 @@ CONTAINS
     do kk=1,nSubtrees
        ! the process where subtree kk is assigned to
        iproc=subtrees(kk)%tN%ST%sched(1)
+       ! for each subtree the master process 0 gets the data of
+       ! the root tree node
+       write(0,*) 'master try ', 'from process', iproc
        call MPI_Recv(buffer,bufferLength+1,MPI_INTEGER,iproc,7,MPI_COMM_WORLD,status,ierror)
+       write(0,*) 'master recv', buffer(1), 'from process', iproc
        indST=buffer(bufferLength+1)
        ! if the root node of the subtree has a parent
        if (associated(subtrees(indST)%tN%post%tN)) then
-          ! next becomes the index of the parent subtree root node
+          ! next becomes the index of the parent subtree root node (the subtree
+          ! that gets data)
           next=subtrees(indST)%tN%ST%postST%tN%ST%indST
 
-          ! ind becomes the index of the parent of the root node
+          ! ind becomes the index of the parent of the root node (the tree node
+          ! in the subtree that gets data, note: there is an offset)
           ind=subtrees(indST)%tN%post%tN%ind
           ! iproc is the process the parent subtree is assigned to
           iproc=subtrees(next)%tN%ST%sched(1)
-          ! the index, where the value will be added to
+          ! the index, where the value will be added to (we remove the offset)
           buffer(bufferLength+1)=ind-STmeta(next)%iStart
+          write(0,*) 'master send', buffer(1), 'to process', iproc
           call MPI_Send(buffer,bufferLength+1,MPI_INTEGER,iproc,next,MPI_COMM_WORLD,ierror)
           ! write(*,*) 'master sent', buffer(1), 'to process',iproc,'tree',next, 'ind_diff', ind-STmeta(next)%iStart
+          write(0,*) 'master sent', buffer(1), 'to process', iproc
        end if
     end do
 
@@ -345,8 +353,11 @@ CONTAINS
     call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
     call get_array(iBasin,STmeta,array)
 
+    ! number of subtrees assigned to that process
     nST=size(STmeta)
     do kk=1,nST
+       ! for each tree node whith an inflow we need a buffer
+       ! we need one additional buffer for the outflow
        allocate(buffer(STmeta(kk)%nIn+1,bufferLength+1))
        buffer(:,:)=0
        do jj=1,STmeta(kk)%nIn
@@ -377,7 +388,10 @@ CONTAINS
           buffer(STmeta(kk)%nIn+1,ii)=array(STmeta(kk)%iEnd)
        end do
        buffer(STmeta(kk)%nIn+1,bufferLength+1)=STmeta(kk)%indST
+       ! send the outflow to the master process
+       write(0,*) 'process', rank, 'send', buffer(STmeta(kk)%nIn+1,1), 'to master', 'iST=', kk, 'nST=', nST
        call MPI_Send(buffer(STmeta(kk)%nIn+1,:),bufferLength+1,MPI_INTEGER,0,7,MPI_COMM_WORLD,ierror)
+       write(0,*) 'process', rank, 'sent', buffer(STmeta(kk)%nIn+1,1), 'to master'
        deallocate(buffer)
     end do
 
