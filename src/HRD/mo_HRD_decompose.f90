@@ -34,7 +34,7 @@ CONTAINS
     nSubtrees = 0
     ! ToDo: Test
     do kk = 1, size(roots)
-      call decompose_tree(lowBound,roots(kk),subtrees(nSubtrees+1:),nSubtreesOfTrees(kk))
+      call decompose_tree(lowBound,roots(kk),subtrees(nSubtrees+1:),nSubtreesOfTrees(kk),startInd=nSubtrees+1)
       nSubtrees = nSubtrees + nSubtreesOfTrees(kk)
     end do
     
@@ -47,27 +47,36 @@ CONTAINS
   ! From root we crawl along a fitting branch to the
   ! subtree, we want to cut of. We know which
   ! path to go because of metadata in the tree nodes
-  subroutine decompose_tree(lowBound,root,subtrees,nSubtrees)
+  subroutine decompose_tree(lowBound,root,subtrees,nSubtrees,startInd)
     implicit none
     integer(i4),                     intent(in)    :: lowBound
     type(ptrTreeNode),               intent(inout) :: root
     type(ptrTreeNode), dimension(:), intent(inout) :: subtrees
     integer(i4),                     intent(out)   :: nSubtrees ! number of subtrees
+    integer(i4), optional,           intent(in)    :: startInd
 
     ! local variables
     type(ptrTreeNode) :: subtree
     integer(i4)       :: kk
+    integer(i4)       :: indOffset, ind
+
 
     nSubtrees=0
+    if (present(startInd)) then
+      indOffset = startInd - 1
+    else
+      indOffset = 0
+    end if
 
     ! if root has no children, the tree is probably too small
     if (root%tN%Nprae .eq. 0) then
        ! write(*,*) 'warning: There came a tree in with only one tree node'
        subtree%tN => root%tN
        nSubtrees=1
+       ind = nSubtrees + indOffset
        subtrees(nSubtrees)%tN => root%tN
        call  initiate_subtreetreenode(subtree)
-       subtree%tN%ST%indST = nSubtrees
+       subtree%tN%ST%indST = ind
     else
        ! set subtree to a subtree with a parent
        subtree%tN => root%tN%prae(1)%tN
@@ -82,8 +91,9 @@ CONTAINS
           ! than lowBound in that branch
           call update_tree(lowBound,root,subtree)
           nSubtrees=nSubtrees+1
+          ind = nSubtrees + indOffset
           subtrees(nSubtrees)%tN => subtree%tN
-          subtree%tN%ST%indST = nSubtrees
+          subtree%tN%ST%indST = ind
        end do
     end if
 

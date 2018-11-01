@@ -70,19 +70,21 @@ CONTAINS
     integer(i4) :: kk ! loop variable to run over all tree nodes
     integer(i4) :: NChildren
     NChildren=size(root%tN%ST%praeST)
-    if (.not. associated(root%tN%post%tN)) then
-       write(*,*) root%tN%origind,';'
+    if (NChildren > 0 .or. associated(root%tN%post%tN)) then
+      if (.not. associated(root%tN%post%tN)) then
+         write(*,*) root%tN%origind,';'
+      end if
+      write(*,*) root%tN%origind, '[label="',root%tN%ST%indST
+      write(*,*) 'proc:',root%tN%ST%sched(1),'slot:',root%tN%ST%sched(2)
+      write(*,*) 'siz:', root%tN%ST%sizST
+      write(*,*) '"]', ';'
+      do kk = 1, NChildren
+         write(*,*) root%tN%origind,'--', root%tN%ST%praeST(kk)%tN%origind
+      end do
+      do kk = 1, NChildren
+         call write_graphviz_output_nodes_forest(root%tN%ST%praeST(kk))
+      end do
     end if
-    write(*,*) root%tN%origind, '[label="',root%tN%ST%indST
-    write(*,*) 'proc:',root%tN%ST%sched(1),'slot:',root%tN%ST%sched(2)
-    write(*,*) 'siz:', root%tN%ST%sizST
-    write(*,*) '"]', ';'
-    do kk = 1, NChildren
-       write(*,*) root%tN%origind,'--', root%tN%ST%praeST(kk)%tN%origind
-    end do
-    do kk = 1, NChildren
-       call write_graphviz_output_nodes_forest(root%tN%ST%praeST(kk))
-    end do
   end subroutine write_graphviz_output_nodes_forest
 
   recursive subroutine write_subtree(root, lowBound)

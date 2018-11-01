@@ -150,7 +150,7 @@ CONTAINS
        call get_L11_information(iBasin, nLinks, nNodes, toNodes, fromNodes, permNodes)
        call init_testarray(nNodes-1,testarray)
 
-       lowBound=30
+       lowBound=3
        uppBound=5
        ! In this subroutine the tree structure gets initialized for
        ! the flownetwork of the iBasin-th basin.
@@ -264,6 +264,8 @@ CONTAINS
     integer(i4), dimension(bufferLength+1) :: buffer
     integer(i4) :: nproc,rank,ierror
     integer status(MPI_STATUS_SIZE)
+    ! ToDo: Debugging variables
+    integer(i4) :: iprocOld
 
     call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
     call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
@@ -272,11 +274,10 @@ CONTAINS
     do kk=1,nSubtrees
        ! the process where subtree kk is assigned to
        iproc=subtrees(kk)%tN%ST%sched(1)
+       iprocOld=iproc
        ! for each subtree the master process 0 gets the data of
        ! the root tree node
-       write(0,*) 'master try ', 'from process', iproc
        call MPI_Recv(buffer,bufferLength+1,MPI_INTEGER,iproc,7,MPI_COMM_WORLD,status,ierror)
-       write(0,*) 'master recv', buffer(1), 'from process', iproc
        indST=buffer(bufferLength+1)
        ! if the root node of the subtree has a parent
        if (associated(subtrees(indST)%tN%post%tN)) then
@@ -291,10 +292,8 @@ CONTAINS
           iproc=subtrees(next)%tN%ST%sched(1)
           ! the index, where the value will be added to (we remove the offset)
           buffer(bufferLength+1)=ind-STmeta(next)%iStart
-          write(0,*) 'master send', buffer(1), 'to process', iproc
           call MPI_Send(buffer,bufferLength+1,MPI_INTEGER,iproc,next,MPI_COMM_WORLD,ierror)
           ! write(*,*) 'master sent', buffer(1), 'to process',iproc,'tree',next, 'ind_diff', ind-STmeta(next)%iStart
-          write(0,*) 'master sent', buffer(1), 'to process', iproc
        end if
     end do
 
@@ -389,9 +388,7 @@ CONTAINS
        end do
        buffer(STmeta(kk)%nIn+1,bufferLength+1)=STmeta(kk)%indST
        ! send the outflow to the master process
-       write(0,*) 'process', rank, 'send', buffer(STmeta(kk)%nIn+1,1), 'to master', 'iST=', kk, 'nST=', nST
        call MPI_Send(buffer(STmeta(kk)%nIn+1,:),bufferLength+1,MPI_INTEGER,0,7,MPI_COMM_WORLD,ierror)
-       write(0,*) 'process', rank, 'sent', buffer(STmeta(kk)%nIn+1,1), 'to master'
        deallocate(buffer)
     end do
 
