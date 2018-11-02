@@ -219,6 +219,7 @@ CONTAINS
        treenode%tN%prae(i)%tN=>null()
     end do
     treenode%tN%siz=1
+    treenode%tN%sizOrig=1
     treenode%tN%sizUp=1
     treenode%tN%origind=kk
     treenode%tN%ind=0
@@ -295,6 +296,7 @@ CONTAINS
        tree(iNode)%tN%post%tN=>tree(tNode)%tN
        ! while assigning, we can calculate the size of the subtree
        tree(tNode)%tN%siz=tree(tNode)%tN%siz+tree(iNode)%tN%siz
+       tree(tNode)%tN%sizOrig=tree(tNode)%tN%siz
     end do
 
   end subroutine set_edges

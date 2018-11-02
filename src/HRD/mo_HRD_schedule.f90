@@ -87,7 +87,9 @@ CONTAINS
        iproc=1
        nullify(newNodes)
        ! we start with the first node again if everything left is dependend. By
-       ! this, the longest chain in a tree is calculated on the same processor
+       ! this, the longest chain in a tree is calculated on the same processor.
+       ! this is not true for forests.
+       !
        ! we put leaves onto the nodes round robin until either there
        ! are no leaves or there are no processors anymore
        ! then append the old list of leaves with the new ones we

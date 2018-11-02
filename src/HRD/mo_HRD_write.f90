@@ -14,11 +14,24 @@ MODULE mo_HRD_write
 
   public :: write_tree, write_subtree, write_tree_with_array, &
             write_domain_decomposition, write_graphviz_output, &
-            write_graphviz_output_forest
+            write_graphviz_output_forest, write_forest_with_array, &
+            write_schedule
 
   private
 
 CONTAINS
+
+  subroutine write_schedule(schedule)
+    implicit none
+    type(processSchedule), dimension(:), allocatable, intent(in) :: schedule
+    ! local variables
+    integer(i4) :: kk
+
+    do kk = 1, size(schedule)
+      write(*,*) 'process', kk, 'gets', schedule(kk)%nTrees, &
+              'subtrees with a total length of', schedule(kk)%overallSize
+    end do
+  end subroutine write_schedule
 
   recursive subroutine write_tree(root, lowBound)
     implicit none
@@ -116,6 +129,20 @@ CONTAINS
 
   end subroutine write_subtree
 
+  subroutine write_forest_with_array(roots, lowBound, array)
+    implicit none
+    type(ptrTreeNode), dimension(:), intent(in) :: roots
+    integer(i4),               intent(in) :: lowBound
+    integer(i4), dimension(:), intent(in) :: array
+    ! local variables
+    integer(i4) :: kk
+
+    do kk=1,size(roots)
+      write(*,*) '###################################################################'
+      call write_tree_with_array(roots(kk),lowBound,array)
+    end do
+  end subroutine write_forest_with_array
+
   recursive subroutine write_tree_with_array(root, lowBound,array)
     implicit none
     type(ptrTreeNode),         intent(in) :: root
@@ -130,7 +157,7 @@ CONTAINS
     write(*,*) '* node:', root%tN%origind, 'new:',root%tN%ind, '                     *'
     write(*,*) '* value:', array(root%tN%origind), '                                 *'
     write(*,*) '**********************************************************************'
-    write(*,*) 'has size: ', root%tN%siz
+    write(*,*) 'has size: ', root%tN%sizOrig
     write(*,*) 'distance to root: ',root%tN%level
     write(*,*) 'distance to farthest leave: ',root%tN%revLevel
     write(*,*) 'size of smallest subtree larger than', lowBound, 'is: ', root%tN%sizUp

@@ -49,6 +49,7 @@ MODULE mo_HRD_types
     integer(i4)                                :: Nprae     ! number of children
     type(ptrTreeNode),dimension(:),allocatable :: prae      ! array of children
     integer(i4)                                :: siz       ! size of subtree
+    integer(i4)                                :: sizOrig   ! size of subtree before cut down
     integer(i4)                                :: sizUp     ! size of smallest
                                                             ! subtree > lowBound
                                                             ! upstream
