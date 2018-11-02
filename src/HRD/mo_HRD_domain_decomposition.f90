@@ -140,7 +140,7 @@ CONTAINS
     call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
     ! find the number the process is referred to, called rank
     call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
-    bufferLength=2
+    bufferLength=1
     if (rank .eq. 0) then
        write(*,*) 'the domain decomposition with mRM gets implemented now...'
        ! this subroutine is called by all processes, but only the
@@ -150,7 +150,7 @@ CONTAINS
        call get_L11_information(iBasin, nLinks, nNodes, toNodes, fromNodes, permNodes)
        call init_testarray(nNodes-1,testarray)
 
-       lowBound=3
+       lowBound=50
        uppBound=5
        ! In this subroutine the tree structure gets initialized for
        ! the flownetwork of the iBasin-th basin.
@@ -174,7 +174,7 @@ CONTAINS
        ! create schedule:
        ! to each process in the array schedule the number of trees, the
        ! indices of the trees and the over all size is assigned
-       call create_schedule_hu(nSubtrees,subtrees(:),schedule)
+       call create_schedule_hu(nSubtrees,nproc,subtrees(:),schedule)
        !call schedule_destroy(iBasin,schedule)
        !allocate(schedule(nproc-1))
        ! call create_schedule(nSubtrees,subtrees,schedule)
@@ -187,7 +187,7 @@ CONTAINS
        call init_subtree_metadata(iBasin,subtrees(:),STmeta,permNodes,toNodes)
 
        ! sends the meta data from master process to all the others
-       call distribute_subtree_meta(iBasin,nSubtrees,STmeta,toNodes,schedule,subtrees(:))
+       call distribute_subtree_meta(iBasin,nproc,nSubtrees,STmeta,toNodes,schedule,subtrees(:))
        ! - sends data (testarray) corresponding to subtrees to nodes
        ! - collects processed data from roots from subtrees and sends this
        !   data to corresponding leaves in connected subtrees
@@ -196,13 +196,13 @@ CONTAINS
       ! do ll=1,10
       ! call timer_start(itimer)
       ! do kk=1,1000
-       call routing(iBasin,bufferLength,subtrees(:),nSubtrees,STmeta,permNodes,schedule,testarray)
+       call routing(iBasin,nproc,rank,bufferLength,subtrees(:),nSubtrees,STmeta,permNodes,schedule,testarray)
       ! end do
       ! call timer_stop(itimer)
       ! write(*,*) timer_get(itimer), 'seconds.', nSubtrees, 'subtrees, lowBound:', lowBound
       ! call timer_clear(itimer)
       ! end do
-      ! call write_tree_with_array(roots(1), lowBound,testarray)
+       ! call write_forest_with_array(roots, lowBound,testarray)
 
        call schedule_destroy(schedule)
        deallocate(STmeta)
@@ -215,7 +215,7 @@ CONTAINS
        lowBound=3
        ! all other processes receive meta data for their
        ! individual subtrees from the master process
-       call get_subtree_meta(iBasin,STmeta,toNodes)
+       call get_subtree_meta(iBasin,nproc,rank,STmeta,toNodes)
        call subtree_init(lowBound,STmeta,toNodes,subtrees)
        ! - receives data corresponding to an array and assigned
        !   subtrees
@@ -225,7 +225,7 @@ CONTAINS
        ! - send data to master
      !  do ll=1,10
      !  do kk=1,1000
-       call subtree_routing(iBasin,bufferLength,toNodes,subtrees,STmeta,testarray)
+       call subtree_routing(iBasin,nproc,rank,bufferLength,toNodes,subtrees,STmeta,testarray)
      !  end do
      !  end do
        do kk=1, size(subtrees)
@@ -249,9 +249,11 @@ CONTAINS
   ! - collects processed data from roots from subtrees and sends this
   !   data to corresponding leaves in connected subtrees
   ! - collects the data in the end
-  subroutine routing(iBasin,bufferLength,subtrees,nSubtrees,STmeta,permNodes,schedule,array)
+  subroutine routing(iBasin,nproc,rank,bufferLength,subtrees,nSubtrees,STmeta,permNodes,schedule,array)
     implicit none
     integer(i4),                         intent(in)    :: iBasin
+    integer(i4),                     intent(in)     :: nproc
+    integer(i4),                     intent(in)     :: rank
     integer(i4),                         intent(in)    :: bufferLength
     type(ptrTreeNode),     dimension(:), intent(in)    :: subtrees ! the array of
     integer(i4),                         intent(in)    :: nSubtrees
@@ -262,14 +264,12 @@ CONTAINS
     ! local
     integer(i4) :: kk,iproc,next,ind, indST
     integer(i4), dimension(bufferLength+1) :: buffer
-    integer(i4) :: nproc,rank,ierror
+    integer(i4) :: ierror
     integer status(MPI_STATUS_SIZE)
     ! ToDo: Debugging variables
     integer(i4) :: iprocOld
 
-    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
-    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
-    call distribute_array(iBasin,nSubtrees,STmeta,permNodes,schedule,array)
+    call distribute_array(iBasin,nproc,rank,nSubtrees,STmeta,permNodes,schedule,array)
 
     do kk=1,nSubtrees
        ! the process where subtree kk is assigned to
@@ -298,7 +298,7 @@ CONTAINS
     end do
 
     array(:)=0
-    call collect_array(iBasin,nSubtrees,STmeta,permNodes,schedule,array)
+    call collect_array(iBasin,nproc,rank,nSubtrees,STmeta,permNodes,schedule,array)
   end subroutine
 
   subroutine subtree_init(lowBound,STmeta,toNodes,subtrees)
@@ -333,9 +333,11 @@ CONTAINS
   ! - processes data
   ! - sends root data to master
   ! - send data to master
-  subroutine subtree_routing(iBasin,bufferLength,toNodes,subtrees,STmeta,array)
+  subroutine subtree_routing(iBasin,nproc,rank,bufferLength,toNodes,subtrees,STmeta,array)
     implicit none
     integer(i4),                                  intent(in)    :: iBasin
+    integer(i4),                                  intent(in)    :: nproc
+    integer(i4),                                  intent(in)    :: rank
     integer(i4),                                  intent(in)    :: bufferLength
     integer(i4),       dimension(:),              intent(in)    :: toNodes
     type(ptrTreeNode), dimension(:),              intent(in)    :: subtrees ! the array of
@@ -345,12 +347,10 @@ CONTAINS
     integer(i4) :: nST ! number of subtrees scheduled on this computational node
     integer(i4) :: kk,jj,next,iStart,iEnd, ii
     integer(i4), dimension(:,:), allocatable :: buffer
-    integer(i4) :: nproc,rank,ierror
+    integer(i4) :: ierror
     integer status(MPI_STATUS_SIZE)
 
-    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
-    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
-    call get_array(iBasin,STmeta,array)
+    call get_array(iBasin,nproc,rank,STmeta,array)
 
     ! number of subtrees assigned to that process
     nST=size(STmeta)
@@ -392,7 +392,7 @@ CONTAINS
        deallocate(buffer)
     end do
 
-    call send_array(iBasin,STmeta,array)
+    call send_array(iBasin,nproc,rank,STmeta,array)
     deallocate(array)
   end subroutine subtree_routing
 

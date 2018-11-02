@@ -20,9 +20,11 @@ MODULE mo_HRD_MPI_array_communication
 CONTAINS
   ! two routines for the master process to distribute and collect an array
   ! cut into subarrays defined via the tree decomposition
-  subroutine distribute_array(iBasin,nSubtrees,STmeta,permNodes,schedule,array)
+  subroutine distribute_array(iBasin,nproc,rank,nSubtrees,STmeta,permNodes,schedule,array)
     implicit none
     integer(i4),                     intent(in)  :: iBasin
+    integer(i4),                     intent(in)  :: nproc
+    integer(i4),                     intent(in)  :: rank
     integer(i4),                     intent(in)  :: nSubtrees
     type(subtreeMeta), dimension(:), intent(in)  :: STmeta
     integer(i4),       dimension(:), intent(in)  :: permNodes
@@ -30,11 +32,8 @@ CONTAINS
     integer(i4),       dimension(:), intent(in)  :: array
     ! local variables
     integer(i4) :: kk,jj,ii,iPerm,iproc,sizST,iST
-    integer(i4) :: nproc,rank,ierror
+    integer(i4) :: ierror
     integer(i4), dimension(:), allocatable :: sendarray
-
-    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
-    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
 
     do kk=1,nproc-1
        do jj=1,schedule(kk)%nTrees
@@ -53,9 +52,11 @@ CONTAINS
 
   ! collects data from the other processes into one array in
   ! original order
-  subroutine collect_array(iBasin,nSubtrees,STmeta,permNodes,schedule,array)
+  subroutine collect_array(iBasin,nproc,rank,nSubtrees,STmeta,permNodes,schedule,array)
     implicit none
     integer(i4),                     intent(in)    :: iBasin
+    integer(i4),                     intent(in)    :: nproc
+    integer(i4),                     intent(in)    :: rank
     integer(i4),                     intent(in)    :: nSubtrees
     type(subtreeMeta), dimension(:), intent(in)    :: STmeta
     integer(i4),       dimension(:), intent(in)    :: permNodes
@@ -63,12 +64,9 @@ CONTAINS
     integer(i4),       dimension(:), intent(inout) :: array
     ! local variables
     integer(i4) :: kk,jj,ii,iPerm,iproc,sizST,iST
-    integer(i4) :: nproc,rank,ierror
+    integer(i4) :: ierror
     integer status(MPI_STATUS_SIZE)
     integer(i4), dimension(:), allocatable :: recvarray
-
-    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
-    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
 
     do kk=1,nproc-1
        do jj=1,schedule(kk)%nTrees
@@ -87,18 +85,18 @@ CONTAINS
 
   ! two corresponding processes for the other processes to receive and send
   ! arrays assigned to that process back to the master process
-  subroutine get_array(iBasin,STmeta,array)
+  subroutine get_array(iBasin,nproc,rank,STmeta,array)
     implicit none
     integer(i4),                                  intent(in)    :: iBasin
+    integer(i4),                                  intent(in)    :: nproc
+    integer(i4),                                  intent(in)    :: rank
     type(subtreeMeta), dimension(:),              intent(in)    :: STmeta
     integer(i4),       dimension(:), allocatable, intent(inout) :: array
     ! local variables
     integer(i4) :: kk
     integer(i4) :: sizST,nST
-    integer(i4) :: nproc,rank,ierror
+    integer(i4) :: ierror
     integer status(MPI_STATUS_SIZE)
-    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
-    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
 
     nST=size(STmeta)
     allocate(array(STmeta(nST)%iEnd))
@@ -110,17 +108,17 @@ CONTAINS
     end do
   end subroutine get_array
 
-  subroutine send_array(iBasin,STmeta,array)
+  subroutine send_array(iBasin,nproc,rank,STmeta,array)
     implicit none
     integer(i4),                     intent(in) :: iBasin
+    integer(i4),                     intent(in) :: nproc
+    integer(i4),                     intent(in) :: rank
     type(subtreeMeta), dimension(:), intent(in) :: STmeta
     integer(i4),       dimension(:), intent(in) :: array
     ! local variables
     integer(i4) :: kk
     integer(i4) :: sizST
-    integer(i4) :: nproc,rank,ierror
-    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
-    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
+    integer(i4) :: ierror
 
     ! ToDo: case: less subtrees than processes
 
