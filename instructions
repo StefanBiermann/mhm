@@ -1,0 +1,4 @@
+# running with gcc-mpirun version on eve
+/usr/local/openmpi/1.8.2-1_gcc_4.8.1_CentOS6/bin/mpirun -np 7 ./mhm
+# running with intel-mpirun version on eve
+/usr/local/openmpi/intel/1.8.4-1/bin/mpirun -np 6 ./mhm
