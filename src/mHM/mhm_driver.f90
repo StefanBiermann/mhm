@@ -138,7 +138,7 @@ PROGRAM mhm_driver
 
 #endif
   !$ USE omp_lib, ONLY : OMP_GET_NUM_THREADS           ! OpenMP routines
-  USE mpi
+  USE mpi_f08
 
   IMPLICIT NONE
 

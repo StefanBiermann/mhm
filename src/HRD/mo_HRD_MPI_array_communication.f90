@@ -7,7 +7,7 @@ MODULE mo_HRD_MPI_array_communication
   use mo_kind, only : i4, dp
   use mo_HRD_types, only: processSchedule, subtreeMeta
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
-  use mpi
+  use mpi_f08
 
   ! Written Maren Kaluza, June 2018
 
@@ -65,7 +65,7 @@ CONTAINS
     ! local variables
     integer(i4) :: kk,jj,ii,iPerm,iproc,sizST,iST
     integer(i4) :: ierror
-    integer status(MPI_STATUS_SIZE)
+    type(MPI_Status) :: status
     integer(i4), dimension(:), allocatable :: recvarray
 
     do kk=1,nproc-1
@@ -96,7 +96,7 @@ CONTAINS
     integer(i4) :: kk
     integer(i4) :: sizST,nST
     integer(i4) :: ierror
-    integer status(MPI_STATUS_SIZE)
+    type(MPI_Status) :: status
 
     nST=size(STmeta)
     allocate(array(STmeta(nST)%iEnd))

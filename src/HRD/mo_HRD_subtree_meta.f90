@@ -8,7 +8,7 @@ MODULE mo_HRD_subtree_meta
   use mo_HRD_types, only : ptrTreeNode, subtreeMeta, processSchedule 
   use mo_HRD_tree_tools, only : write_tree_to_array
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
-  use mpi
+  use mpi_f08
 
   ! Written Maren Kaluza, June 2018
 
@@ -137,7 +137,7 @@ CONTAINS
     integer(i4) :: sizST,indST
     integer(i4) :: nSubtrees, totSizeOfSubtrees
     integer(i4) :: ierror
-    integer status(MPI_STATUS_SIZE)
+    type(MPI_Status) :: status
 
     ! recieves number of subtrees and total number of tree nodes assigned to
     ! this process
