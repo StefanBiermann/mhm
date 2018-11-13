@@ -20,11 +20,12 @@ MODULE mo_HRD_MPI_array_communication
 CONTAINS
   ! two routines for the master process to distribute and collect an array
   ! cut into subarrays defined via the tree decomposition
-  subroutine distribute_array(iBasin,nproc,rank,nSubtrees,STmeta,permNodes,schedule,array)
+  subroutine distribute_array(iBasin,nproc,rank,comm,nSubtrees,STmeta,permNodes,schedule,array)
     implicit none
     integer(i4),                     intent(in)  :: iBasin
     integer(i4),                     intent(in)  :: nproc
     integer(i4),                     intent(in)  :: rank
+    type(MPI_Comm)                               :: comm
     integer(i4),                     intent(in)  :: nSubtrees
     type(subtreeMeta), dimension(:), intent(in)  :: STmeta
     integer(i4),       dimension(:), intent(in)  :: permNodes
@@ -44,7 +45,7 @@ CONTAINS
              iPerm=permNodes(ii)
              sendarray(ii-STmeta(iST)%iStart+1)=array(iPerm)
           end do
-          call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,kk,3,MPI_COMM_WORLD,ierror)
+          call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,kk,3,comm,ierror)
           deallocate(sendarray)
        end do
     end do
@@ -52,11 +53,12 @@ CONTAINS
 
   ! collects data from the other processes into one array in
   ! original order
-  subroutine collect_array(iBasin,nproc,rank,nSubtrees,STmeta,permNodes,schedule,array)
+  subroutine collect_array(iBasin,nproc,rank,comm,nSubtrees,STmeta,permNodes,schedule,array)
     implicit none
     integer(i4),                     intent(in)    :: iBasin
     integer(i4),                     intent(in)    :: nproc
     integer(i4),                     intent(in)    :: rank
+    type(MPI_Comm)                                 :: comm
     integer(i4),                     intent(in)    :: nSubtrees
     type(subtreeMeta), dimension(:), intent(in)    :: STmeta
     integer(i4),       dimension(:), intent(in)    :: permNodes
@@ -73,7 +75,7 @@ CONTAINS
           iST=schedule(kk)%trees(jj)
           sizST=STmeta(iST)%iEnd+1-STmeta(iST)%iStart
           allocate(recvarray(sizST))
-          call MPI_Recv(recvarray(1:sizST),sizST,MPI_INTEGER,kk,4,MPI_COMM_WORLD,status,ierror)
+          call MPI_Recv(recvarray(1:sizST),sizST,MPI_INTEGER,kk,4,comm,status,ierror)
           do ii=STmeta(iST)%iStart,STmeta(iST)%iEnd
              iPerm=permNodes(ii)
              array(iPerm)=recvarray(ii-STmeta(iST)%iStart+1)
@@ -85,11 +87,12 @@ CONTAINS
 
   ! two corresponding processes for the other processes to receive and send
   ! arrays assigned to that process back to the master process
-  subroutine get_array(iBasin,nproc,rank,STmeta,array)
+  subroutine get_array(iBasin,nproc,rank,comm,STmeta,array)
     implicit none
     integer(i4),                                  intent(in)    :: iBasin
     integer(i4),                                  intent(in)    :: nproc
     integer(i4),                                  intent(in)    :: rank
+    type(MPI_Comm)                                              :: comm
     type(subtreeMeta), dimension(:),              intent(in)    :: STmeta
     integer(i4),       dimension(:), allocatable, intent(inout) :: array
     ! local variables
@@ -104,15 +107,16 @@ CONTAINS
 
     do kk=1,size(STmeta)
        sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
-       call MPI_Recv(array(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,3,MPI_COMM_WORLD,status,ierror)
+       call MPI_Recv(array(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,3,comm,status,ierror)
     end do
   end subroutine get_array
 
-  subroutine send_array(iBasin,nproc,rank,STmeta,array)
+  subroutine send_array(iBasin,nproc,rank,comm,STmeta,array)
     implicit none
     integer(i4),                     intent(in) :: iBasin
     integer(i4),                     intent(in) :: nproc
     integer(i4),                     intent(in) :: rank
+    type(MPI_Comm)                              :: comm
     type(subtreeMeta), dimension(:), intent(in) :: STmeta
     integer(i4),       dimension(:), intent(in) :: array
     ! local variables
@@ -124,7 +128,7 @@ CONTAINS
 
     do kk=1,size(STmeta)
        sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
-       call MPI_Send(array(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,4,MPI_COMM_WORLD,ierror)
+       call MPI_Send(array(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,4,comm,ierror)
     end do
 
   end subroutine send_array

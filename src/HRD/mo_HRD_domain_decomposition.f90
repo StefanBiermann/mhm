@@ -130,6 +130,7 @@ CONTAINS
                                                                             ! size of the subtrees
     integer(i4)                                      :: bufferLength        ! length of arrays buffered and send via MPI
     integer(i4)                                      :: nproc, rank, ierror
+    type(MPI_Comm)                                   :: comm                ! MPI communicator
 
     ! for testing purposes
     integer(i4),           dimension(:), allocatable :: testarray
@@ -139,10 +140,13 @@ CONTAINS
 
 #ifdef MRM2MHM
     iBasin = 1
+    ! create a dublicate communicator of MPI_COMM_WORLD
+    ! ToDo: Later, have an optional argument with another communicator
+    call MPI_Comm_dup(MPI_COMM_WORLD, comm, ierror)
     ! find number of processes nproc
-    call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierror)
+    call MPI_Comm_size(comm, nproc, ierror)
     ! find the number the process is referred to, called rank
-    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierror)
+    call MPI_Comm_rank(comm, rank, ierror)
   !  do lowBound = 10,210,20
   !  do nproc = 2,6,2!96,2
     bufferLength = 1000
@@ -153,7 +157,7 @@ CONTAINS
       ! so these should not be loaded from other modules inside this subroutine
       call get_number_of_basins(iBasin, nBasins)
       call get_L11_information(iBasin, nLinks, nNodes, toNodes, fromNodes, permNodes)
-      call init_testarray(nNodes-1,testarray)
+      call init_testarray(nNodes-1, testarray)
 
       lowBound = 3
       ! In this subroutine the tree structure gets initialized for
@@ -191,7 +195,7 @@ CONTAINS
       call init_subtree_metadata(iBasin, subtrees(:), STmeta, permNodes, toNodes)
 
       ! sends the meta data from master process to all the others
-      call distribute_subtree_meta(iBasin, nproc, nSubtrees, STmeta, toNodes, schedule, subtrees(:))
+      call distribute_subtree_meta(iBasin, nproc, comm, nSubtrees, STmeta, toNodes, schedule, subtrees(:))
       write(*,*) 'distributed subtree meta data'
       ! - sends data (testarray) corresponding to subtrees to nodes
       ! - collects processed data from roots from subtrees and sends this
@@ -201,7 +205,7 @@ CONTAINS
      ! do ll = 1, 10
      ! call timer_start(itimer)
      ! do kk = 1, 1
-      call routing(iBasin, nproc, rank, bufferLength, subtrees(:), nSubtrees, STmeta, permNodes, schedule, testarray)
+      call routing(iBasin, nproc, rank, comm, bufferLength, subtrees(:), nSubtrees, STmeta, permNodes, schedule, testarray)
      ! end do
      ! call timer_stop(itimer)
      ! write(*,*) timer_get(itimer), 'seconds.', nSubtrees, 'subtrees, lowBound:', lowBound
@@ -221,7 +225,7 @@ CONTAINS
       ! lowBound=3
       ! all other processes receive meta data for their
       ! individual subtrees from the master process
-      call get_subtree_meta(iBasin, nproc, rank, STmeta, toNodes)
+      call get_subtree_meta(iBasin, nproc, rank, comm, STmeta, toNodes)
       call subtree_init(lowBound, STmeta, toNodes, subtrees)
       ! - receives data corresponding to an array and assigned
       !   subtrees
@@ -231,7 +235,7 @@ CONTAINS
       ! - send data to master
     !  do ll=1,10
     !  do kk=1,1
-      call subtree_routing(iBasin, nproc, rank, bufferLength, toNodes, subtrees, STmeta, testarray)
+      call subtree_routing(iBasin, nproc, rank, comm, bufferLength, toNodes, subtrees, STmeta, testarray)
     !  end do
     !  end do
       do kk = 1, size(subtrees)
@@ -257,11 +261,12 @@ CONTAINS
   ! - collects processed data from roots from subtrees and sends this
   !   data to corresponding leaves in connected subtrees
   ! - collects the data in the end
-  subroutine routing(iBasin, nproc, rank, bufferLength, subtrees, nSubtrees, STmeta, permNodes, schedule, array)
+  subroutine routing(iBasin, nproc, rank, comm, bufferLength, subtrees, nSubtrees, STmeta, permNodes, schedule, array)
     implicit none
     integer(i4),                         intent(in)    :: iBasin
     integer(i4),                         intent(in)    :: nproc
     integer(i4),                         intent(in)    :: rank
+    type(MPI_Comm),                      intent(in)    :: comm
     integer(i4),                         intent(in)    :: bufferLength
     type(ptrTreeNode),     dimension(:), intent(in)    :: subtrees ! the array of
     integer(i4),                         intent(in)    :: nSubtrees
@@ -275,14 +280,14 @@ CONTAINS
     integer(i4)                            :: ierror
     type(MPI_Status)                       :: status
 
-    call distribute_array(iBasin,nproc,rank,nSubtrees,STmeta,permNodes,schedule,array)
+    call distribute_array(iBasin, nproc, rank, comm, nSubtrees, STmeta, permNodes, schedule, array)
 
     do kk = 1, nSubtrees
       ! the process where subtree kk is assigned to
       iproc = subtrees(kk)%tN%ST%sched(1)
       ! for each subtree the master process 0 gets the data of
       ! the root tree node
-      call MPI_Recv(buffer, bufferLength+1, MPI_INTEGER, iproc, 7, MPI_COMM_WORLD, status, ierror)
+      call MPI_Recv(buffer, bufferLength+1, MPI_INTEGER, iproc, 7, comm, status, ierror)
       indST = buffer(bufferLength+1)
       ! if the root node of the subtree has a parent
       if (associated(subtrees(indST)%tN%post%tN)) then
@@ -297,13 +302,13 @@ CONTAINS
         iproc = subtrees(next)%tN%ST%sched(1)
         ! the index, where the value will be added to (we remove the offset)
         buffer(bufferLength+1) = ind - STmeta(next)%iStart
-        call MPI_Send(buffer, bufferLength+1, MPI_INTEGER, iproc, next, MPI_COMM_WORLD, ierror)
+        call MPI_Send(buffer, bufferLength+1, MPI_INTEGER, iproc, next, comm, ierror)
         ! write(*,*) 'master sent', buffer(1), 'to process',iproc,'tree',next !, 'ind_diff', ind-STmeta(next)%iStart
       end if
     end do
 
     array(:) = 0
-    call collect_array(iBasin, nproc, rank, nSubtrees, STmeta, permNodes, schedule, array)
+    call collect_array(iBasin, nproc, rank, comm, nSubtrees, STmeta, permNodes, schedule, array)
   end subroutine
 
   subroutine subtree_init(lowBound, STmeta, toNodes, subtrees)
@@ -338,11 +343,12 @@ CONTAINS
   ! - processes data
   ! - sends root data to master
   ! - send data to master
-  subroutine subtree_routing(iBasin, nproc, rank, bufferLength, toNodes, subtrees, STmeta, array)
+  subroutine subtree_routing(iBasin, nproc, rank, comm, bufferLength, toNodes, subtrees, STmeta, array)
     implicit none
     integer(i4),                                  intent(in)    :: iBasin
     integer(i4),                                  intent(in)    :: nproc
     integer(i4),                                  intent(in)    :: rank
+    type(MPI_Comm),                               intent(in)    :: comm
     integer(i4),                                  intent(in)    :: bufferLength
     integer(i4),       dimension(:),              intent(in)    :: toNodes
     type(ptrTreeNode), dimension(:),              intent(in)    :: subtrees ! the array of
@@ -357,7 +363,7 @@ CONTAINS
     type(MPI_Status),  dimension(:),   allocatable :: statuses
     type(MPI_Request), dimension(:),   allocatable :: requests
 
-    call get_array(iBasin,nproc,rank,STmeta,array)
+    call get_array(iBasin, nproc, rank, comm, STmeta, array)
 
     ! number of subtrees assigned to that process
     nST = size(STmeta)
@@ -371,7 +377,7 @@ CONTAINS
       do jj = 1, nIn
         ! receive the value from the root of the child subtree and the index
         ! the value will be added to
-        call MPI_IRecv(buffer(:,jj), bufferLength+1, MPI_INTEGER, 0, STmeta(kk)%indST, MPI_COMM_WORLD, requests(jj), ierror)
+        call MPI_IRecv(buffer(:,jj), bufferLength+1, MPI_INTEGER, 0, STmeta(kk)%indST, comm, requests(jj), ierror)
       !   write(*,*) 'process',rank, 'tree', STmeta(kk)%indST !, 'with indices', &
       !           STmeta(kk)%iStart,'-',STmeta(kk)%iEnd ,&
       !           'gets', buffer(1,jj), 'for ind', next, 'ind_diff', buffer(bufferLength+1,jj)
@@ -399,11 +405,11 @@ CONTAINS
       end do
       buffer(bufferLength+1, STmeta(kk)%nIn+1)=STmeta(kk)%indST
       ! send the outflow to the master process
-      call MPI_Send(buffer(:, STmeta(kk)%nIn+1), bufferLength+1, MPI_INTEGER, 0, 7, MPI_COMM_WORLD, ierror)
+      call MPI_Send(buffer(:, STmeta(kk)%nIn+1), bufferLength+1, MPI_INTEGER, 0, 7, comm, ierror)
       deallocate(buffer)
     end do
 
-    call send_array(iBasin, nproc, rank, STmeta, array)
+    call send_array(iBasin, nproc, rank, comm, STmeta, array)
     deallocate(array)
   end subroutine subtree_routing
 

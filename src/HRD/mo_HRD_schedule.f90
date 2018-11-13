@@ -9,7 +9,6 @@ MODULE mo_HRD_schedule
   use mo_HRD_dLinkedList
   use mo_HRD_tree_tools, only : update_sizes,find_sizUp_of_node
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
-  use mpi_f08
 
   ! Written Maren Kaluza, June 2018
 
