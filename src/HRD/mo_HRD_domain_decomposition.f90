@@ -159,7 +159,7 @@ CONTAINS
       call get_L11_information(iBasin, nLinks, nNodes, toNodes, fromNodes, permNodes)
       call init_testarray(nNodes-1, testarray)
 
-      lowBound = 3
+      lowBound = 10
       ! In this subroutine the tree structure gets initialized for
       ! the flownetwork of the iBasin-th basin.
       ! In each tree node the size of the smallest subtree
@@ -196,7 +196,6 @@ CONTAINS
 
       ! sends the meta data from master process to all the others
       call distribute_subtree_meta(iBasin, nproc, comm, nSubtrees, STmeta, toNodes, schedule, subtrees(:))
-      write(*,*) 'distributed subtree meta data'
       ! - sends data (testarray) corresponding to subtrees to nodes
       ! - collects processed data from roots from subtrees and sends this
       !   data to corresponding leaves in connected subtrees
@@ -225,7 +224,7 @@ CONTAINS
       ! lowBound=3
       ! all other processes receive meta data for their
       ! individual subtrees from the master process
-      call get_subtree_meta(iBasin, nproc, rank, comm, STmeta, toNodes)
+      call get_subtree_meta(iBasin, comm, STmeta, toNodes)
       call subtree_init(lowBound, STmeta, toNodes, subtrees)
       ! - receives data corresponding to an array and assigned
       !   subtrees

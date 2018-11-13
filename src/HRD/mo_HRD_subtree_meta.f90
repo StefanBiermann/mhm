@@ -124,11 +124,9 @@ CONTAINS
     deallocate(iSends)
   end subroutine distribute_subtree_meta
 
-  subroutine get_subtree_meta(iBasin,nproc,rank,comm,STmeta,toNodes)
+  subroutine get_subtree_meta(iBasin,comm,STmeta,toNodes)
     implicit none
     integer(i4),               intent(in)                       :: iBasin
-    integer(i4),               intent(in)                       :: nproc
-    integer(i4),               intent(in)                       :: rank
     type(MPI_Comm)                                              :: comm
     type(subtreeMeta), dimension(:), allocatable, intent(inout) :: STmeta
     integer(i4),       dimension(:), allocatable, intent(inout) :: toNodes
@@ -148,12 +146,13 @@ CONTAINS
     totSizeOfSubtrees=nDatasets(2)
     allocate(STmeta(nSubtrees))
     allocate(toNodes(totSizeOfSubtrees))
-    ! ToDo: case: less subtrees than processes
-    call MPI_Recv(sizST,1,MPI_INTEGER,0,1,comm,status,ierror)
-    STmeta(1)%iStart=1
-    STmeta(1)%iEnd=sizST
-    call MPI_Recv(STmeta(1)%indST,1,MPI_INTEGER,0,1,comm,status,ierror)
-    call MPI_Recv(STmeta(1)%nIn,1,MPI_INTEGER,0,1,comm,status,ierror)
+    if (nSubtrees > 0) then
+      call MPI_Recv(sizST,1,MPI_INTEGER,0,1,comm,status,ierror)
+      STmeta(1)%iStart=1
+      STmeta(1)%iEnd=sizST
+      call MPI_Recv(STmeta(1)%indST,1,MPI_INTEGER,0,1,comm,status,ierror)
+      call MPI_Recv(STmeta(1)%nIn,1,MPI_INTEGER,0,1,comm,status,ierror)
+    end if
     do kk=2,nSubtrees
        call MPI_Recv(sizST,1,MPI_INTEGER,0,1,comm,status,ierror)
        STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1
