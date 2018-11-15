@@ -149,7 +149,7 @@ CONTAINS
     call MPI_Comm_rank(comm, rank, ierror)
   !  do lowBound = 10,210,20
   !  do nproc = 2,6,2!96,2
-    bufferLength = 1000
+    bufferLength = 2
     if (rank .eq. 0) then
       write(*,*) 'the domain decomposition with mRM gets implemented now...'
       ! this subroutine is called by all processes, but only the
@@ -211,7 +211,7 @@ CONTAINS
      ! write(*,*) nproc, timer_get(itimer), nSubtrees, lowBound
      ! call timer_clear(itimer)
      ! end do
-     !  call write_forest_with_array(roots, lowBound,testarray)
+      call write_forest_with_array(roots, lowBound,testarray)
 
       call schedule_destroy(schedule)
       deallocate(STmeta)
@@ -282,11 +282,9 @@ CONTAINS
     call distribute_array(iBasin, nproc, rank, comm, nSubtrees, STmeta, permNodes, schedule, array)
 
     do kk = 1, nSubtrees
-      ! the process where subtree kk is assigned to
-      iproc = subtrees(kk)%tN%ST%sched(1)
       ! for each subtree the master process 0 gets the data of
       ! the root tree node
-      call MPI_Recv(buffer, bufferLength+1, MPI_INTEGER, iproc, 7, comm, status, ierror)
+      call MPI_Recv(buffer, bufferLength+1, MPI_INTEGER, MPI_ANY_SOURCE, 0, comm, status, ierror)
       indST = buffer(bufferLength+1)
       ! if the root node of the subtree has a parent
       if (associated(subtrees(indST)%tN%post%tN)) then
@@ -404,7 +402,7 @@ CONTAINS
       end do
       buffer(bufferLength+1, STmeta(kk)%nIn+1)=STmeta(kk)%indST
       ! send the outflow to the master process
-      call MPI_Send(buffer(:, STmeta(kk)%nIn+1), bufferLength+1, MPI_INTEGER, 0, 7, comm, ierror)
+      call MPI_Send(buffer(:, STmeta(kk)%nIn+1), bufferLength+1, MPI_INTEGER, 0, 0, comm, ierror)
       deallocate(buffer)
     end do
 
