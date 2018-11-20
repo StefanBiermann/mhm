@@ -5,7 +5,8 @@
 
 MODULE mo_HRD_subtree_meta
   use mo_kind, only : i4, dp
-  use mo_HRD_types, only : ptrTreeNode, subtreeMeta, processSchedule 
+  use mo_HRD_types, only : ptrTreeNode, subtreeMeta, processSchedule, &
+          subtreeBuffer
   use mo_HRD_tree_tools, only : write_tree_to_array
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
   use mpi_f08
@@ -14,7 +15,8 @@ MODULE mo_HRD_subtree_meta
 
   IMPLICIT NONE
 
-  public :: init_subtree_metadata, distribute_subtree_meta, get_subtree_meta
+  public :: init_subtree_metadata, distribute_subtree_meta, get_subtree_meta, &
+            init_subtree_buffer, destroy_subtree_buffer
             
 
   private
@@ -172,5 +174,45 @@ CONTAINS
     end do
 
   end subroutine get_subtree_meta
+
+  subroutine init_subtree_buffer(STmeta, bufferLength, STbuffer)
+    type(subtreeMeta),   dimension(:),              intent(in)  :: STmeta
+    integer(i4)                                                 :: bufferLength
+    type(subtreeBuffer), dimension(:), allocatable, intent(out) :: STbuffer
+    ! local variables
+    integer(i4) :: nSubtrees
+    integer(i4) :: i
+
+    nSubtrees = size(STmeta)
+    allocate(STbuffer(nSubtrees))
+
+    ! initiate buffering space for all data send from the subtree roots to other
+    ! subtree leaves. nIn is the number of leaves, so we need nIn+1 space for
+    ! every message collective
+    do i = 1, nSubtrees
+      allocate(STbuffer(i)%statuses(STmeta(i)%nIn+1))
+      allocate(STbuffer(i)%requests(STmeta(i)%nIn+1))
+      allocate(STbuffer(i)%buffer(bufferLength+1, STmeta(i)%nIn+1))
+    end do
+
+  end subroutine init_subtree_buffer
+
+  subroutine destroy_subtree_buffer(STbuffer)
+    type(subtreeBuffer), dimension(:), allocatable, intent(inout) :: STbuffer
+    ! local variables
+    integer(i4) :: nSubtrees
+    integer(i4) :: i
+
+    nSubtrees = size(STbuffer)
+
+    do i = 1, nSubtrees
+      deallocate(STbuffer(i)%statuses)
+      deallocate(STbuffer(i)%requests)
+      deallocate(STbuffer(i)%buffer)
+    end do
+
+    deallocate(STbuffer)
+
+  end subroutine destroy_subtree_buffer
 
 END MODULE mo_HRD_subtree_meta

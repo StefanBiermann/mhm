@@ -5,12 +5,13 @@
 
 MODULE mo_HRD_types
   use mo_kind, only : i4, dp
+  use mpi_f08
 
   ! Written Maren Kaluza, June 2018
 
   IMPLICIT NONE
 
-  public :: ptrTreeNode, treeNode, subtreeMeta, processSchedule
+  public :: ptrTreeNode, treeNode, subtreeMeta, subtreeBuffer, processSchedule
 
   private
   
@@ -82,6 +83,12 @@ MODULE mo_HRD_types
      integer(i4)        :: indST
      integer(i4)        :: nIn
   end type subtreeMeta
+
+  type subtreeBuffer
+    type(MPI_Status),  dimension(:),   allocatable :: statuses
+    type(MPI_Request), dimension(:),   allocatable :: requests
+    integer(i4),       dimension(:,:), allocatable :: buffer
+  end type subtreeBuffer
 
   type processSchedule
      integer(i4)                                :: nTrees

@@ -163,7 +163,7 @@ PROGRAM mhm_driver
   call MPI_Comm_rank(MPI_COMM_WORLD, rank,ierror)
   write(*,*) 'MPI!', rank, nproc
 
-  if (rank .eq. 0) then
+  if (rank == 0) then
   write(*,*) 'process with rank', rank, 'makes all the work'
 
   ! --------------------------------------------------------------------------
