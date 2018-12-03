@@ -106,7 +106,8 @@ CONTAINS
        !           schedule(iproc)%overallSize+element%content%tN%ST%sizST
           schedule(iproc)%trees(islot)=iSubtree
           schedule(iproc)%overallSize= &
-                  schedule(iproc)%overallSize+newSubtrees(iSubtree)%tN%ST%sizST
+                  schedule(iproc)%overallSize+newSubtrees(iSubtree)%tN%ST%sizST &
+                                             +size(newSubtrees(iSubtree)%tN%ST%praeST)
           iSubtree=iSubtree+1
           ! write schedule to tree
           element%content%tN%ST%sched(1)=iproc

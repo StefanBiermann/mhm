@@ -28,29 +28,36 @@ CONTAINS
   ! with array, so everything gets written into a nice array in
   ! routing order. Therefore we need a permutation array permNodes
   ! which is at the same time fromNodes, and a toNode array
-  subroutine init_subtree_metadata(iBasin,subtrees,STmeta,permNodes,toNodes)
+  subroutine init_subtree_metadata(iBasin,nNodes,subtrees,STmeta,permNodes,toNodes)
     implicit none
-    integer(i4),                     intent(in)     :: iBasin
-    type(ptrTreeNode), dimension(:), intent(in)     :: subtrees ! the array of
-    type(subtreeMeta), dimension(:), intent(inout)  :: STmeta
-    integer(i4),       dimension(:), intent(inout)  :: permNodes
-    integer(i4),       dimension(:), intent(inout)  :: toNodes
+    integer(i4),                                  intent(in)     :: iBasin
+    integer(i4),                                  intent(in)     :: nNodes
+    type(ptrTreeNode), dimension(:),              intent(in)     :: subtrees ! the array of
+    type(subtreeMeta), dimension(:),              intent(inout)  :: STmeta
+    integer(i4),       dimension(:), allocatable, intent(inout)  :: permNodes
+    integer(i4),       dimension(:), allocatable, intent(inout)  :: toNodes
     ! local
-    integer(i4) :: nNodes, nSubtrees
-    integer(i4) :: kk,ind
+    integer(i4) :: nTotNodes, nSubtrees
+    integer(i4) :: kk, jj, ind
+    integer(i4) :: nInNodes
 
     nSubtrees=size(STmeta)
-    nNodes=size(permNodes)
+    nInNodes = 0
+    do kk = 1, nSubtrees
+      nInNodes = nInNodes + subtrees(kk)%tN%ST%NpraeST
+    end do
+    nTotNodes=nNodes+nInNodes
+    allocate(permNodes(nTotNodes), toNodes(nTotNodes))
 
-    STmeta(1)%iStart=1
-    STmeta(1)%iEnd=subtrees(1)%tN%ST%sizST
-    STmeta(1)%indST=1
     STmeta(1)%nIn=subtrees(1)%tN%ST%NpraeST
+    STmeta(1)%iStart=1+STmeta(1)%nIn
+    STmeta(1)%iEnd=STmeta(1)%iStart+subtrees(1)%tN%ST%sizST-1
+    STmeta(1)%indST=1
     do kk=2,nSubtrees
-       STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1
+       STmeta(kk)%nIn=subtrees(kk)%tN%ST%NpraeST
+       STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1+STmeta(kk)%nIn
        STmeta(kk)%iEnd=STmeta(kk)%iStart+subtrees(kk)%tN%ST%sizST-1
        STmeta(kk)%indST=kk
-       STmeta(kk)%nIn=subtrees(kk)%tN%ST%NpraeST
     end do
     toNodes(:)=0
     do kk=nSubtrees,1,-1
@@ -58,6 +65,12 @@ CONTAINS
        call write_tree_to_array(subtrees(kk),STmeta(kk)%iStart,ind,&
             permNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd), &
               toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd))
+       do jj = 1, STmeta(kk)%nIn
+         permNodes(STmeta(kk)%iStart-jj) = 1 ! ToDo: not smart, but perhaps it doesn't matter
+         ! we need the parents of the root node of the children of the subtree
+         ind = subtrees(kk)%tN%ST%praeST(jj)%tN%post%tN%ind
+         toNodes(STmeta(kk)%iStart-jj) = ind
+       end do
     end do
     ! ToDo: repair this part
     ! correct last toNode
@@ -100,10 +113,10 @@ CONTAINS
     do kk=1,nproc-1
        do jj=1,schedule(kk)%nTrees
           iST=schedule(kk)%trees(jj)
-          sizST=STmeta(iST)%iEnd+1-STmeta(iST)%iStart
-          call MPI_Send(sizST,1,MPI_INTEGER,kk,1,comm,ierror)
+          sizST=STmeta(iST)%iEnd+1-STmeta(iST)%iStart+STmeta(iST)%nIn
           call MPI_Send(iST,1,MPI_INTEGER,kk,1,comm,ierror)
-          call MPI_Send(STmeta(iST)%nIn,1,MPI_INTEGER,kk,1,comm,ierror)
+          call MPI_Send(sizST,1,MPI_INTEGER,kk,iST,comm,ierror)
+          call MPI_Send(STmeta(iST)%nIn,1,MPI_INTEGER,kk,iST,comm,ierror)
        end do
     end do
     ! for each subtree send corresponding toNodes to the node. Move indices from
@@ -113,12 +126,13 @@ CONTAINS
     do kk=1,nproc-1
        do jj=1,schedule(kk)%nTrees
           iST=schedule(kk)%trees(jj)
-          sizST=STmeta(iST)%iEnd+1-STmeta(iST)%iStart
+          sizST=STmeta(iST)%iEnd+1-STmeta(iST)%iStart+STmeta(iST)%nIn
           allocate(sendarray(sizST))
-          do ii=STmeta(iST)%iStart,STmeta(iST)%iEnd
-             sendarray(ii-STmeta(iST)%iStart+1)=toNodes(ii)-STmeta(iST)%iStart+1
+          do ii=STmeta(iST)%iStart-STmeta(iST)%nIn,STmeta(iST)%iEnd
+             !ToDo: is the minus term still correct?
+             sendarray(ii-STmeta(iST)%iStart+STmeta(iST)%nIn+1)=toNodes(ii)-STmeta(iST)%iStart+1
           end do
-          call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,kk,2,comm,ierror)
+          call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,kk,iST,comm,ierror)
           deallocate(sendarray)
        end do
     end do
@@ -149,23 +163,23 @@ CONTAINS
     allocate(STmeta(nSubtrees))
     allocate(toNodes(totSizeOfSubtrees))
     if (nSubtrees > 0) then
-      call MPI_Recv(sizST,1,MPI_INTEGER,0,1,comm,status,ierror)
-      STmeta(1)%iStart=1
-      STmeta(1)%iEnd=sizST
       call MPI_Recv(STmeta(1)%indST,1,MPI_INTEGER,0,1,comm,status,ierror)
-      call MPI_Recv(STmeta(1)%nIn,1,MPI_INTEGER,0,1,comm,status,ierror)
+      call MPI_Recv(sizST,1,MPI_INTEGER,0,STmeta(1)%indST,comm,status,ierror)
+      call MPI_Recv(STmeta(1)%nIn,1,MPI_INTEGER,0,STmeta(1)%indST,comm,status,ierror)
+      STmeta(1)%iStart=STmeta(1)%nIn+1
+      STmeta(1)%iEnd=STmeta(1)%iStart-STmeta(1)%nIn+sizST-1
     end if
     do kk=2,nSubtrees
-      call MPI_Recv(sizST,1,MPI_INTEGER,0,1,comm,status,ierror)
-      STmeta(kk)%iStart=Stmeta(kk-1)%iEnd+1
-      STmeta(kk)%iEnd=STmeta(kk)%iStart+sizST-1
       call MPI_Recv(STmeta(kk)%indST,1,MPI_INTEGER,0,1,comm,status,ierror)
-      call MPI_Recv(STmeta(kk)%nIn,1,MPI_INTEGER,0,1,comm,status,ierror)
+      call MPI_Recv(sizST,1,MPI_INTEGER,0,STmeta(kk)%indST,comm,status,ierror)
+      call MPI_Recv(STmeta(kk)%nIn,1,MPI_INTEGER,0,STmeta(kk)%indST,comm,status,ierror)
+      STmeta(kk)%iStart=STmeta(kk)%nIn+Stmeta(kk-1)%iEnd+1
+      STmeta(kk)%iEnd=STmeta(kk)%iStart-STmeta(kk)%nIn+sizST-1
     end do
 
     do kk=1,nSubtrees
-      sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
-      call MPI_Recv(toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,2,comm,status,ierror)
+      sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart+STmeta(kk)%nIn
+      call MPI_Recv(toNodes(STmeta(kk)%iStart-STmeta(kk)%nIn:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,STmeta(kk)%indST,comm,status,ierror)
       ! ToDo: why not -1
       ! the toNodes have been moved, so they start from index 1, before sending
       ! now the last entry gets moved to the starting point of the subtree in the array

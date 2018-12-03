@@ -151,7 +151,7 @@ CONTAINS
     call MPI_Comm_rank(comm, rank, ierror)
   !  do lowBound = 10,210,20
   !  do nproc = 2,6,2!96,2
-    bufferLength = 1000
+    bufferLength = 2
     if (rank .eq. 0) then
       write(*,*) 'the domain decomposition with mRM gets implemented now...'
       ! this subroutine is called by all processes, but only the
@@ -161,7 +161,7 @@ CONTAINS
       call get_L11_information(iBasin, nLinks, nNodes, toNodes, fromNodes, permNodes)
       call init_testarray(nNodes-1, testarray)
 
-      lowBound = 10
+      lowBound = 3
       ! In this subroutine the tree structure gets initialized for
       ! the flownetwork of the iBasin-th basin.
       ! In each tree node the size of the smallest subtree
@@ -171,6 +171,7 @@ CONTAINS
       ! can be accessed through it.
       ! call tree_init_global(iBasin, lowBound, root)
       call forest_init(nLinks, nNodes, toNodes, lowBound, roots, fromNodes=fromNodes, perm=permNodes)
+     ! call write_tree(roots(1), lowBound)
       deallocate(toNodes, permNodes, fromNodes)
 
       ! ToDo: that's possibly too much, but maybe more efficient than reallocating?
@@ -180,7 +181,7 @@ CONTAINS
       call decompose(lowBound, roots, subtrees(:), nSubtrees)
 
       ! call write_domain_decomposition(root)
-      allocate(STmeta(nSubtrees), permNodes(nNodes), toNodes(nNodes), schedule(nproc-1))
+      allocate(STmeta(nSubtrees), schedule(nproc-1))
       ! create schedule:
       ! to each process in the array schedule the number of trees, the
       ! indices of the trees and the over all size is assigned
@@ -194,7 +195,7 @@ CONTAINS
       ! with array, so everything gets written into a nice array in
       ! routing order. Therefore we need a permutation array permNodes
       ! which is at the same time fromNodes, and a toNode array
-      call init_subtree_metadata(iBasin, subtrees(:), STmeta, permNodes, toNodes)
+      call init_subtree_metadata(iBasin, nNodes, subtrees(:), STmeta, permNodes, toNodes)
 
       ! sends the meta data from master process to all the others
       call distribute_subtree_meta(iBasin, nproc, comm, nSubtrees, STmeta, toNodes, schedule, subtrees(:))
@@ -213,7 +214,7 @@ CONTAINS
      ! write(*,*) nproc, timer_get(itimer), nSubtrees, lowBound
      ! call timer_clear(itimer)
      ! end do
-     ! call write_forest_with_array(roots, lowBound,testarray)
+    !  call write_forest_with_array(roots, lowBound,testarray)
 
       call schedule_destroy(schedule)
       deallocate(STmeta)
@@ -331,7 +332,7 @@ CONTAINS
       iStart = STmeta(kk)%iStart
       iEnd   = STmeta(kk)%iEnd
       sizST  = iEnd - iStart + 1
-     ! write(*,*) sizST
+   !   write(*,*) '---------------------------',sizST, iStart, iEnd, STmeta(kk)%nIn
       call tree_init(sizST-1, sizST, toNodes(iStart:iEnd), lowBound, subtrees(kk))
      ! call write_subtree(subtrees(kk), lowBound)
     end do
