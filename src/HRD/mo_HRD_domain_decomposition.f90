@@ -36,7 +36,7 @@ MODULE mo_HRD_domain_decomposition
   use mo_HRD_schedule, only: create_schedule, create_schedule_hu, schedule_destroy
 
   use mo_HRD_subtree_meta, only: init_subtree_metadata, distribute_subtree_meta, &
-                                 get_subtree_meta, init_subtree_buffer, destroy_subtree_buffer
+                                 get_subtree_meta, destroy_subtree_meta
   use mo_HRD_MPI_array_communication, only: distribute_array, collect_array, &
                                  get_array, send_array
 
@@ -113,7 +113,6 @@ CONTAINS
                                                                             ! lowBound tree nodes
     integer(i4)                                      :: ind                 ! index of link/edge for subdomain
     type(ptrTreeNode),     dimension(:), allocatable :: roots               ! the root node of the tree structure
-    type(ptrTreeNode)                                :: root                ! the root node of the tree structure
     type(ptrTreeNode),     dimension(:), allocatable :: trees               ! the array of all nodes of the trees
     type(ptrTreeNode),     dimension(:), allocatable :: inTrees             ! the array of halo leaves
     type(ptrTreeNode),     dimension(:), allocatable :: subtrees            ! the array of
@@ -124,7 +123,6 @@ CONTAINS
     integer(i4)                                      :: nSubtrees           ! number of subtrees in treedecomposition
 
     type(subtreeMeta),     dimension(:), allocatable :: STmeta
-    type(subtreeBuffer),   dimension(:), allocatable :: STbuffer
     integer(i4),           dimension(:), allocatable :: permNodes           ! in-Nodes in routing order corresponding
     integer(i4),           dimension(:), allocatable :: toNodes             ! out-Nodes of corresponding (in-)Nodes
                                                                             ! to decomposition
@@ -237,7 +235,6 @@ CONTAINS
       ! individual subtrees from the master process
       call get_subtree_meta(iBasin, comm, STmeta, toNodes, toInNodes, inInds)
       call subtree_init(lowBound, bufferLength, STmeta, toNodes, toInNodes, subtrees, trees, inTrees)
-      call init_subtree_buffer(STmeta, bufferLength, STbuffer)
       ! - receives data corresponding to an array and assigned
       !   subtrees
       ! - receive input data from connected subtrees
@@ -248,17 +245,17 @@ CONTAINS
     !  do kk=1,1
       call subtree_routing(iBasin, nproc, rank, comm, bufferLength, subtrees, STmeta, inInds,&
                                                                     trees, inTrees, &
-                                                                    STbuffer, testarray)
+                                                                    testarray)
     !  end do
     !  end do
-      call destroy_subtree_buffer(STbuffer)
       do kk = 1, size(subtrees)
         call tree_destroy(subtrees(kk))
       end do
       deallocate(subtrees, trees, inTrees)
       ! ToDo: deallocating might be nicer on the same level, so
       ! either outside or an extra subroutine?
-      deallocate(STmeta, inInds, toNodes, toInNodes)
+      call destroy_subtree_meta(STmeta)
+      deallocate(inInds, toNodes, toInNodes)
     endif
   !  end do
   !  end do
@@ -289,7 +286,7 @@ CONTAINS
     type(processSchedule), dimension(:), intent(in)    :: schedule
     integer(i4),           dimension(:), intent(inout) :: array
     ! local
-    integer(i4)                            :: kk,iproc,next,ind, indST
+    integer(i4)                            :: kk, iproc, next, indST
     integer(i4), dimension(bufferLength+1) :: buffer
     integer(i4)                            :: ierror
     type(MPI_Status)                       :: status
@@ -300,28 +297,87 @@ CONTAINS
       ! for each subtree the master process 0 gets the data of
       ! the root tree node
       call MPI_Recv(buffer, bufferLength+1, MPI_INTEGER, MPI_ANY_SOURCE, 0, comm, status, ierror)
-      indST = buffer(bufferLength+1)
+      indST = buffer(1)
       ! if the root node of the subtree has a parent
       if (associated(subtrees(indST)%tN%post%tN)) then
         ! next becomes the index of the parent subtree root node (the subtree
         ! that gets data)
         next = subtrees(indST)%tN%ST%postST%tN%ST%indST
-
-        ! ind becomes the index of the parent of the root node (the tree node
-        ! in the subtree that gets data, note: there is an offset)
-        ind = subtrees(indST)%tN%post%tN%ind
         ! iproc is the process the parent subtree is assigned to
         iproc = subtrees(next)%tN%ST%sched(1)
-        ! the index, where the value will be added to (we remove the offset)
-        buffer(bufferLength+1) = indST
-        call MPI_Send(buffer, bufferLength+1, MPI_INTEGER, iproc, next, comm, ierror)
-        ! write(*,*) 'master sent', buffer(1), 'to process',iproc,'tree',next !, 'ind_diff', ind-STmeta(next)%iStart
+        call MPI_Send(buffer(2:bufferLength+1), bufferLength, MPI_INTEGER, iproc, indST, comm, ierror)
       end if
     end do
 
     array(:) = 0
     call collect_array(iBasin, nproc, rank, comm, nSubtrees, STmeta, permNodes, schedule, array)
   end subroutine
+
+  ! - receives data corresponding to an array and assigned
+  !   subtrees
+  ! - receive input data from connected subtrees
+  ! - processes data
+  ! - sends root data to master
+  ! - send data to master
+  subroutine subtree_routing(iBasin, nproc, rank, comm, bufferLength, subtrees, STmeta, inInds, trees, &
+                                                                         inTrees, array)
+    implicit none
+    integer(i4),                                    intent(in)    :: iBasin
+    integer(i4),                                    intent(in)    :: nproc
+    integer(i4),                                    intent(in)    :: rank
+    type(MPI_Comm),                                 intent(in)    :: comm
+    integer(i4),                                    intent(in)    :: bufferLength
+    type(ptrTreeNode),   dimension(:),              intent(inout) :: subtrees ! the array of
+    type(subtreeMeta),   dimension(:),              intent(inout) :: STmeta
+    integer(i4),         dimension(:),              intent(in)    :: inInds
+    type(ptrTreeNode),   dimension(:),              intent(inout) :: trees
+    type(ptrTreeNode),   dimension(:),              intent(inout) :: inTrees
+    integer(i4),         dimension(:), allocatable, intent(inout) :: array
+    ! local
+    integer(i4)                                    :: nST ! number of subtrees scheduled
+                                                          ! on this computational node
+    integer(i4)                                    :: kk, jj, ii, nIn
+    integer(i4)                                    :: ierror
+
+    call get_array(iBasin, nproc, rank, comm, STmeta, array)
+    call tree_init_values_with_array(array, trees)
+
+    ! number of subtrees assigned to that process
+    nST = size(STmeta)
+    do kk = 1, nST
+      do jj = 1, STmeta(kk)%nIn
+        ii = jj + STmeta(kk)%iInStart - 1
+        ! for every subtree for every leave, where data comes in, receive this
+        ! data. Via inInds(ii) we write the right incoming data to the
+        ! matching buffer.
+        call MPI_IRecv(inTrees(ii)%tN%values%buffer(2:bufferLength+1), bufferLength, &
+                                         MPI_INTEGER, 0, inInds(ii), comm, STmeta(kk)%requests(jj), ierror)
+      end do
+    end do
+    ! now we run over the subtrees on the computing node in routing order
+    do kk = 1, nST
+      nIn = STmeta(kk)%nIn
+      do jj = 1, nIn
+        ! we can start calculations in that subtree, when all its inflows are
+        ! reveived
+        call MPI_Wait(STmeta(kk)%requests(jj), STmeta(kk)%statuses(jj), ierror)
+      end do
+      !!$OMP parallel num_threads(jj) private(rank) shared(testarray)
+      !$OMP parallel private(rank) shared(array,subtrees)
+      !$OMP single
+      call nodeinternal_routing(bufferLength, subtrees(kk))
+      !$OMP end single
+      !$OMP barrier
+      !$OMP end parallel
+      subtrees(kk)%tN%values%buffer(1) = STmeta(kk)%indST
+      ! send the outflow to the master process
+      call MPI_Send(subtrees(kk)%tN%values%buffer, bufferLength+1, MPI_INTEGER, 0, 0, comm, ierror)
+    end do
+
+    call tree_write_values_to_array(trees, bufferLength, array)
+    call send_array(iBasin, nproc, rank, comm, STmeta, array)
+    deallocate(array)
+  end subroutine subtree_routing
 
   subroutine subtree_init(lowBound, bufferLength, STmeta, toNodes, toInNodes, subtrees, trees, inTrees)
     implicit none
@@ -360,87 +416,12 @@ CONTAINS
     
   end subroutine subtree_init
 
-  ! - receives data corresponding to an array and assigned
-  !   subtrees
-  ! - receive input data from connected subtrees
-  ! - processes data
-  ! - sends root data to master
-  ! - send data to master
-  subroutine subtree_routing(iBasin, nproc, rank, comm, bufferLength, subtrees, STmeta, inInds, trees, &
-                                                                         inTrees, STbuffer, array)
-    implicit none
-    integer(i4),                                    intent(in)    :: iBasin
-    integer(i4),                                    intent(in)    :: nproc
-    integer(i4),                                    intent(in)    :: rank
-    type(MPI_Comm),                                 intent(in)    :: comm
-    integer(i4),                                    intent(in)    :: bufferLength
-    type(ptrTreeNode),   dimension(:),              intent(inout) :: subtrees ! the array of
-    type(subtreeMeta),   dimension(:),              intent(in)    :: STmeta
-    integer(i4),         dimension(:),              intent(in)    :: inInds
-    type(ptrTreeNode),   dimension(:),              intent(inout) :: trees
-    type(ptrTreeNode),   dimension(:),              intent(inout) :: inTrees
-    type(subtreeBuffer), dimension(:),              intent(inout) :: STbuffer
-    integer(i4),         dimension(:), allocatable, intent(inout) :: array
-    ! local
-    integer(i4)                                    :: nST, prevIndST ! number of subtrees scheduled
-                                                          ! on this computational node
-    integer(i4)                                    :: kk,jj,next,iStart,iEnd, ii, i, nIn, iInStart
-    integer(i4)                                    :: ierror
-
-    call get_array(iBasin, nproc, rank, comm, STmeta, array)
-    call tree_init_values_with_array(array, trees)
-
-    ! number of subtrees assigned to that process
-    nST = size(STmeta)
-    do kk = 1, nST
-      do jj = 1, STmeta(kk)%nIn
-        ! for every subtree for every leave, where data comes in, receive this
-        ! data. Via STmeta(kk)%indST we write the right incoming data to the
-        ! matching buffer. In the last entry of the buffer the index of the
-        ! leaves is trasmitted, where the data goes into
-        call MPI_IRecv(STbuffer(kk)%buffer(:,jj), bufferLength+1, MPI_INTEGER, 0, STmeta(kk)%indST, comm, STbuffer(kk)%requests(jj), ierror)
-      end do
-    end do
-    ! now we run over the subtrees on the computing node in routing order
-    do kk = 1, nST
-      nIn = STmeta(kk)%nIn
-      do jj = 1, nIn
-        ! we can start calculations in that subtree, when als its inflows are
-        ! reveived
-        call MPI_Wait(STbuffer(kk)%requests(jj), STbuffer(kk)%statuses(jj), ierror)
-      !   write(*,*) 'process', rank, 'tree', STmeta(kk)%indST
-        prevIndST = STbuffer(kk)%buffer(bufferLength+1, jj)
-        do ii = STmeta(kk)%iInStart, STmeta(kk)%iInEnd
-          if (prevIndST == inInds(ii)) then
-            inTrees(ii)%tN%values%buffer(2:bufferLength+1) = STbuffer(kk)%buffer(1:bufferLength,jj)
-          end if
-        end do
-      end do
-      !!$OMP parallel num_threads(jj) private(rank) shared(testarray)
-      !$OMP parallel private(rank) shared(array,subtrees)
-      !$OMP single
-      call nodeinternal_routing(bufferLength, subtrees(kk))
-      !$OMP end single
-      !$OMP barrier
-      !$OMP end parallel
-      STbuffer(kk)%buffer(1:bufferLength, STmeta(kk)%nIn+1) = subtrees(kk)%tN%values%buffer(2:bufferLength+1)
-      STbuffer(kk)%buffer(bufferLength+1, STmeta(kk)%nIn+1) = STmeta(kk)%indST
-      ! send the outflow to the master process
-      call MPI_Send(STbuffer(kk)%buffer(:, STmeta(kk)%nIn+1), bufferLength+1, MPI_INTEGER, 0, 0, comm, ierror)
-    end do
-
-    call tree_write_values_to_array(trees, bufferLength, array)
-    call send_array(iBasin, nproc, rank, comm, STmeta, array)
-    deallocate(array)
-  end subroutine subtree_routing
-
   subroutine nodeinternal_routing_toarray(toNodes, array)
     implicit none
     integer(i4),       dimension(:),              intent(in)    :: toNodes
     integer(i4),       dimension(:),              intent(inout) :: array
     ! local
     integer(i4) :: jj
-    integer(i4) :: ii
 
     do jj = 1, size(toNodes)-1
       array(toNodes(jj)) = array(toNodes(jj)) + array(jj)
@@ -453,7 +434,7 @@ CONTAINS
     integer(i4),       dimension(:),              intent(inout) :: array
     ! local
     integer(i4) :: jj
-    integer(i4) :: ii, ithread
+    integer(i4) :: ithread
     integer(i4) :: tNode
 
     do jj = 1, root%tN%Nprae
@@ -482,7 +463,6 @@ CONTAINS
     ! local
     integer(i4) :: jj
     integer(i4) :: ii, ithread
-    integer(i4) :: tNode
 
     do jj = 1, root%tN%Nprae
       !$OMP task shared(root,array)
@@ -581,8 +561,6 @@ CONTAINS
     integer(i4)                                  :: i            ! index of edge in routing order
     integer(i4)                                  :: iNode, tNode ! in and to tree node of corresponding edge
     integer(i4)                                  :: nLinks       ! number of edges
-    type(ptrTreeNode), dimension(:), allocatable :: tree
-    integer(i4),       dimension(:), allocatable :: Nprae
 
     nLinks = level11(iBasin)%ncells - 1
     ! ToDo: Why is nLinks != size(L11_netPerm(:))? For trees it is m=n-1

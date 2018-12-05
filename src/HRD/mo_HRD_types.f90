@@ -85,19 +85,20 @@ MODULE mo_HRD_types
   end type treeNodeBuffer
 
   type subtreeMeta
-     integer(i4)        :: indST
-     integer(i4)        :: iStart
-     integer(i4)        :: iEnd
-     integer(i4)        :: sizST
-     integer(i4)        :: iInStart
-     integer(i4)        :: iInEnd
-     integer(i4)        :: nIn
+    integer(i4)        :: indST
+    integer(i4)        :: iStart
+    integer(i4)        :: iEnd
+    integer(i4)        :: sizST
+    integer(i4)        :: iInStart
+    integer(i4)        :: iInEnd
+    integer(i4)        :: nIn
+    type(MPI_Status),  dimension(:),   allocatable :: statuses
+    type(MPI_Request), dimension(:),   allocatable :: requests
   end type subtreeMeta
 
   type subtreeBuffer
     type(MPI_Status),  dimension(:),   allocatable :: statuses
     type(MPI_Request), dimension(:),   allocatable :: requests
-    integer(i4),       dimension(:,:), allocatable :: buffer
   end type subtreeBuffer
 
   type processSchedule
