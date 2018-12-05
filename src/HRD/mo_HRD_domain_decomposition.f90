@@ -100,8 +100,8 @@ CONTAINS
   !         Modified, June 2018 - Maren Kaluza, start of implementation
 
   subroutine domain_decomposition()
- ! USE mo_timer, ONLY : &
- !         timers_init, timer_start, timer_stop, timer_get, timer_clear  ! Timing of processes
+!  USE mo_timer, ONLY : &
+!          timers_init, timer_start, timer_stop, timer_get, timer_clear  ! Timing of processes
     implicit none
     ! input variables
 
@@ -155,8 +155,8 @@ CONTAINS
     call MPI_Comm_size(comm, nproc, ierror)
     ! find the number the process is referred to, called rank
     call MPI_Comm_rank(comm, rank, ierror)
-  !  do lowBound = 10,210,20
-  !  do nproc = 2,6,2!96,2
+  !  do lowBound = 2,10,1!10,210,20
+  !  do nproc = 2,20,2!2,6,2!96,2
     bufferLength = 2
     if (rank .eq. 0) then
       write(*,*) 'the domain decomposition with mRM gets implemented now...'
@@ -209,16 +209,16 @@ CONTAINS
       ! - collects processed data from roots from subtrees and sends this
       !   data to corresponding leaves in connected subtrees
       ! - collects the data in the end
-      iTimer = 26
+    !  iTimer = 26
      ! do ll = 1, 10
-     ! call timer_start(itimer)
-     ! do kk = 1, 1
+    !  call timer_start(itimer)
+    !  do kk = 1, 100
       call routing(iBasin, nproc, rank, comm, bufferLength, subtrees(:), nSubtrees, STmeta, permNodes, schedule, testarray)
-     ! end do
-     ! call timer_stop(itimer)
-     ! write(*,*) timer_get(itimer), 'seconds.', nSubtrees, 'subtrees, lowBound:', lowBound
-     ! write(*,*) nproc, timer_get(itimer), nSubtrees, lowBound
-     ! call timer_clear(itimer)
+    !  end do
+    !  call timer_stop(itimer)
+    !  write(*,*) timer_get(itimer), 'seconds.', nSubtrees, 'subtrees, lowBound:', lowBound
+    !  write(*,*) nproc, timer_get(itimer), nSubtrees, lowBound
+    !  call timer_clear(itimer)
      ! end do
       call write_forest_with_array(roots, lowBound,testarray)
 
@@ -242,7 +242,7 @@ CONTAINS
       ! - sends root data to master
       ! - send data to master
     !  do ll=1,10
-    !  do kk=1,1
+    !  do kk=1,100
       call subtree_routing(iBasin, nproc, rank, comm, bufferLength, subtrees, STmeta, inInds,&
                                                                     trees, inTrees, &
                                                                     testarray)
@@ -257,8 +257,8 @@ CONTAINS
       call destroy_subtree_meta(STmeta)
       deallocate(inInds, toNodes, toInNodes)
     endif
-  !  end do
-  !  end do
+   ! end do
+   ! end do
 #else
     if (rank .eq. 0) then
       write(*,*) 'the domain decomposition without mRM is not implemented yet'
@@ -363,7 +363,7 @@ CONTAINS
         call MPI_Wait(STmeta(kk)%requests(jj), STmeta(kk)%statuses(jj), ierror)
       end do
       !!$OMP parallel num_threads(jj) private(rank) shared(testarray)
-      !$OMP parallel private(rank) shared(array,subtrees)
+      !$OMP parallel private(rank) shared(subtrees)
       !$OMP single
       call nodeinternal_routing(bufferLength, subtrees(kk))
       !$OMP end single
@@ -445,14 +445,12 @@ CONTAINS
     !$OMP taskwait
     if (associated(root%tN%post%tN)) then
       tNode = root%tN%post%tN%origind
-      !$OMP critical
      ! !$ ithread=omp_get_thread_num()
      ! !$ write(*,*) ithread
       ! ToDo: workaround
       if (root%tN%origind <= size(array)) then
       array(tNode) = array(tNode) + array(root%tN%origind)
       end if
-      !$OMP end critical
     end if
   end subroutine nodeinternal_routing_array
 
@@ -465,7 +463,7 @@ CONTAINS
     integer(i4) :: ii, ithread
 
     do jj = 1, root%tN%Nprae
-      !$OMP task shared(root,array)
+      !$OMP task shared(root)
       call nodeinternal_routing(bufferLength, root%tN%prae(jj))
       !$OMP end task
     end do
@@ -476,13 +474,11 @@ CONTAINS
       else if (root%tN%Nprae > 0) then
        ! !$ ithread=omp_get_thread_num()
        ! !$ write(*,*) ithread
-        !$OMP critical
         do ii = 1, root%tN%Nprae
           root%tN%values%buffer(1) = root%tN%values%buffer(1) + &
                                         root%tN%prae(ii)%tN%values%buffer(jj+1)
         end do
         root%tN%values%buffer(jj+1) = root%tN%values%buffer(1)
-        !$OMP end critical
       end if
     end do
   end subroutine nodeinternal_routing
