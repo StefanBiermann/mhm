@@ -68,6 +68,7 @@ CONTAINS
     do kk=1,nproc-1
        schedule(kk)%nTrees=0
        schedule(kk)%overallSize=0
+       schedule(kk)%overallInSize=0
        allocate(schedule(kk)%trees(nSubtrees))
        schedule(kk)%trees(:)=0
     end do
@@ -106,8 +107,9 @@ CONTAINS
        !           schedule(iproc)%overallSize+element%content%tN%ST%sizST
           schedule(iproc)%trees(islot)=iSubtree
           schedule(iproc)%overallSize= &
-                  schedule(iproc)%overallSize+newSubtrees(iSubtree)%tN%ST%sizST &
-                                             +size(newSubtrees(iSubtree)%tN%ST%praeST)
+                  schedule(iproc)%overallSize+newSubtrees(iSubtree)%tN%ST%sizST
+          schedule(iproc)%overallInSize= &
+                  schedule(iproc)%overallInSize+size(newSubtrees(iSubtree)%tN%ST%praeST)
           iSubtree=iSubtree+1
           ! write schedule to tree
           element%content%tN%ST%sched(1)=iproc

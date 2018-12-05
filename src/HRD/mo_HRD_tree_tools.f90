@@ -12,7 +12,8 @@ MODULE mo_HRD_tree_tools
 
   IMPLICIT NONE
 
-  public :: find_sizUp_of_node, find_revLevel_of_node, update_sizes, write_tree_to_array
+  public :: find_sizUp_of_node, find_revLevel_of_node, update_sizes, write_tree_to_array, &
+  tree_init_values_with_array, tree_write_values_to_array
             
 
   private
@@ -91,6 +92,31 @@ CONTAINS
        call update_sizes(redSize,subtree%tN%post)
     end if
   end subroutine update_sizes
+
+  subroutine tree_init_values_with_array(array, trees)
+    implicit none
+    integer(i4),         dimension(:), intent(in)    :: array
+    type(ptrTreeNode),   dimension(:), intent(inout) :: trees
+    ! local
+    integer(i4) :: kk
+
+    do kk = 1, size(array)
+      trees(kk)%tN%values%buffer(1) = array(kk)
+    end do
+  end subroutine tree_init_values_with_array
+
+  subroutine tree_write_values_to_array(trees, bufferLength, array)
+    implicit none
+    type(ptrTreeNode),   dimension(:), intent(in)    :: trees
+    integer(i4),                       intent(in)    :: bufferLength
+    integer(i4),         dimension(:), intent(inout) :: array
+    ! local
+    integer(i4) :: kk
+
+    do kk = 1, size(array)
+      array(kk) = trees(kk)%tN%values%buffer(bufferLength+1)
+    end do
+  end subroutine tree_write_values_to_array
 
   ! gets the root node of a tree, after tree decomposition.
   ! Nprae then corresponds to the cut of subtree.

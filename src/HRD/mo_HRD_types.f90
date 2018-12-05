@@ -11,7 +11,7 @@ MODULE mo_HRD_types
 
   IMPLICIT NONE
 
-  public :: ptrTreeNode, treeNode, subtreeMeta, subtreeBuffer, processSchedule
+  public :: ptrTreeNode, treeNode, subtreeMeta, subtreeBuffer, processSchedule, treeNodeBuffer
 
   private
   
@@ -43,6 +43,7 @@ MODULE mo_HRD_types
   type treeNode
     integer(i4)                                :: origind   ! index in node in original array
     integer(i4)                                :: ind       ! index in node in routing ordered array
+    type(treeNodeBuffer), pointer              :: values    ! a buffer that holds the values associated to that node
 
     type(ptrTreeNode)                          :: post      ! node downstream,
                                                             ! parent
@@ -61,6 +62,8 @@ MODULE mo_HRD_types
     integer(i4)                                :: level     ! distance to root
     integer(i4)                                :: revLevel  ! distance from farthest leave
 
+    logical                                    :: isIn      ! true if this is a halo leaf
+
   end type treeNode
 
   type subtreeNode
@@ -77,10 +80,17 @@ MODULE mo_HRD_types
                                                             ! component 2: time slot
   end type subtreeNode
 
+  type treeNodeBuffer
+     integer(i4),   dimension(:), allocatable  :: buffer
+  end type treeNodeBuffer
+
   type subtreeMeta
+     integer(i4)        :: indST
      integer(i4)        :: iStart
      integer(i4)        :: iEnd
-     integer(i4)        :: indST
+     integer(i4)        :: sizST
+     integer(i4)        :: iInStart
+     integer(i4)        :: iInEnd
      integer(i4)        :: nIn
   end type subtreeMeta
 
@@ -94,5 +104,6 @@ MODULE mo_HRD_types
      integer(i4)                                :: nTrees
      integer(i4), dimension(:), allocatable     :: trees
      integer(i4)                                :: overallSize
+     integer(i4)                                :: overallInSize ! number of all halo nodes
   end type processSchedule
 END MODULE mo_HRD_types

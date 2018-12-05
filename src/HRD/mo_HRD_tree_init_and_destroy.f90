@@ -13,7 +13,7 @@ MODULE mo_HRD_tree_init_and_destroy
 
   IMPLICIT NONE
 
-  public :: tree_init, tree_init_global, tree_destroy, forest_init, forest_destroy
+  public :: tree_init, tree_init_global, tree_destroy, forest_init, forest_destroy, tree_init_buffer
             
 
   private
@@ -124,7 +124,24 @@ CONTAINS
    deallocate(tree,Nprae)
   end subroutine tree_init_global
 
-  subroutine tree_init(nLinks,nNodes,toNodes,lowBound,root,fromNodes,perm)
+  recursive subroutine tree_init_buffer(bufferLength, root)
+    implicit none
+    integer(i4),                                  intent(in)    :: bufferLength
+    type(ptrTreeNode),                            intent(inout) :: root
+    ! local variables
+    integer(i4) :: kk ! loop variable to run over all tree nodes
+    integer(i4) :: NChildren
+    
+    allocate(root%tN%values)
+    allocate(root%tN%values%buffer(bufferLength+1))
+    root%tN%values%buffer(:) = 0
+    NChildren=size(root%tN%prae)
+    do kk = 1, NChildren
+       call tree_init_buffer(bufferLength, root%tN%prae(kk))
+    end do
+  end subroutine tree_init_buffer
+
+  subroutine tree_init(nLinks,nNodes,toNodes,lowBound,root,fromNodes,perm,toInNodes,tree,inTree)
     implicit none
     integer(i4),                                  intent(in)    :: nLinks
     integer(i4),                                  intent(in)    :: nNodes
@@ -133,49 +150,74 @@ CONTAINS
     type(ptrTreeNode),                            intent(inout) :: root
     integer(i4),       dimension(:), optional,    intent(in)    :: fromNodes
     integer(i4),       dimension(:), optional,    intent(in)    :: perm
+    integer(i4),       dimension(:), optional,    intent(in)    :: toInNodes
+    type(ptrTreeNode), dimension(:), optional,    intent(inout) :: tree
+    type(ptrTreeNode), dimension(:), optional,    intent(inout) :: inTree
     ! local parameters
     type(ptrTreeNode), dimension(:), allocatable :: roots
 
     
-    call forest_init(nLinks,nNodes,toNodes,lowBound,roots,fromNodes,perm)
+    call forest_init(nLinks,nNodes,toNodes,lowBound,roots,fromNodes=fromNodes,perm=perm,&
+                                                          toInNodes=toInNodes,tree=tree,inTree=inTree)
     root%tN => roots(1)%tN
     deallocate(roots)
   end subroutine tree_init
 
-  subroutine forest_init(nLinks,nNodes,toNodes,lowBound,roots,fromNodes,perm)
+  subroutine forest_init(nLinks,nNodes,toNodes,lowBound,roots,fromNodes,perm,toInNodes,tree,inTree)
     implicit none
-    integer(i4),                                  intent(in)    :: nLinks
-    integer(i4),                                  intent(in)    :: nNodes
-    integer(i4),       dimension(:),              intent(in)    :: toNodes
-    integer(i4),                                  intent(in)    :: lowBound
-    type(ptrTreeNode), dimension(:), allocatable, intent(inout) :: roots
-    integer(i4),       dimension(:), optional,    intent(in)    :: fromNodes
-    integer(i4),       dimension(:), optional,    intent(in)    :: perm
+    integer(i4),                                            intent(in)    :: nLinks
+    integer(i4),                                            intent(in)    :: nNodes
+    integer(i4),       dimension(:),                        intent(in)    :: toNodes
+    integer(i4),                                            intent(in)    :: lowBound
+    type(ptrTreeNode), dimension(:), allocatable,           intent(inout) :: roots
+    integer(i4),       dimension(:),              optional, intent(in)    :: fromNodes
+    integer(i4),       dimension(:),              optional, intent(in)    :: perm
+    integer(i4),       dimension(:),              optional, intent(in)    :: toInNodes
+    type(ptrTreeNode), dimension(:),              optional, intent(inout) :: tree
+    type(ptrTreeNode), dimension(:),              optional, intent(inout) :: inTree
 
     ! local variables
     integer(i4) :: kk ! loop variable to run over all edges/links
     integer(i4) :: i ! index of edge in routing order
+    integer(i4) :: nIn
     integer(i4) :: iNode, tNode ! in and to tree node of corresponding edge
-    type(ptrTreeNode), dimension(:), allocatable :: tree
+    type(ptrTreeNode), dimension(:), allocatable :: forest
     integer(i4), dimension(:), allocatable :: Nprae
+    integer(i4), dimension(:), allocatable :: fromInNodes
 
-    allocate(tree(nNodes),Nprae(nNodes))
-    do kk = 1, nNodes
+    if (present(toInNodes)) then
+       nIn = size(toInNodes)
+    else
+       nIn = 0
+    end if
+    allocate(forest(nNodes+nIn),Nprae(nNodes+nIn))
+    do kk = 1, nNodes+nIn
        Nprae(kk)=0
     end do
     ! for every edge the tree node where it points to
     ! gets another child count
     call count_children(nLinks,toNodes,Nprae,perm=perm)
+    if (present(toInNodes)) then
+      call count_children(nIn,toInNodes,Nprae)
+    end if
     ! allocate array for children, initialize tree node
-    do kk = 1, nNodes
-       call treenode_init(Nprae(kk),kk,tree(kk))
+    do kk = 1, nNodes+nIn
+       call treenode_init(Nprae(kk),kk,forest(kk))
     end do
     ! assign the pointers of the children and the parent
     ! use the array of number of children:
     ! if a child is assigned, reduce the number by one
-    call set_edges(nLinks,nNodes,toNodes,tree,Nprae,fromNodes=fromNodes,perm=perm)
+    call set_edges(nLinks,nNodes,toNodes,forest,Nprae,fromNodes=fromNodes,perm=perm)
+    if (present(toInNodes)) then
+       allocate(fromInNodes(nIn))
+       do kk = 1, nIn
+          fromInNodes(kk) = nNodes + kk
+       end do
+       call set_edges(nIn,nIn,toInNodes,forest,Nprae,fromNodes=fromInNodes)
+       deallocate(fromInNodes)
+    end if
     ! set level
-    call set_level(nLinks,tree,fromNodes=fromNodes,perm=perm)
+    call set_level(nLinks,forest,fromNodes=fromNodes,perm=perm)
     ! assign size of smallest subtree greater lowBound to each tree node
     ! assign farthest distant to a leave
     do kk = 1, nLinks
@@ -189,19 +231,29 @@ CONTAINS
        ! it fails
        ! this subroutine also considers sizUp of each child to
        ! be initialized with 1
-       call find_sizUp_of_node(tree(tNode),lowBound)
-       call find_revLevel_of_node(tree(tNode))
+       call find_sizUp_of_node(forest(tNode),lowBound)
+       call find_revLevel_of_node(forest(tNode))
     end do
     ! find root nodes
     allocate(roots(nNodes-nLinks))
     i=1
     do kk = 1, nNodes
-       if (.not. associated(tree(kk)%tN%post%tN)) then
-          roots(i)%tN => tree(kk)%tN
+       if (.not. associated(forest(kk)%tN%post%tN)) then
+          roots(i)%tN => forest(kk)%tN
           i=i+1
        end if
     end do
-    deallocate(tree,Nprae)
+    if (present(tree)) then
+       do kk = 1, nNodes
+          tree(kk)%tN => forest(kk)%tN
+       end do
+    end if
+    if (present(inTree)) then
+       do kk = nNodes+1, nNodes+nIn
+          inTree(kk-nNodes)%tN => forest(kk)%tN
+       end do
+    end if
+    deallocate(forest,Nprae)
   end subroutine forest_init
 
   subroutine treenode_init(Nprae,kk,treenode)
@@ -220,6 +272,7 @@ CONTAINS
     end do
     treenode%tN%siz=1
     treenode%tN%sizOrig=1
+    treenode%tN%values=>null()
     treenode%tN%sizUp=1
     treenode%tN%origind=kk
     treenode%tN%ind=0
@@ -228,6 +281,7 @@ CONTAINS
     treenode%tN%level=0
     treenode%tN%revLevel=0
     treenode%tN%ST=>null()
+    treenode%tN%isIn=.false.
   end subroutine treenode_init
 
   subroutine set_level(nLinks,tree,fromNodes,perm)
