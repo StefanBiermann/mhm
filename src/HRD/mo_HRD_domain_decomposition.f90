@@ -29,7 +29,8 @@ MODULE mo_HRD_domain_decomposition
   use mo_HRD_tree_init_and_destroy, only: tree_init_global, tree_init, tree_destroy, &
                                           forest_init, forest_destroy, tree_init_buffer
 
-  use mo_HRD_tree_tools, only: tree_init_values_with_array, tree_write_values_to_array
+  use mo_HRD_tree_tools, only: tree_init_values_with_array, tree_write_values_to_array, &
+                                        reset_treesizes
 
   use mo_HRD_decompose, only: decompose
 
@@ -111,12 +112,17 @@ CONTAINS
     integer(i4)                                      :: iBasin
     integer(i4)                                      :: lowBound            ! a subdomain should include at least
                                                                             ! lowBound tree nodes
+    integer(i4)                                      :: lowBoundOMP         ! a subdomain is again decomposed for OpenMP
+                                                                            ! and should the subtrees should include at least
+                                                                            ! lowBoundOMP tree nodes
     integer(i4)                                      :: ind                 ! index of link/edge for subdomain
     type(ptrTreeNode),     dimension(:), allocatable :: roots               ! the root node of the tree structure
     type(ptrTreeNode),     dimension(:), allocatable :: trees               ! the array of all nodes of the trees
     type(ptrTreeNode),     dimension(:), allocatable :: inTrees             ! the array of halo leaves
     type(ptrTreeNode),     dimension(:), allocatable :: subtrees            ! the array of
                                                                             ! subtrees in routing order
+    type(ptrTreeNode),     dimension(:), allocatable :: subtreesDecompos    ! the array of
+                                                                            ! subsubtrees for OpenMP in routing order
     integer(i4)                                      :: nNodes              ! the number of forest nodes in the original forest
     integer(i4)                                      :: nLinks              ! the number of edges in the forest
     integer(i4)                                      :: nBasins             ! nBasins
@@ -167,7 +173,7 @@ CONTAINS
       call get_L11_information(iBasin, nLinks, nNodes, toNodes, fromNodes, permNodes)
       call init_testarray(nNodes-1, testarray)
 
-      lowBound = 3
+      lowBound = 34
       ! In this subroutine the tree structure gets initialized for
       ! the flownetwork of the iBasin-th basin.
       ! In each tree node the size of the smallest subtree
@@ -220,7 +226,7 @@ CONTAINS
     !  write(*,*) nproc, timer_get(itimer), nSubtrees, lowBound
     !  call timer_clear(itimer)
      ! end do
-      call write_forest_with_array(roots, lowBound,testarray)
+     ! call write_forest_with_array(roots, lowBound,testarray)
 
       call schedule_destroy(schedule)
       deallocate(STmeta)
@@ -230,11 +236,14 @@ CONTAINS
 
       call destroy_testarray(testarray)
     else if (rank < nproc) then
-      ! lowBound=3
+      lowBoundOMP = 3
       ! all other processes receive meta data for their
       ! individual subtrees from the master process
       call get_subtree_meta(iBasin, comm, STmeta, toNodes, toInNodes, inInds)
-      call subtree_init(lowBound, bufferLength, STmeta, toNodes, toInNodes, subtrees, trees, inTrees)
+      call subtree_init(lowBoundOMP, bufferLength, STmeta, toNodes, toInNodes, subtrees, trees, inTrees)
+      allocate(subtreesDecompos(size(toNodes)+size(toInNodes)))
+      call decompose(lowBoundOMP, subtrees, subtreesDecompos, nSubtrees)
+     ! write(0,*) '#############', nSubtrees
       ! - receives data corresponding to an array and assigned
       !   subtrees
       ! - receive input data from connected subtrees
@@ -244,13 +253,13 @@ CONTAINS
     !  do ll=1,10
     !  do kk=1,100
       call subtree_routing(iBasin, nproc, rank, comm, bufferLength, subtrees, STmeta, inInds,&
-                                                                    trees, inTrees, &
-                                                                    testarray)
+                                                                    trees, inTrees, testarray)
     !  end do
     !  end do
       do kk = 1, size(subtrees)
         call tree_destroy(subtrees(kk))
       end do
+      deallocate(subtreesDecompos)
       deallocate(subtrees, trees, inTrees)
       ! ToDo: deallocating might be nicer on the same level, so
       ! either outside or an extra subroutine?
@@ -365,7 +374,8 @@ CONTAINS
       !!$OMP parallel num_threads(jj) private(rank) shared(testarray)
       !$OMP parallel private(rank) shared(subtrees)
       !$OMP single
-      call nodeinternal_routing(bufferLength, subtrees(kk))
+     ! call nodeinternal_routing(bufferLength, subtrees(kk))
+      call nodeinternal_subtree_routing(bufferLength, subtrees(kk))
       !$OMP end single
       !$OMP barrier
       !$OMP end parallel
@@ -454,6 +464,47 @@ CONTAINS
     end if
   end subroutine nodeinternal_routing_array
 
+  recursive subroutine nodeinternal_subtree_routing(bufferLength, root)
+    implicit none
+    integer(i4),                                  intent(in)       :: bufferLength
+    type(ptrTreeNode),                            intent(inout)    :: root ! the array of
+    ! local
+    integer(i4) :: jj
+    integer(i4) :: ii, ithread
+    do jj = 1, root%tN%ST%NpraeST
+      !$OMP task shared(root)
+      call nodeinternal_subtree_routing(bufferLength, root%tN%ST%praeST(jj))
+      !$OMP end task
+    end do
+    !$OMP taskwait
+    call nodeinternal_routing_serial(bufferLength, root)
+  end subroutine nodeinternal_subtree_routing
+
+  recursive subroutine nodeinternal_routing_serial(bufferLength, root)
+    implicit none
+    integer(i4),                                  intent(in)       :: bufferLength
+    type(ptrTreeNode),                            intent(inout)    :: root ! the array of
+    ! local
+    integer(i4) :: jj
+    integer(i4) :: ii, ithread
+    
+    do jj = 1, root%tN%Nprae
+      call nodeinternal_routing_serial(bufferLength, root%tN%prae(jj))
+    end do
+    do jj = 1, bufferLength
+      if (size(root%tN%prae) == 0 .and. .not. root%tN%isIn) then
+        root%tN%values%buffer(jj+1) = root%tN%values%buffer(jj)
+      else if (size(root%tN%prae) > 0) then
+        do ii = 1, size(root%tN%prae)
+          root%tN%values%buffer(1) = root%tN%values%buffer(1) + &
+                                        root%tN%prae(ii)%tN%values%buffer(jj+1)
+        end do
+        root%tN%values%buffer(jj+1) = root%tN%values%buffer(1)
+      end if
+    end do
+    
+  end subroutine nodeinternal_routing_serial
+
   recursive subroutine nodeinternal_routing(bufferLength, root)
     implicit none
     integer(i4),                                  intent(in)       :: bufferLength
@@ -462,19 +513,19 @@ CONTAINS
     integer(i4) :: jj
     integer(i4) :: ii, ithread
 
-    do jj = 1, root%tN%Nprae
+    do jj = 1, size(root%tN%prae)
       !$OMP task shared(root)
       call nodeinternal_routing(bufferLength, root%tN%prae(jj))
       !$OMP end task
     end do
     !$OMP taskwait
     do jj = 1, bufferLength
-      if (root%tN%Nprae == 0 .and. .not. root%tN%isIn) then
+      if (size(root%tN%prae) == 0 .and. .not. root%tN%isIn) then
         root%tN%values%buffer(jj+1) = root%tN%values%buffer(jj)
-      else if (root%tN%Nprae > 0) then
+      else if (size(root%tN%prae) > 0) then
        ! !$ ithread=omp_get_thread_num()
        ! !$ write(*,*) ithread
-        do ii = 1, root%tN%Nprae
+        do ii = 1, size(root%tN%prae)
           root%tN%values%buffer(1) = root%tN%values%buffer(1) + &
                                         root%tN%prae(ii)%tN%values%buffer(jj+1)
         end do

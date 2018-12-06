@@ -13,7 +13,7 @@ MODULE mo_HRD_tree_tools
   IMPLICIT NONE
 
   public :: find_sizUp_of_node, find_revLevel_of_node, update_sizes, write_tree_to_array, &
-  tree_init_values_with_array, tree_write_values_to_array
+  tree_init_values_with_array, tree_write_values_to_array, reset_treesizes
             
 
   private
@@ -152,5 +152,18 @@ CONTAINS
        call write_tree_to_array(tree%tN%prae(kk),start,ind,array,toArray)
     end do
   end subroutine write_tree_to_array
+
+  recursive subroutine reset_treesizes(root)
+    implicit none
+    type(ptrTreeNode),         intent(inout) :: root
+    ! local
+    integer(i4) :: i
+
+   ! write(0,*) root%tN%Nprae, size(root%tN%prae)
+    root%tN%Nprae = size(root%tN%prae)
+    do i = 1, root%tN%Nprae
+      call reset_treesizes(root%tN%prae(i))
+    end do
+  end subroutine reset_treesizes
 
 END MODULE mo_HRD_tree_tools
