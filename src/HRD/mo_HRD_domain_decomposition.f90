@@ -226,7 +226,7 @@ CONTAINS
     !  write(*,*) nproc, timer_get(itimer), nSubtrees, lowBound
     !  call timer_clear(itimer)
      ! end do
-     ! call write_forest_with_array(roots, lowBound,testarray)
+      call write_forest_with_array(roots, lowBound,testarray)
 
       call schedule_destroy(schedule)
       deallocate(STmeta)
@@ -314,7 +314,7 @@ CONTAINS
         next = subtrees(indST)%tN%ST%postST%tN%ST%indST
         ! iproc is the process the parent subtree is assigned to
         iproc = subtrees(next)%tN%ST%sched(1)
-        call MPI_Send(buffer(2:bufferLength+1), bufferLength, MPI_INTEGER, iproc, indST, comm, ierror)
+        call MPI_Send(buffer, bufferLength, MPI_INTEGER, iproc, indST, comm, ierror)
       end if
     end do
 
@@ -359,7 +359,7 @@ CONTAINS
         ! for every subtree for every leave, where data comes in, receive this
         ! data. Via inInds(ii) we write the right incoming data to the
         ! matching buffer.
-        call MPI_IRecv(inTrees(ii)%tN%values%buffer(2:bufferLength+1), bufferLength, &
+        call MPI_IRecv(inTrees(ii)%tN%values%buffer, bufferLength, &
                                          MPI_INTEGER, 0, inInds(ii), comm, STmeta(kk)%requests(jj), ierror)
       end do
     end do

@@ -22,30 +22,31 @@ CONTAINS
   ! cut into subarrays defined via the tree decomposition
   subroutine distribute_array(iBasin,nproc,rank,comm,nSubtrees,STmeta,permNodes,schedule,array)
     implicit none
-    integer(i4),                     intent(in)  :: iBasin
-    integer(i4),                     intent(in)  :: nproc
-    integer(i4),                     intent(in)  :: rank
-    type(MPI_Comm)                               :: comm
-    integer(i4),                     intent(in)  :: nSubtrees
-    type(subtreeMeta), dimension(:), intent(in)  :: STmeta
-    integer(i4),       dimension(:), intent(in)  :: permNodes
-    type(processSchedule), dimension(:), intent(in) :: schedule
-    integer(i4),       dimension(:), intent(in)  :: array
+    integer(i4),                         intent(in)  :: iBasin
+    integer(i4),                         intent(in)  :: nproc
+    integer(i4),                         intent(in)  :: rank
+    type(MPI_Comm)                                   :: comm
+    integer(i4),                         intent(in)  :: nSubtrees
+    type(subtreeMeta),     dimension(:), intent(in)  :: STmeta
+    integer(i4),           dimension(:), intent(in)  :: permNodes
+    type(processSchedule), dimension(:), intent(in)  :: schedule
+    integer(i4),           dimension(:), intent(in)  :: array
     ! local variables
-    integer(i4) :: kk,jj,ii,iPerm,iproc,sizST,iST
+    integer(i4) :: kk, jj, ii, iPerm, iproc, sizST, iST, indST
     integer(i4) :: ierror
     integer(i4), dimension(:), allocatable :: sendarray
 
-    do kk=1,nproc-1
-       do jj=1,schedule(kk)%nTrees
-          iST=schedule(kk)%trees(jj)
-          sizST=STmeta(iST)%iEnd+1-STmeta(iST)%iStart
+    do kk = 1, nproc-1
+       do jj = 1, schedule(kk)%nTrees
+          iST   = schedule(kk)%trees(jj)
+          sizST = STmeta(iST)%sizST
+          indST = STmeta(iST)%indST
           allocate(sendarray(sizST))
-          do ii=STmeta(iST)%iStart,STmeta(iST)%iEnd
-             iPerm=permNodes(ii)
-             sendarray(ii-STmeta(iST)%iStart+1)=array(iPerm)
+          do ii = STmeta(iST)%iStart, STmeta(iST)%iEnd
+             iPerm = permNodes(ii)
+             sendarray(ii - STmeta(iST)%iStart + 1) = array(iPerm)
           end do
-          call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,kk,3,comm,ierror)
+          call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,kk,indST,comm,ierror)
           deallocate(sendarray)
        end do
     end do
@@ -55,30 +56,31 @@ CONTAINS
   ! original order
   subroutine collect_array(iBasin,nproc,rank,comm,nSubtrees,STmeta,permNodes,schedule,array)
     implicit none
-    integer(i4),                     intent(in)    :: iBasin
-    integer(i4),                     intent(in)    :: nproc
-    integer(i4),                     intent(in)    :: rank
-    type(MPI_Comm)                                 :: comm
-    integer(i4),                     intent(in)    :: nSubtrees
-    type(subtreeMeta), dimension(:), intent(in)    :: STmeta
-    integer(i4),       dimension(:), intent(in)    :: permNodes
-    type(processSchedule), dimension(:), intent(in) :: schedule
-    integer(i4),       dimension(:), intent(inout) :: array
+    integer(i4),                         intent(in)    :: iBasin
+    integer(i4),                         intent(in)    :: nproc
+    integer(i4),                         intent(in)    :: rank
+    type(MPI_Comm)                                     :: comm
+    integer(i4),                         intent(in)    :: nSubtrees
+    type(subtreeMeta),     dimension(:), intent(in)    :: STmeta
+    integer(i4),           dimension(:), intent(in)    :: permNodes
+    type(processSchedule), dimension(:), intent(in)    :: schedule
+    integer(i4),           dimension(:), intent(inout) :: array
     ! local variables
-    integer(i4) :: kk,jj,ii,iPerm,iproc,sizST,iST
-    integer(i4) :: ierror
+    integer(i4)      :: kk, jj, ii, iPerm, iproc, sizST, iST, indST
+    integer(i4)      :: ierror
     type(MPI_Status) :: status
     integer(i4), dimension(:), allocatable :: recvarray
 
-    do kk=1,nproc-1
-       do jj=1,schedule(kk)%nTrees
-          iST=schedule(kk)%trees(jj)
-          sizST=STmeta(iST)%iEnd+1-STmeta(iST)%iStart
+    do kk = 1, nproc-1
+       do jj = 1, schedule(kk)%nTrees
+          iST   = schedule(kk)%trees(jj)
+          sizST = STmeta(iST)%sizST
+          indST = STmeta(iST)%indST
           allocate(recvarray(sizST))
-          call MPI_Recv(recvarray(1:sizST),sizST,MPI_INTEGER,kk,4,comm,status,ierror)
-          do ii=STmeta(iST)%iStart,STmeta(iST)%iEnd
-             iPerm=permNodes(ii)
-             array(iPerm)=recvarray(ii-STmeta(iST)%iStart+1)
+          call MPI_Recv(recvarray(1:sizST),sizST,MPI_INTEGER,kk,indST,comm,status,ierror)
+          do ii = STmeta(iST)%iStart, STmeta(iST)%iEnd
+             iPerm = permNodes(ii)
+             array(iPerm) = recvarray(ii - STmeta(iST)%iStart + 1)
           end do
           deallocate(recvarray)
        end do
@@ -96,18 +98,19 @@ CONTAINS
     type(subtreeMeta), dimension(:),              intent(in)    :: STmeta
     integer(i4),       dimension(:), allocatable, intent(inout) :: array
     ! local variables
-    integer(i4) :: kk
-    integer(i4) :: sizST,nST
-    integer(i4) :: ierror
+    integer(i4)      :: kk
+    integer(i4)      :: sizST,nST
+    integer(i4)      :: ierror
     type(MPI_Status) :: status
 
-    nST=size(STmeta)
+    nST = size(STmeta)
     allocate(array(STmeta(nST)%iEnd))
     ! ToDo: case: less subtrees than processes
 
-    do kk=1,size(STmeta)
-       sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
-       call MPI_Recv(array(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,3,comm,status,ierror)
+    do kk = 1, size(STmeta)
+       sizST = STmeta(kk)%sizST
+       call MPI_Recv(array(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER, &
+                                            0,STmeta(kk)%indST,comm,status,ierror)
     end do
   end subroutine get_array
 
@@ -126,9 +129,10 @@ CONTAINS
 
     ! ToDo: case: less subtrees than processes
 
-    do kk=1,size(STmeta)
-       sizST=STmeta(kk)%iEnd+1-STmeta(kk)%iStart
-       call MPI_Send(array(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,4,comm,ierror)
+    do kk = 1, size(STmeta)
+       sizST = STmeta(kk)%sizST
+       call MPI_Send(array(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER, &
+                                                   0,STmeta(kk)%indST,comm,ierror)
     end do
 
   end subroutine send_array

@@ -399,6 +399,10 @@ CONTAINS
     do kk=1,size(root%tN%prae)
        call tree_destroy(root%tN%prae(kk))
     enddo
+    if (associated(root%tN%values)) then
+       deallocate(root%tN%values%buffer)
+       deallocate(root%tN%values)
+    end if
     if (associated(root%tN%ST)) then
        deallocate(root%tN%ST%praeST)
        deallocate(root%tN%ST)
