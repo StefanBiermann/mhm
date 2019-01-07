@@ -48,7 +48,7 @@ MODULE mo_HRD_domain_decomposition
 
   IMPLICIT NONE
 
-  public :: domain_decomposition
+  public :: test_MDF
 
   private
 
@@ -100,7 +100,9 @@ CONTAINS
   !>        \date June 2018
   !         Modified, June 2018 - Maren Kaluza, start of implementation
 
-  subroutine domain_decomposition()
+  subroutine test_MDF()
+   use mo_mrm_global_variables, only : &
+            level11 ! IN: for number of nCells
 !  USE mo_timer, ONLY : &
 !          timers_init, timer_start, timer_stop, timer_get, timer_clear  ! Timing of processes
     implicit none
@@ -123,9 +125,6 @@ CONTAINS
                                                                             ! subtrees in routing order
     type(ptrTreeNode),     dimension(:), allocatable :: subtreesDecompos    ! the array of
                                                                             ! subsubtrees for OpenMP in routing order
-    integer(i4)                                      :: nNodes              ! the number of forest nodes in the original forest
-    integer(i4)                                      :: nLinks              ! the number of edges in the forest
-    integer(i4)                                      :: nBasins             ! nBasins
     integer(i4)                                      :: nSubtrees           ! number of subtrees in treedecomposition
 
     type(subtreeMeta),     dimension(:), allocatable :: STmeta
@@ -136,8 +135,6 @@ CONTAINS
                                                                             ! subtrees from the outside
     integer(i4),           dimension(:), allocatable :: inInds              ! indices of corresponding (in-)Nodes in
                                                                             ! subtrees from the outside
-    integer(i4),           dimension(:), allocatable :: fromNodes           ! in-Nodes of corresponding Nodes
-                                                                            ! to decomposition
     type(processSchedule), dimension(:), allocatable :: schedule            ! knows for each process the number
                                                                             ! of subtrees assigned to it, the
                                                                             ! indices of the subtrees and the overall
@@ -147,8 +144,9 @@ CONTAINS
     type(MPI_Comm)                                   :: comm                ! MPI communicator
 
     ! for testing purposes
-    integer(i4),           dimension(:), allocatable :: testarray
+    integer(i4),           dimension(:), allocatable :: testarray, subtestarray
     integer(i4)                                      :: kk, mes, ll
+    integer(i4)                                      :: nNodes              ! the number of forest nodes in the original forest
     ! ToDo: remove later
     integer(i4)                                      :: iTimer              ! Current timer number
 
@@ -164,51 +162,19 @@ CONTAINS
   !  do lowBound = 2,10,1!10,210,20
   !  do nproc = 2,20,2!2,6,2!96,2
     bufferLength = 2
+    lowBoundOMP = 3
+    lowBound = 34
     if (rank .eq. 0) then
       write(*,*) 'the domain decomposition with mRM gets implemented now...'
       ! this subroutine is called by all processes, but only the
       ! (perhaps) master process knows global variables
       ! so these should not be loaded from other modules inside this subroutine
-      call get_number_of_basins(iBasin, nBasins)
-      call get_L11_information(iBasin, nLinks, nNodes, toNodes, fromNodes, permNodes)
+      nNodes = level11(iBasin)%nCells
       call init_testarray(nNodes-1, testarray)
-
-      lowBound = 34
-      ! In this subroutine the tree structure gets initialized for
-      ! the flownetwork of the iBasin-th basin.
-      ! In each tree node the size of the smallest subtree
-      ! larger than lowBound is saved, so cutting off
-      ! subtrees can be done efficiently.
-      ! Root is the root node of the tree. All other tree nodes
-      ! can be accessed through it.
-      ! call tree_init_global(iBasin, lowBound, root)
-      call forest_init(nLinks, nNodes, toNodes, lowBound, roots, fromNodes=fromNodes, perm=permNodes)
-     ! call write_tree(roots(1), lowBound)
-      deallocate(toNodes, permNodes, fromNodes)
-
-      ! ToDo: that's possibly too much, but maybe more efficient than reallocating?
-      allocate(subtrees(nNodes))
-      ! this subroutine cuts down the tree into a subtreetree and
-      ! writes each subtreetree node into an array (subtrees) in routing order
-      call decompose(lowBound, roots, subtrees(:), nSubtrees)
-
-      ! call write_domain_decomposition(root)
-      allocate(STmeta(nSubtrees), schedule(nproc-1))
-      ! create schedule:
-      ! to each process in the array schedule the number of trees, the
-      ! indices of the trees and the over all size is assigned
-      call create_schedule_hu(nSubtrees, nproc, subtrees(:), schedule)
-      !call schedule_destroy(iBasin,schedule)
-      !allocate(schedule(nproc-1))
-      ! call create_schedule(nSubtrees,subtrees,schedule)
-      ! call write_graphviz_output_forest(roots)
-      ! A subtree data structrure makes communication between the subtrees
-      ! much easier for the master. Processing the data is more efficient
-      ! with array, so everything gets written into a nice array in
-      ! routing order. Therefore we need a permutation array permNodes
-      ! which is at the same time fromNodes, and a toNode array
-      call init_subtree_metadata(iBasin, nNodes, subtrees(:), STmeta, permNodes, toNodes, toInNodes)
-
+      ! the domain decompisition, prework
+      call domain_decomposition(nproc, lowBound, testarray, iBasin, &
+             toNodes, permNodes, toInNodes, subtrees, nSubtrees, STmeta, &
+             roots, schedule)
       ! sends the meta data from master process to all the others
       call distribute_subtree_meta(iBasin, nproc, comm, nSubtrees, STmeta, toNodes, toInNodes, schedule, subtrees(:))
       ! - sends data (testarray) corresponding to subtrees to nodes
@@ -228,15 +194,10 @@ CONTAINS
      ! end do
       call write_forest_with_array(roots, lowBound,testarray)
 
-      call schedule_destroy(schedule)
-      deallocate(STmeta)
-
-      call forest_destroy(roots)
-      deallocate(subtrees, permNodes, toNodes, toInNodes)
+      call master_cleanup(schedule, STmeta, roots, subtrees, toNodes, permNodes, toInNodes)
 
       call destroy_testarray(testarray)
     else if (rank < nproc) then
-      lowBoundOMP = 3
       ! all other processes receive meta data for their
       ! individual subtrees from the master process
       call get_subtree_meta(iBasin, comm, STmeta, toNodes, toInNodes, inInds)
@@ -253,18 +214,10 @@ CONTAINS
     !  do ll=1,10
     !  do kk=1,100
       call subtree_routing(iBasin, nproc, rank, comm, bufferLength, subtrees, STmeta, inInds,&
-                                                                    trees, inTrees, testarray)
+                                                                    trees, inTrees, subtestarray)
     !  end do
     !  end do
-      do kk = 1, size(subtrees)
-        call tree_destroy(subtrees(kk))
-      end do
-      deallocate(subtreesDecompos)
-      deallocate(subtrees, trees, inTrees)
-      ! ToDo: deallocating might be nicer on the same level, so
-      ! either outside or an extra subroutine?
-      call destroy_subtree_meta(STmeta)
-      deallocate(inInds, toNodes, toInNodes)
+      call subdomain_cleanup(subtrees, subtreesDecompos, trees, inTrees, STmeta, inInds, toNodes, toInNodes)
     endif
    ! end do
    ! end do
@@ -275,6 +228,108 @@ CONTAINS
       write(*,*) 'need to have something to eat'
     endif
 #endif
+  end subroutine test_MDF
+
+  subroutine master_cleanup(schedule, STmeta, roots, subtrees, toNodes, permNodes, toInNodes)
+    type(processSchedule), dimension(:), allocatable, intent(inout) :: schedule
+    type(subtreeMeta),     dimension(:), allocatable, intent(inout) :: STmeta
+    type(ptrTreeNode),     dimension(:), allocatable, intent(inout) :: roots     ! the root node of the tree structure
+    type(ptrTreeNode),     dimension(:), allocatable, intent(inout) :: subtrees
+    integer(i4),           dimension(:), allocatable, intent(inout) :: toNodes
+    integer(i4),           dimension(:), allocatable, intent(inout) :: permNodes
+    integer(i4),           dimension(:), allocatable, intent(inout) :: toInNodes
+
+    call schedule_destroy(schedule)
+    deallocate(STmeta)
+
+    call forest_destroy(roots)
+    deallocate(subtrees, permNodes, toNodes, toInNodes)
+  end subroutine master_cleanup
+
+  subroutine subdomain_cleanup(subtrees, subtreesDecompos, trees, inTrees, STmeta, inInds, toNodes, toInNodes)
+    type(ptrTreeNode),     dimension(:), allocatable, intent(inout) :: subtrees
+    type(ptrTreeNode),     dimension(:), allocatable, intent(inout) :: subtreesDecompos! the array of
+                                                                                       ! subsubtrees for OpenMP in routing order
+    type(ptrTreeNode),     dimension(:), allocatable, intent(inout) :: trees           ! the array of all nodes of the trees
+    type(ptrTreeNode),     dimension(:), allocatable, intent(inout) :: inTrees         ! the array of halo leaves
+    type(subtreeMeta),     dimension(:), allocatable, intent(inout) :: STmeta
+    integer(i4),           dimension(:), allocatable, intent(inout) :: inInds          ! indices of corresponding (in-)Nodes in
+                                                                                       ! subtrees from the outside
+    integer(i4),           dimension(:), allocatable, intent(inout) :: toNodes
+    integer(i4),           dimension(:), allocatable, intent(inout) :: toInNodes
+    ! local
+    integer(i4) :: kk
+
+    do kk = 1, size(subtrees)
+      call tree_destroy(subtrees(kk))
+    end do
+    deallocate(subtreesDecompos)
+    deallocate(subtrees, trees, inTrees)
+    ! ToDo: deallocating might be nicer on the same level, so
+    ! either outside or an extra subroutine?
+    call destroy_subtree_meta(STmeta)
+    deallocate(inInds, toNodes, toInNodes)
+  end subroutine subdomain_cleanup
+
+  subroutine domain_decomposition(nproc, lowBound, testarray, iBasin, &
+             toNodes, permNodes, toInNodes, subtrees, nSubtrees, STmeta, &
+             roots, schedule)
+    integer(i4),                                      intent(in)    :: nproc
+    integer(i4),                                      intent(in)    :: lowBound
+    integer(i4),           dimension(:),              intent(in)    :: testarray
+    integer(i4),                                      intent(inout) :: iBasin
+    integer(i4),           dimension(:), allocatable, intent(inout) :: toNodes
+    integer(i4),           dimension(:), allocatable, intent(inout) :: permNodes
+    integer(i4),           dimension(:), allocatable, intent(inout) :: toInNodes
+    type(ptrTreeNode),     dimension(:), allocatable, intent(inout) :: subtrees
+    integer(i4),                                      intent(inout) :: nSubtrees
+    type(subtreeMeta),     dimension(:), allocatable, intent(inout) :: STmeta
+    type(ptrTreeNode),     dimension(:), allocatable, intent(inout) :: roots     ! the root node of the tree structure
+    type(processSchedule), dimension(:), allocatable, intent(inout) :: schedule
+
+    ! local
+    integer(i4)                                      :: nLinks              ! the number of edges in the forest
+    integer(i4)                                      :: nBasins             ! nBasins
+    integer(i4)                                      :: nNodes              ! the number of forest nodes in the original forest
+    integer(i4),           dimension(:), allocatable :: fromNodes           ! in-Nodes of corresponding Nodes
+                                                                            ! to decomposition
+
+    call get_number_of_basins(iBasin, nBasins)
+    call get_L11_information(iBasin, nLinks, nNodes, toNodes, fromNodes, permNodes)
+
+    ! In this subroutine the tree structure gets initialized for
+    ! the flownetwork of the iBasin-th basin.
+    ! In each tree node the size of the smallest subtree
+    ! larger than lowBound is saved, so cutting off
+    ! subtrees can be done efficiently.
+    ! Root is the root node of the tree. All other tree nodes
+    ! can be accessed through it.
+    ! call tree_init_global(iBasin, lowBound, root)
+    call forest_init(nLinks, nNodes, toNodes, lowBound, roots, fromNodes=fromNodes, perm=permNodes)
+    deallocate(toNodes, permNodes, fromNodes)
+
+    ! ToDo: that's possibly too much, but maybe more efficient than reallocating?
+    allocate(subtrees(nNodes))
+    ! this subroutine cuts down the tree into a subtreetree and
+    ! writes each subtreetree node into an array (subtrees) in routing order
+    call decompose(lowBound, roots, subtrees(:), nSubtrees)
+
+    ! call write_domain_decomposition(root)
+    allocate(STmeta(nSubtrees), schedule(nproc-1))
+    ! create schedule:
+    ! to each process in the array schedule the number of trees, the
+    ! indices of the trees and the over all size is assigned
+    call create_schedule_hu(nSubtrees, nproc, subtrees(:), schedule)
+    !call schedule_destroy(iBasin,schedule)
+    !allocate(schedule(nproc-1))
+    ! call create_schedule(nSubtrees,subtrees,schedule)
+    ! call write_graphviz_output_forest(roots)
+    ! A subtree data structrure makes communication between the subtrees
+    ! much easier for the master. Processing the data is more efficient
+    ! with array, so everything gets written into a nice array in
+    ! routing order. Therefore we need a permutation array permNodes
+    ! which is at the same time fromNodes, and a toNode array
+    call init_subtree_metadata(iBasin, nNodes, subtrees(:), STmeta, permNodes, toNodes, toInNodes)
   end subroutine domain_decomposition
 
   ! - sends data (array) corresponding to subtrees to nodes
