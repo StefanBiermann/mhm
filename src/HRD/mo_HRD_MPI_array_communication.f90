@@ -104,7 +104,11 @@ CONTAINS
     type(MPI_Status) :: status
 
     nST = size(STmeta)
-    allocate(array(STmeta(nST)%iEnd))
+    if (nST > 0) then
+      allocate(array(STmeta(nST)%iEnd))
+    else
+      allocate(array(0))
+    end if
     ! ToDo: case: less subtrees than processes
 
     do kk = 1, size(STmeta)
