@@ -13,7 +13,10 @@ MODULE mo_HRD_tree_tools
   IMPLICIT NONE
 
   public :: find_sizUp_of_node, find_revLevel_of_node, update_sizes, write_tree_to_array, &
-  tree_init_values_with_array, tree_write_values_to_array, reset_treesizes
+  tree_init_values_with_array, tree_write_values_to_array, reset_treesizes, &
+  tree_init_qTIN_with_array, tree_init_qTR_with_array, tree_init_qOut_with_array, &
+  tree_init_C1_with_array, tree_init_C2_with_array, &
+  tree_extract_qTIN_in_array, tree_extract_qTR_in_array
             
 
   private
@@ -105,6 +108,92 @@ CONTAINS
     end do
   end subroutine tree_init_values_with_array
 
+  subroutine tree_init_qTIN_with_array(array, trees)
+    implicit none
+    real(dp),            dimension(:), intent(in)    :: array
+    type(ptrTreeNode),   dimension(:), intent(inout) :: trees
+    ! local
+    integer(i4) :: kk
+
+    do kk = 1, size(array)
+      trees(kk)%tN%qTIN%buffer(1) = array(kk)
+      trees(kk)%tN%qTIN%buffer(2) = 0.0_dp
+    end do
+  end subroutine tree_init_qTIN_with_array
+
+  subroutine tree_extract_qTIN_in_array(ind, trees, array)
+    implicit none
+    integer(i4),                       intent(in)    :: ind
+    type(ptrTreeNode),   dimension(:), intent(in)    :: trees
+    real(dp),            dimension(:), intent(inout) :: array
+    ! local
+    integer(i4) :: kk
+
+    do kk = 1, size(array)
+      array(kk)=trees(kk)%tN%qTIN%buffer(ind)
+    end do
+  end subroutine tree_extract_qTIN_in_array
+
+  subroutine tree_init_qTR_with_array(array, trees)
+    implicit none
+    real(dp),            dimension(:), intent(in)    :: array
+    type(ptrTreeNode),   dimension(:), intent(inout) :: trees
+    ! local
+    integer(i4) :: kk
+
+    do kk = 1, size(array)
+      trees(kk)%tN%qTR%buffer(1) = array(kk)
+    end do
+  end subroutine tree_init_qTR_with_array
+
+  subroutine tree_extract_qTR_in_array(ind, trees, array)
+    implicit none
+    integer(i4),                       intent(in)    :: ind
+    type(ptrTreeNode),   dimension(:), intent(in)    :: trees
+    real(dp),            dimension(:), intent(inout) :: array
+    ! local
+    integer(i4) :: kk
+
+    do kk = 1, size(array)
+      array(kk)=trees(kk)%tN%qTR%buffer(ind)
+    end do
+  end subroutine tree_extract_qTR_in_array
+
+  subroutine tree_init_C1_with_array(array, trees)
+    implicit none
+    real(dp),            dimension(:), intent(in)    :: array
+    type(ptrTreeNode),   dimension(:), intent(inout) :: trees
+    ! local
+    integer(i4) :: kk
+
+    do kk = 1, size(array)
+      trees(kk)%tN%C1 = array(kk)
+    end do
+  end subroutine tree_init_C1_with_array
+
+  subroutine tree_init_C2_with_array(array, trees)
+    implicit none
+    real(dp),            dimension(:), intent(in)    :: array
+    type(ptrTreeNode),   dimension(:), intent(inout) :: trees
+    ! local
+    integer(i4) :: kk
+
+    do kk = 1, size(array)
+      trees(kk)%tN%C2 = array(kk)
+    end do
+  end subroutine tree_init_C2_with_array
+
+  subroutine tree_init_qOut_with_array(array, trees)
+    implicit none
+    real(dp),            dimension(:), intent(in)    :: array
+    type(ptrTreeNode),   dimension(:), intent(inout) :: trees
+    ! local
+    integer(i4) :: kk
+
+    do kk = 1, size(array)
+      trees(kk)%tN%qOut%buffer(1) = array(kk)
+    end do
+  end subroutine tree_init_qOut_with_array
   subroutine tree_write_values_to_array(trees, bufferLength, array)
     implicit none
     type(ptrTreeNode),   dimension(:), intent(in)    :: trees

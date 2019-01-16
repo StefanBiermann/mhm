@@ -13,6 +13,7 @@
 MODULE mo_mhm_eval
 
   USE mo_kind, ONLY : i4, dp
+  use mpi_f08
 
   IMPLICIT NONE
 
@@ -85,7 +86,7 @@ CONTAINS
     use mo_common_constants, only : nodata_dp
     use mo_common_mHM_mRM_variables, only : LCyearId, dirRestartIn, nTstepDay, optimize, readPer, read_restart, simPer, timeStep, &
                                             warmingDays
-    use mo_common_variables, only : level1, nBasins, processMatrix
+    use mo_common_variables, only : level1, nBasins, processMatrix, MPIparam
     use mo_global_variables, only : L1_Throughfall, L1_aETCanopy, L1_aETSealed, L1_aETSoil, &
                                     L1_absvappress, L1_baseflow, L1_fastRunoff, L1_infilSoil, L1_inter, L1_melt, &
                                     L1_netrad, L1_neutrons, L1_percol, L1_pet, L1_pet_calc, L1_pet_weights, L1_pre, &
@@ -122,10 +123,14 @@ CONTAINS
                                         timeStep_model_outputs_mrm, gw_coupling, L0_river_head_mon_sum
     use mo_mrm_init, only : mrm_update_param, variables_default_init_routing
     use mo_mrm_restart, only : mrm_read_restart_states
-    use mo_mrm_routing, only : mrm_routing
+    use mo_mrm_routing, only : mrm_routing, mrm_routing_par
     use mo_mrm_write, only : mrm_write_output_fluxes!, mrm_write_output_river_head
     use mo_utils, only : ge
     use mo_mrm_river_head, only: calc_river_head, avg_and_write_timestep
+    use mo_HRD_types, only : MPI_parameter, subtreeMeta, ptrTreeNode, processSchedule
+    use mo_HRD_domain_decomposition, only : init_testarray, destroy_testarray, &
+                                    domain_decomposition, master_cleanup
+    use mo_HRD_subtree_meta, only : distribute_subtree_meta
 #endif
 #ifdef pgiFortran154
     use mo_write_fluxes_states, only : newOutputDataset
@@ -242,6 +247,18 @@ CONTAINS
     ! flag for performing routing
     logical :: do_rout
 
+    integer(i4),           dimension(:), allocatable  :: testarray
+    integer(i4),           dimension(:), allocatable  :: toNodes
+    integer(i4),           dimension(:), allocatable  :: permNodes
+    integer(i4),           dimension(:), allocatable  :: toInNodes
+    type(ptrTreeNode),     dimension(:), allocatable  :: subtrees
+    integer(i4)                                       :: nSubtrees
+    type(subtreeMeta),     dimension(:), allocatable  :: STmeta
+    type(ptrTreeNode),     dimension(:), allocatable  :: roots     ! the root node of the tree structure
+    type(processSchedule), dimension(:), allocatable  :: schedule
+    integer(i4)                                       :: ierror
+    integer(i4)                                       :: iproc
+
 #endif
     integer(i4) :: gg
 
@@ -328,7 +345,6 @@ CONTAINS
     ! loop over basins
     !----------------------------------------
     do iBasin = 1, nBasins
-
       ! get basin information
       nCells = level1(iBasin)%nCells
       mask1 => level1(iBasin)%mask
@@ -362,6 +378,14 @@ CONTAINS
 
       ! calculate NtimeSteps for this basin
       nTimeSteps = (simPer(iBasin)%julEnd - simPer(iBasin)%julStart + 1) * nTstepDay
+      ! create and distribute domain decomposition over the processes
+      call init_testarray(level11(iBasin)%nCells-1, testarray)
+      call domain_decomposition(MPIparam%nproc, MPIparam%lowBound, testarray, iBasin, &
+             toNodes, permNodes, toInNodes, subtrees, nSubtrees, STmeta, &
+             roots, schedule)
+      call distribute_subtree_meta(iBasin, MPIparam%nproc, MPIparam%comm, nSubtrees, nTimeSteps, STmeta, &
+                                        permNodes, toNodes, toInNodes, schedule, subtrees(:))
+
 
       ! reinitialize time counter for LCover and MPR
       ! -0.5 is due to the fact that dec2date routine
@@ -568,7 +592,10 @@ CONTAINS
           ! -------------------------------------------------------------------
           ! execute routing
           ! -------------------------------------------------------------------
-          if (do_rout) call mRM_routing(&
+          do iproc = 1, MPIparam%nproc-1
+            call MPI_Send(do_rout, 1, MPI_LOGICAL, iproc, 117, MPIparam%comm, ierror)
+          end do
+          if (do_rout) call mRM_routing_par(&
                   ! general INPUT variables
                   read_restart, &
                   processMatrix(8, 1), & ! parse process Case to be used
@@ -600,12 +627,13 @@ CONTAINS
                   L11_nLinkFracFPimp(s11 : e11, yID), & ! fraction of impervious layer at L11 scale
                   ! general INPUT/OUTPUT variables
                   L11_C1(s11 : e11), & ! first muskingum parameter
-                  L11_C2(s11 : e11), & ! second muskigum parameter
+                  L11_C2(s11 : e11), & ! second muskingum parameter
                   L11_qOUT(s11 : e11), & ! routed runoff flowing out of L11 cell
                   L11_qTIN(s11 : e11, :), & ! inflow water into the reach at L11
                   L11_qTR(s11 : e11, :), & !
                   L11_qMod(s11 : e11), &
-                  mRM_runoff(tt, :) &
+                  mRM_runoff(tt, :), &
+                  iBasin, MPIparam, subtrees, nSubtrees, STmeta, permNodes, schedule, testarray &
                   )
             ! -------------------------------------------------------------------
             ! groundwater coupling
@@ -907,6 +935,8 @@ CONTAINS
       end if
 #endif
 
+      call master_cleanup(schedule, STmeta, roots, subtrees, toNodes, permNodes, toInNodes)
+      call destroy_testarray(testarray)
     end do !<< BASIN LOOP
 #ifdef MRM2MHM
     ! =========================================================================

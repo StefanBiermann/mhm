@@ -104,7 +104,8 @@ PROGRAM mhm_driver
           dirOut, &      ! directories
           nbasins, &      ! number of basins
           processMatrix, &      ! basin information,  processMatrix
-          global_parameters, global_parameters_name      ! mhm parameters (gamma) and their clear names
+          global_parameters, global_parameters_name, &      ! mhm parameters (gamma) and their clear names
+          MPIparam
   USE mo_kind, ONLY : i4, dp                         ! number precision
   USE mo_message, ONLY : message, message_text          ! For print out
   USE mo_meteo_forcings, ONLY : prepare_meteo_forcings_data
@@ -133,7 +134,8 @@ PROGRAM mhm_driver
 #ifdef MRM2MHM
   USE mo_mrm_objective_function_runoff, only : single_objective_runoff
   USE mo_mrm_init, ONLY : mrm_init
-  USE mo_HRD_domain_decomposition, only: domain_decomposition
+  USE mo_HRD_domain_decomposition, only: test_MDF, set_MPI_parameters, subdomain_process
+  USE mo_HRD_types, only : MPI_parameter
   USE mo_mrm_write, only : mrm_write
 
 #endif
@@ -154,13 +156,15 @@ PROGRAM mhm_driver
   procedure(mhm_eval), pointer :: eval
   procedure(objective), pointer :: obj_func
 
-  integer :: nproc, rank
-  integer :: ierror
+  integer             :: ierror
+  integer(i4)         :: nproc
+  integer(i4)         :: rank
 
 ! Initialize MPI
   call MPI_Init(ierror)
-  call MPI_Comm_size(MPI_COMM_WORLD, nproc,ierror)
-  call MPI_Comm_rank(MPI_COMM_WORLD, rank,ierror)
+  call set_MPI_parameters(MPIparam)
+  rank = MPIparam%rank
+  nproc = MPIparam%nproc
   write(*,*) 'MPI!', rank, nproc
 
   if (rank == 0) then
@@ -309,12 +313,12 @@ PROGRAM mhm_driver
 #else
   mrm_coupling_mode = -1_i4
 #endif
-  ! --------------------------------------------------------------------------
-  ! DOMAIN DECOMPOSITION
-  ! --------------------------------------------------------------------------
-end if
-  call domain_decomposition()
-if (rank == 0) then
+!  ! --------------------------------------------------------------------------
+!  ! DOMAIN DECOMPOSITION INITIALIZATION
+!  ! --------------------------------------------------------------------------
+!end if
+!  call test_MDF()
+!if (rank == 0) then
 
   !this call may be moved to another position as it writes the master config out file for all basins
   call write_configfile()
@@ -407,7 +411,12 @@ if (rank == 0) then
           // ":" // trim(num2str(datetime(6), '(I2.2)')) // ":" // trim(num2str(datetime(7), '(I2.2)'))
   call message('Finished at ', trim(message_text), '.')
   call message()
-  end if ! mpi
+
+  else if (rank < nproc) then ! mpi
+    call subdomain_process(MPIparam)
+    write(*,*) 'test from', rank
+  end if
+
   if (.false.) then
   call finish('mHM', 'Finished!')
   end if

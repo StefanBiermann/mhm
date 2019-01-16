@@ -24,7 +24,7 @@ MODULE mo_HRD_domain_decomposition
 
   use mo_HRD_write
   use mo_HRD_types, only: ptrTreeNode, subtreeMeta, processSchedule, &
-                  subtreeBuffer
+                  subtreeBuffer, MPI_parameter
 
   use mo_HRD_tree_init_and_destroy, only: tree_init_global, tree_init, tree_destroy, &
                                           forest_init, forest_destroy, tree_init_buffer
@@ -40,6 +40,7 @@ MODULE mo_HRD_domain_decomposition
                                  get_subtree_meta, destroy_subtree_meta
   use mo_HRD_MPI_array_communication, only: distribute_array, collect_array, &
                                  get_array, send_array
+  use mo_HRD_routing, only: muskignum_subtree_routing_process
 
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
   use mpi_f08
@@ -48,7 +49,10 @@ MODULE mo_HRD_domain_decomposition
 
   IMPLICIT NONE
 
-  public :: test_MDF
+  !ToDo: unpublic init_testarray
+  public :: test_MDF, set_MPI_parameters, init_testarray, destroy_testarray, &
+                                    domain_decomposition, master_cleanup, &
+                                    subdomain_process, routing, subtree_routing
 
   private
 
@@ -117,6 +121,7 @@ CONTAINS
     integer(i4)                                      :: lowBoundOMP         ! a subdomain is again decomposed for OpenMP
                                                                             ! and should the subtrees should include at least
                                                                             ! lowBoundOMP tree nodes
+    integer(i4)                                      :: nTimeSteps
     integer(i4)                                      :: ind                 ! index of link/edge for subdomain
     type(ptrTreeNode),     dimension(:), allocatable :: roots               ! the root node of the tree structure
     type(ptrTreeNode),     dimension(:), allocatable :: trees               ! the array of all nodes of the trees
@@ -139,6 +144,7 @@ CONTAINS
                                                                             ! of subtrees assigned to it, the
                                                                             ! indices of the subtrees and the overall
                                                                             ! size of the subtrees
+    type(MPI_parameter)                              :: MPIparam
     integer(i4)                                      :: bufferLength        ! length of arrays buffered and send via MPI
     integer(i4)                                      :: nproc, rank, ierror
     type(MPI_Comm)                                   :: comm                ! MPI communicator
@@ -152,18 +158,16 @@ CONTAINS
 
 #ifdef MRM2MHM
     iBasin = 1
-    ! create a dublicate communicator of MPI_COMM_WORLD
-    ! ToDo: Later, have an optional argument with another communicator
-    call MPI_Comm_dup(MPI_COMM_WORLD, comm, ierror)
-    ! find number of processes nproc
-    call MPI_Comm_size(comm, nproc, ierror)
-    ! find the number the process is referred to, called rank
-    call MPI_Comm_rank(comm, rank, ierror)
+    nTimeSteps = 1
+    call set_MPI_parameters(MPIparam)
+    comm = MPIparam%comm
+    nproc = MPIparam%nproc
+    rank = MPIparam%rank
+    bufferLength = MPIparam%bufferLength
+    lowBound = MPIparam%lowBound
+    lowBoundOMP = MPIparam%lowBoundOMP
   !  do lowBound = 2,10,1!10,210,20
   !  do nproc = 2,20,2!2,6,2!96,2
-    bufferLength = 2
-    lowBoundOMP = 3
-    lowBound = 34
     if (rank .eq. 0) then
       write(*,*) 'the domain decomposition with mRM gets implemented now...'
       ! this subroutine is called by all processes, but only the
@@ -176,7 +180,7 @@ CONTAINS
              toNodes, permNodes, toInNodes, subtrees, nSubtrees, STmeta, &
              roots, schedule)
       ! sends the meta data from master process to all the others
-      call distribute_subtree_meta(iBasin, nproc, comm, nSubtrees, STmeta, toNodes, toInNodes, schedule, subtrees(:))
+      call distribute_subtree_meta(iBasin, nproc, comm, nSubtrees, nTimeSteps, STmeta, permNodes, toNodes, toInNodes, schedule, subtrees(:))
       ! - sends data (testarray) corresponding to subtrees to nodes
       ! - collects processed data from roots from subtrees and sends this
       !   data to corresponding leaves in connected subtrees
@@ -192,7 +196,7 @@ CONTAINS
     !  write(*,*) nproc, timer_get(itimer), nSubtrees, lowBound
     !  call timer_clear(itimer)
      ! end do
-      call write_forest_with_array(roots, lowBound,testarray)
+     ! call write_forest_with_array(roots, lowBound,testarray)
 
       call master_cleanup(schedule, STmeta, roots, subtrees, toNodes, permNodes, toInNodes)
 
@@ -200,8 +204,8 @@ CONTAINS
     else if (rank < nproc) then
       ! all other processes receive meta data for their
       ! individual subtrees from the master process
-      call get_subtree_meta(iBasin, comm, STmeta, toNodes, toInNodes, inInds)
-      call subtree_init(lowBoundOMP, bufferLength, STmeta, toNodes, toInNodes, subtrees, trees, inTrees)
+      call get_subtree_meta(iBasin, comm, nTimeSteps, STmeta, permNodes, toNodes, toInNodes, inInds)
+      call subtree_init(lowBoundOMP, bufferLength, STmeta, permNodes, toNodes, toInNodes, subtrees, trees, inTrees)
       allocate(subtreesDecompos(size(toNodes)+size(toInNodes)))
       call decompose(lowBoundOMP, subtrees, subtreesDecompos, nSubtrees)
      ! write(0,*) '#############', nSubtrees
@@ -217,7 +221,7 @@ CONTAINS
                                                                     trees, inTrees, subtestarray)
     !  end do
     !  end do
-      call subdomain_cleanup(subtrees, subtreesDecompos, trees, inTrees, STmeta, inInds, toNodes, toInNodes)
+      call subdomain_cleanup(subtrees, subtreesDecompos, trees, inTrees, STmeta, inInds, permNodes, toNodes, toInNodes)
     endif
    ! end do
    ! end do
@@ -229,6 +233,70 @@ CONTAINS
     endif
 #endif
   end subroutine test_MDF
+
+  subroutine subdomain_process(MPIparam)
+    type(MPI_parameter), intent(in) :: MPIparam
+    ! local
+    integer(i4) :: ierror
+    integer(i4) :: iBasin, nBasins, nSubtrees
+    integer(i4) :: tt, routLoop, t, nTimeSteps
+    type(subtreeMeta), dimension(:), allocatable :: STmeta
+    integer(i4),       dimension(:), allocatable :: permNodes
+    integer(i4),       dimension(:), allocatable :: toNodes
+    integer(i4),       dimension(:), allocatable :: toInNodes
+    type(ptrTreeNode), dimension(:), allocatable :: subtrees            ! the array of
+    integer(i4),       dimension(:), allocatable :: inInds
+    type(ptrTreeNode), dimension(:), allocatable :: trees               ! the array of all nodes of the trees
+    type(ptrTreeNode), dimension(:), allocatable :: inTrees             ! the array of halo leaves
+    type(ptrTreeNode), dimension(:), allocatable :: subtreesDecompos    ! the array of
+                                                                        ! subsubtrees for OpenMP in routing order
+    integer(i4),           dimension(:), allocatable :: subtestarray
+    logical                                :: doRout
+    type(MPI_Status)                       :: status
+
+    ! ToDo: Send this information
+    nBasins = 2
+    do iBasin = 1, nBasins
+      call get_subtree_meta(iBasin, MPIparam%comm, nTimeSteps, STmeta, permNodes, toNodes, toInNodes, inInds)
+      call subtree_init(MPIparam%lowBoundOMP, MPIparam%bufferLength, &
+                        STmeta, permNodes, toNodes, toInNodes, subtrees, trees, inTrees)
+      allocate(subtreesDecompos(size(toNodes)+size(toInNodes)))
+      call decompose(MPIparam%lowBoundOMP, subtrees, subtreesDecompos, nSubtrees)
+      do t = 1, nTimeSteps
+          call MPI_Recv(doRout, 1, MPI_LOGICAL, 0, 117, MPIparam%comm, status, ierror)
+          if (doRout) then
+            call MPI_Recv(routLoop, 1, MPI_INTEGER, 0, 117, MPIparam%comm, status, ierror)
+            call muskignum_subtree_routing_process(MPIParam, STmeta, subtrees, inInds, trees, inTrees)
+!            do tt = 1, routLoop
+!              call subtree_routing(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, MPIparam%bufferLength &
+!                            , subtrees, STmeta, inInds, trees, inTrees, subtestarray)
+!              call MPI_Barrier(MPIparam%comm)
+!            end do
+          end if
+      end do
+      call subdomain_cleanup(subtrees, subtreesDecompos, trees, inTrees, STmeta, inInds, permNodes, toNodes, toInNodes)
+    end do
+  end subroutine
+
+  ! ToDo: give input to the subroutine
+  subroutine set_MPI_parameters(MPIparam)
+    type(MPI_parameter) :: MPIparam
+    ! local
+    integer(i4) :: ierror
+
+    ! create a dublicate communicator of MPI_COMM_WORLD
+    ! ToDo: Later, have an optional argument with another communicator
+    call MPI_Comm_dup(MPI_COMM_WORLD, MPIparam%comm, ierror)
+    ! find number of processes nproc
+    call MPI_Comm_size(MPIparam%comm, MPIparam%nproc, ierror)
+    ! find the number the process is referred to, called rank
+    call MPI_Comm_rank(MPIparam%comm, MPIparam%rank, ierror)
+  !  do lowBound = 2,10,1!10,210,20
+  !  do nproc = 2,20,2!2,6,2!96,2
+    MPIparam%bufferLength = 4
+    MPIparam%lowBoundOMP = 3
+    MPIparam%lowBound = 5
+  end subroutine set_MPI_parameters
 
   subroutine master_cleanup(schedule, STmeta, roots, subtrees, toNodes, permNodes, toInNodes)
     type(processSchedule), dimension(:), allocatable, intent(inout) :: schedule
@@ -246,7 +314,7 @@ CONTAINS
     deallocate(subtrees, permNodes, toNodes, toInNodes)
   end subroutine master_cleanup
 
-  subroutine subdomain_cleanup(subtrees, subtreesDecompos, trees, inTrees, STmeta, inInds, toNodes, toInNodes)
+  subroutine subdomain_cleanup(subtrees, subtreesDecompos, trees, inTrees, STmeta, inInds, permNodes, toNodes, toInNodes)
     type(ptrTreeNode),     dimension(:), allocatable, intent(inout) :: subtrees
     type(ptrTreeNode),     dimension(:), allocatable, intent(inout) :: subtreesDecompos! the array of
                                                                                        ! subsubtrees for OpenMP in routing order
@@ -255,6 +323,7 @@ CONTAINS
     type(subtreeMeta),     dimension(:), allocatable, intent(inout) :: STmeta
     integer(i4),           dimension(:), allocatable, intent(inout) :: inInds          ! indices of corresponding (in-)Nodes in
                                                                                        ! subtrees from the outside
+    integer(i4),           dimension(:), allocatable, intent(inout) :: permNodes
     integer(i4),           dimension(:), allocatable, intent(inout) :: toNodes
     integer(i4),           dimension(:), allocatable, intent(inout) :: toInNodes
     ! local
@@ -268,7 +337,7 @@ CONTAINS
     ! ToDo: deallocating might be nicer on the same level, so
     ! either outside or an extra subroutine?
     call destroy_subtree_meta(STmeta)
-    deallocate(inInds, toNodes, toInNodes)
+    deallocate(inInds, permNodes, toNodes, toInNodes)
   end subroutine subdomain_cleanup
 
   subroutine domain_decomposition(nproc, lowBound, testarray, iBasin, &
@@ -277,7 +346,7 @@ CONTAINS
     integer(i4),                                      intent(in)    :: nproc
     integer(i4),                                      intent(in)    :: lowBound
     integer(i4),           dimension(:),              intent(in)    :: testarray
-    integer(i4),                                      intent(inout) :: iBasin
+    integer(i4),                                      intent(in)    :: iBasin
     integer(i4),           dimension(:), allocatable, intent(inout) :: toNodes
     integer(i4),           dimension(:), allocatable, intent(inout) :: permNodes
     integer(i4),           dimension(:), allocatable, intent(inout) :: toInNodes
@@ -375,7 +444,7 @@ CONTAINS
 
     array(:) = 0
     call collect_array(iBasin, nproc, rank, comm, nSubtrees, STmeta, permNodes, schedule, array)
-  end subroutine
+  end subroutine routing
 
   ! - receives data corresponding to an array and assigned
   !   subtrees
@@ -411,7 +480,7 @@ CONTAINS
     do kk = 1, nST
       do jj = 1, STmeta(kk)%nIn
         ii = jj + STmeta(kk)%iInStart - 1
-        ! for every subtree for every leave, where data comes in, receive this
+        ! for every subtree for every leaf, where data comes in, receive this
         ! data. Via inInds(ii) we write the right incoming data to the
         ! matching buffer.
         call MPI_IRecv(inTrees(ii)%tN%values%buffer, bufferLength, &
@@ -444,11 +513,12 @@ CONTAINS
     deallocate(array)
   end subroutine subtree_routing
 
-  subroutine subtree_init(lowBound, bufferLength, STmeta, toNodes, toInNodes, subtrees, trees, inTrees)
+  subroutine subtree_init(lowBound, bufferLength, STmeta, permNodes, toNodes, toInNodes, subtrees, trees, inTrees)
     implicit none
     integer(i4),                                  intent(in)    :: lowBound
     integer(i4),                                  intent(in)    :: bufferLength
     type(subtreeMeta), dimension(:),              intent(in)    :: STmeta
+    integer(i4),       dimension(:),              intent(in)    :: permNodes
     integer(i4),       dimension(:),              intent(in)    :: toNodes
     integer(i4),       dimension(:),              intent(in)    :: toInNodes
     type(ptrTreeNode), dimension(:), allocatable, intent(inout) :: subtrees ! the array of
@@ -474,6 +544,9 @@ CONTAINS
                                      tree=trees(iStart:iEnd), inTree=intrees(iInStart:iInEnd))
       do jj = iInStart, iInEnd
         intrees(jj)%tN%isIn = .true.
+      end do
+      do jj = iStart, iEnd
+        trees(jj)%tN%permind = permNodes(jj)
       end do
       call tree_init_buffer(bufferLength, subtrees(kk))
      ! call write_subtree(subtrees(kk), lowBound)
@@ -613,15 +686,18 @@ CONTAINS
     integer(i4), dimension(:), allocatable, intent(out)   :: toNodes
     integer(i4), dimension(:), allocatable, intent(out)   :: fromNodes
     integer(i4), dimension(:), allocatable, intent(out)   :: permNodes
+    ! local
+    integer(i4) :: iStart, iEnd
 
     nNodes = level11(iBasin)%nCells
     nLinks = nNodes - L11_nOutlets(iBasin)
+    iStart = level11(iBasin)%iStart
     allocate(toNodes(nLinks))
-    toNodes(:)   = L11_toN(1:nLinks)
+    toNodes(:)   = L11_toN(iStart:iStart+nLinks)
     allocate(fromNodes(nLinks))
-    fromNodes(:) = L11_fromN(1:nLinks)
+    fromNodes(:) = L11_fromN(iStart:iStart+nLinks)
     allocate(permNodes(nLinks))
-    permNodes(:) = L11_netPerm(1:nLinks)
+    permNodes(:) = L11_netPerm(iStart:iStart+nLinks)
 
   end subroutine get_L11_information
 

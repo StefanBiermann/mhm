@@ -20,12 +20,13 @@ MODULE mo_mrm_routing
   ! Written Luis Samaniego, Dec 2012
 
   USE mo_kind, ONLY : i4, dp
+  use mpi_f08
 
   IMPLICIT NONE
 
   PRIVATE
 
-  PUBLIC :: mRM_routing
+  PUBLIC :: mRM_routing, mRM_routing_par
 
   ! ------------------------------------------------------------------
 
@@ -300,6 +301,267 @@ CONTAINS
     end do
 
   end subroutine mRM_routing
+
+  subroutine mRM_routing_par(read_states, processCase, global_routing_param, L1_total_runoff, L1_areaCell, L1_L11_Id, &
+                        L11_areaCell, L11_L1_Id, L11_netPerm, L11_fromN, L11_toN, L11_nOutlets, timestep, tsRoutFactor, &
+                        nNodes, nInflowGauges, InflowGaugeIndexList, InflowGaugeHeadwater, InflowGaugeNodeList, &
+                        InflowDischarge, nGauges, gaugeIndexList, gaugeNodeList, map_flag, L11_length, L11_slope, &
+                        L11_FracFPimp, L11_C1, L11_C2, L11_qOut, L11_qTIN, L11_qTR, L11_qMod, GaugeDischarge, &
+                        iBasin, MPIparam, subtrees, nSubtrees, STmeta, permNodes, schedule, array)
+
+    use mo_mrm_global_variables, only : is_start
+    use mo_mrm_mpr, only : reg_rout
+    use mo_HRD_types, only : MPI_parameter, ptrTreeNode, subtreeMeta, processSchedule
+    use mo_HRD_domain_decomposition, only : routing
+    use mo_HRD_routing, only : muskignum_master_routing
+    use mo_HRD_MPI_array_communication, only : distribute_array_dp, collect_array_dp
+
+    implicit none
+
+    ! whether states are derived from restart file
+    logical, intent(in) :: read_states
+
+    ! Process switch for routing
+    integer(i4), intent(in) :: processCase
+
+    ! routing parameters
+    real(dp), dimension(:), intent(in) :: global_routing_param
+
+    ! total runoff from L1 grid cells
+    real(dp), dimension(:), intent(in) :: L1_total_runoff
+
+    ! L1 cell area
+    real(dp), dimension(:), intent(in) :: L1_areaCell
+
+    ! L1 cell ids on L11
+    integer(i4), dimension(:), intent(in) :: L1_L11_Id
+
+    ! L11 cell area
+    real(dp), dimension(:), intent(in) :: L11_areaCell
+
+    ! L11 cell ids on L1
+    integer(i4), dimension(:), intent(in) :: L11_L1_Id
+
+    ! L11 routing order
+    integer(i4), dimension(:), intent(in) :: L11_netPerm
+
+    ! L11 source grid cell order
+    integer(i4), dimension(:), intent(in) :: L11_fromN
+
+    ! L11 target grid cell order
+    integer(i4), dimension(:), intent(in) :: L11_toN
+
+    ! L11 number of outlets/sinks
+    integer(i4), intent(in) :: L11_nOutlets
+
+    ! simulation timestep in [h]
+    integer(i4), intent(in) :: timestep
+
+    ! factor between routing timestep and hydrological timestep
+    real(dp), intent(in) :: tsRoutFactor
+
+    ! number of nodes
+    integer(i4), intent(in) :: nNodes
+
+    ! number of inflow gauges
+    integer(i4), intent(in) :: nInflowGauges
+
+    ! index list of inflow gauges
+    integer(i4), dimension(:), intent(in) :: InflowGaugeIndexList
+
+    ! flag for headwater cell of inflow gauge
+    logical, dimension(:), intent(in) :: InflowGaugeHeadwater
+
+    ! gauge node list at L11
+    integer(i4), dimension(:), intent(in) :: InflowGaugeNodeList
+
+    ! inflowing discharge at discharge gauge at current day
+    real(dp), dimension(:), intent(in) :: InflowDischarge
+
+    ! number of recording gauges
+    integer(i4), intent(in) :: nGauges
+
+    ! index list for outflow gauges
+    integer(i4), dimension(:), intent(in) :: gaugeIndexList
+
+    ! gauge node list at L11
+    integer(i4), dimension(:), intent(in) :: gaugeNodeList
+
+    ! flag indicating whether routing resolution iscoarser than hydrologic resolution
+    logical, intent(in) :: map_flag
+
+    ! L11 link length
+    real(dp), dimension(:), intent(in) :: L11_length
+
+    ! L11 slope
+    real(dp), dimension(:), intent(in) :: L11_slope
+
+    ! L11 fraction of flood plain with impervios cover
+    real(dp), dimension(:), intent(in) :: L11_FracFPimp
+
+    ! L11 muskingum parameter 1
+    real(dp), dimension(:), intent(inout) :: L11_C1
+
+    ! L11 muskingum parameter 2
+    real(dp), dimension(:), intent(inout) :: L11_C2
+
+    ! total runoff from L11 grid cells
+    real(dp), dimension(:), intent(inout) :: L11_qOut
+
+    ! L11 inflow to the reach
+    real(dp), dimension(:, :), intent(inout) :: L11_qTIN
+
+    ! L11 routed outflow
+    real(dp), dimension(:, :), intent(inout) :: L11_qTR
+
+    ! modelled discharge at each grid cell
+    real(dp), dimension(:), intent(inout) :: L11_qMod
+
+    ! modelled discharge at each gauge
+    real(dp), dimension(:), intent(inout) :: GaugeDischarge
+
+    integer(i4), intent(in) :: iBasin
+    type(MPI_parameter), intent(in) :: MPIparam
+    type(ptrTreeNode),     dimension(:), intent(in)    :: subtrees ! the array of
+    integer(i4),                         intent(in)    :: nSubtrees
+    type(subtreeMeta),     dimension(:), intent(inout) :: STmeta
+    integer(i4),           dimension(:), intent(in)    :: permNodes
+    type(processSchedule), dimension(:), intent(in)    :: schedule
+    integer(i4),           dimension(:), intent(inout) :: array
+
+
+    integer(i4) :: gg
+
+    integer(i4) :: tt
+
+    ! number of routing loops
+    integer(i4) :: rout_loop
+
+    ! variable for accumulation
+    real(dp), dimension(size(L11_qMod, dim = 1)) :: L11_qAcc
+
+    integer(i4)                                  :: ierror
+    integer(i4)                                  :: iproc
+
+    ! L11 inflow to the reach
+    real(dp), dimension(size(L11_qTIN, dim = 1)) :: L11_comp_qTIN
+
+    ! L11 routed outflow
+    real(dp), dimension(size(L11_qTR, dim = 1)) :: L11_comp_qTR
+
+
+    if (is_start) then
+      is_start = .false.
+    end if
+
+    ! this is using the sealed fraction for determining the routing parameters
+    ! MPR has already been done
+    if (processCase .eq. 1_i4 .AND. (.not. read_states)) then
+      ! for a single node model run
+      if (nNodes .GT. 1) then
+        call reg_rout(global_routing_param, &
+                L11_length, L11_slope, L11_FracFPimp(: nNodes - L11_nOutlets), &
+                real(timeStep, dp), L11_C1(: nNodes - L11_nOutlets), L11_C2(: nNodes - L11_nOutlets))
+      end if
+    end if
+
+    ! =====================================================================
+    ! NOW, EXECUTE ROUTING
+    ! ====================================================================
+    ! calculate number of routing loops
+    rout_loop = max(1_i4, nint(1._dp / tsRoutFactor))
+
+    ! runoff accumulation from L1 to L11 level
+    call L11_runoff_acc(L1_total_runoff, L1_areaCell, L1_L11_Id, &
+            L11_areaCell, L11_L1_Id, timeStep, & ! Intent IN
+            map_flag, & ! Intent IN
+            L11_qOut) ! Intent OUT
+
+    ! add inflow
+    call add_inflow(nInflowGauges, &
+            InflowGaugeIndexList, &
+            InflowGaugeHeadwater, &
+            InflowGaugeNodeList, &
+            InflowDischarge, & ! Intent IN
+            L11_qOUT) ! Intent INOUT
+
+    ! for a single node model run
+    if(nNodes .GT. 1) then
+      ! sending intent ins of L11_routing to all nodes
+      do iproc = 1, MPIparam%nproc-1
+        call MPI_Send(rout_loop, 1, MPI_INTEGER, iproc, 117, MPIparam%comm, ierror)
+        call MPI_Send(rout_loop, 1, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
+        call MPI_Send(nInflowGauges, 1, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
+        call MPI_Send(InflowGaugeHeadwater, nInflowGauges, MPI_LOGICAL, iproc, 2, MPIparam%comm, ierror)
+        call MPI_Send(InflowGaugeNodeList, nInflowGauges, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
+      end do
+      ! ToDo: If C1, C2 where not the same maybe the sorting would be wrong
+      call distribute_array_dp(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, &
+                            nSubtrees, STmeta,permNodes, schedule, L11_C1)
+      call distribute_array_dp(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, &
+                            nSubtrees, STmeta,permNodes, schedule, L11_C2)
+      call distribute_array_dp(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, &
+                            nSubtrees, STmeta,permNodes, schedule, L11_qOut)
+      ! routing multiple times if timestep is smaller than 1
+      !
+      L11_qAcc = 0._dp
+      do tt = 1, rout_loop
+        call distribute_array_dp(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, &
+                              nSubtrees, STmeta,permNodes, schedule, L11_qTIN(:,1))
+        call distribute_array_dp(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, &
+                              nSubtrees, STmeta,permNodes, schedule, L11_qTR(:,1))
+       ! ! routing of water within river reaches
+       ! call L11_routing(nNodes, nNodes - L11_nOutlets, &
+       !         L11_netPerm, &
+       !         L11_fromN, & ! Intent IN
+       !         L11_toN, & ! Intent IN
+       !         L11_C1, & ! Intent IN
+       !         L11_C2, & ! Intent IN
+       !         L11_qOut, & ! Intent IN
+       !         nInflowGauges, & ! Intent IN
+       !         InflowGaugeHeadwater, & ! Intent IN
+       !         InflowGaugeNodeList, & ! Intent IN
+       !         L11_qTIN, & ! Intent INOUT
+       !         L11_qTR, & ! Intent INOUT
+       !         L11_qMod) ! Intent OUT
+       ! call routing(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, MPIparam%bufferLength, &
+       !          subtrees, nSubtrees, STmeta, permNodes, schedule, array)
+        call muskignum_master_routing(iBasin, MPIparam, subtrees, nSubtrees, STmeta, schedule)
+        call MPI_Barrier(MPIparam%comm)
+        ! backflow t-> t-1
+        call collect_array_dp(iBasin, MPIParam%nproc, MPIparam%rank, MPIparam%comm, &
+                              nSubtrees, STmeta, permNodes, schedule, L11_qTIN(:,1))
+        call collect_array_dp(iBasin, MPIParam%nproc, MPIparam%rank, MPIparam%comm, &
+                              nSubtrees, STmeta, permNodes, schedule, L11_qTR(:,1))
+        call MPI_Barrier(MPIparam%comm)
+        ! store generated discharge
+        L11_qMod(1 : nNodes) = L11_qTIN(1 : nNodes, 1)
+        ! accumulate values of individual subtimesteps
+        L11_qAcc = L11_qAcc + L11_qMod
+      !  write(*,*) L11_comp_qTR
+      !  write(*,*) '************'
+      !  write(*,*) L11_qTR(:,1)
+      !  read(*,*)
+      end do
+      ! calculate mean over routing period (timestep)
+      L11_qMod = L11_qAcc / real(rout_loop, dp)
+    else
+      L11_Qmod = L11_qOUT
+    end if
+
+    !----------------------------------------------------------------------
+    ! FOR STORING the optional arguments
+    ! 
+    ! FOR RUNOFF
+    ! NOTE:: Node ID for a given gauging station is stored at gaugeindex's
+    !        index in runoff. In consequence the gauges in runoff are 
+    !        ordered corresponing to gauge%Q(:,:)
+    !----------------------------------------------------------------------
+    do gg = 1, nGauges
+      GaugeDischarge(gaugeIndexList(gg)) = L11_Qmod(gaugeNodeList(gg))
+    end do
+
+  end subroutine mRM_routing_par
 
   ! ------------------------------------------------------------------
 
@@ -645,6 +907,8 @@ CONTAINS
       ! accumulate all inputs in iNode
       netNode_qTIN(iNode, IT) = netNode_qTIN(iNode, IT) + netNode_qOUT(iNode)
 
+     ! write(0,*) '----', netNode_qTR(iNode, IT1), netNode_qTIN(iNode, IT1), netNode_qTIN(iNode, IT), netLink_C1(i), netLink_C2(i)
+     ! write(0,*) '----', netNode_qTIN(iNode, IT), netLink_C1(i), netLink_C2(i)
       ! routing iNode
       netNode_qTR(iNode, IT) = netNode_qTR(iNode, IT1)                               &
               + netLink_C1(i) * (netNode_qTIN(iNode, IT1) - netNode_qTR (iNode, IT1)) &
@@ -660,6 +924,8 @@ CONTAINS
 
       ! add routed water to downstream node
       netNode_qTIN(tNode, IT) = netNode_qTIN(tNode, IT) + netNode_qTR(iNode, IT)
+    !  write(0,*) '----', netNode_qTR(iNode, IT), netNode_qTIN(iNode, IT), tNode
+    !  write(0,*) iNode
     end do
     !!$OMP end do
     !!$OMP end parallel

@@ -86,14 +86,17 @@ CONTAINS
     end do
   end subroutine init_subtree_metadata
 
-  subroutine distribute_subtree_meta(iBasin,nproc,comm,nSubtrees,STmeta,toNodes,toInNodes,schedule,subtrees)
+  subroutine distribute_subtree_meta(iBasin,nproc,comm,nSubtrees,nTimeSteps,STmeta,&
+                                     permNodes,toNodes,toInNodes,schedule,subtrees)
     implicit none
     integer(i4),                         intent(in)    :: iBasin
     integer(i4),                         intent(in)    :: nproc
     type(MPI_Comm)                                     :: comm
     integer(i4),                         intent(in)    :: nSubtrees
+    integer(i4),                         intent(in)    :: nTimeSteps
     type(subtreeMeta),     dimension(:), intent(in)    :: STmeta
     integer(i4),           dimension(:), intent(in)    :: toNodes
+    integer(i4),           dimension(:), intent(in)    :: permNodes
     integer(i4),           dimension(:), intent(in)    :: toInNodes
     type(processSchedule), dimension(:), intent(inout) :: schedule
     type(ptrTreeNode),     dimension(:), intent(inout) :: subtrees ! the array of
@@ -107,12 +110,13 @@ CONTAINS
     ! send number of subtrees and total number of tree nodes assigned
     ! to the processes to the corresponding process, so arrays can be
     ! allocated in the receiving subroutines
-    allocate(iSends(3,nproc-1))
+    allocate(iSends(4,nproc-1))
     do kk=1,nproc-1
        iSends(1,kk)=schedule(kk)%nTrees
        iSends(2,kk)=schedule(kk)%overallSize
        iSends(3,kk)=schedule(kk)%overallInSize
-       call MPI_Send(iSends(:,kk),3,MPI_INTEGER,kk,0,comm,ierror)
+       iSends(4,kk)=nTimeSteps
+       call MPI_Send(iSends(:,kk),4,MPI_INTEGER,kk,0,comm,ierror)
     end do
     ! send metadata of the subtrees to the nodes where they are assigned to
     ! size, identifying index corresponding to the subtree array and number of
@@ -136,11 +140,14 @@ CONTAINS
           sizST=STmeta(iST)%sizST
           nIn=STmeta(iST)%nIn
           allocate(sendarray(sizST))
+          ! send the toNode array
           do ii=STmeta(iST)%iStart,STmeta(iST)%iEnd
              !ToDo: is the minus term still correct?
              sendarray(ii-STmeta(iST)%iStart+1)=toNodes(ii)-STmeta(iST)%iStart+1
           end do
           call MPI_Send(sendarray(1:sizST),sizST,MPI_INTEGER,kk,iST,comm,ierror)
+          ! send permNode array
+          call MPI_Send(permNodes(STmeta(iST)%iStart:STmeta(iST)%iEnd),sizST,MPI_INTEGER,kk,iST,comm,ierror)
           ! ToDo: should do with the old sendarray
           deallocate(sendarray)
           if (nIn > 0) then
@@ -164,17 +171,19 @@ CONTAINS
     deallocate(iSends)
   end subroutine distribute_subtree_meta
 
-  subroutine get_subtree_meta(iBasin,comm,STmeta,toNodes,toInNodes,inInds)
+  subroutine get_subtree_meta(iBasin,comm,nTimeSteps,STmeta,permNodes,toNodes,toInNodes,inInds)
     implicit none
     integer(i4),                                  intent(in)    :: iBasin
     type(MPI_Comm)                                              :: comm
+    integer(i4),                                  intent(inout) :: nTimeSteps
     type(subtreeMeta), dimension(:), allocatable, intent(inout) :: STmeta
+    integer(i4),       dimension(:), allocatable, intent(inout) :: permNodes
     integer(i4),       dimension(:), allocatable, intent(inout) :: toNodes
     integer(i4),       dimension(:), allocatable, intent(inout) :: toInNodes
     integer(i4),       dimension(:), allocatable, intent(inout) :: inInds
     ! local variables
     integer(i4) :: kk
-    integer(i4), dimension(3) :: nDatasets ! number of incoming data sets
+    integer(i4), dimension(4) :: nDatasets ! number of incoming data sets
                                            ! total size of datasets
     integer(i4)      :: sizST, indST, nIn
     integer(i4)      :: nSubtrees, totSizeOfSubtrees, totNIn
@@ -183,12 +192,13 @@ CONTAINS
 
     ! recieves number of subtrees and total number of tree nodes assigned to
     ! this process
-    call MPI_Recv(nDatasets(:),3,MPI_INTEGER,0,0,comm,status,ierror)
+    call MPI_Recv(nDatasets(:),4,MPI_INTEGER,0,0,comm,status,ierror)
     nSubtrees=nDatasets(1)
     totSizeOfSubtrees=nDatasets(2)
     totNIn=nDatasets(3)
+    nTimeSteps=nDatasets(4)
     allocate(STmeta(nSubtrees))
-    allocate(toNodes(totSizeOfSubtrees))
+    allocate(toNodes(totSizeOfSubtrees),permNodes(totSizeOfSubtrees))
     allocate(toInNodes(totNIn),inInds(totNIn))
     if (nSubtrees > 0) then
       call MPI_Recv(STmeta(1)%indST,1,MPI_INTEGER,0,1,comm,status,ierror)
@@ -213,6 +223,7 @@ CONTAINS
       sizST=STmeta(kk)%sizST
       nIn=STmeta(kk)%nIn
       call MPI_Recv(toNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,STmeta(kk)%indST,comm,status,ierror)
+      call MPI_Recv(permNodes(STmeta(kk)%iStart:STmeta(kk)%iEnd),sizST,MPI_INTEGER,0,STmeta(kk)%indST,comm,status,ierror)
       if (nIn > 0) then
          call MPI_Recv(toInNodes(STmeta(kk)%iInStart:STmeta(kk)%iInEnd),nIn,MPI_INTEGER,0,STmeta(kk)%indST,comm,status,ierror)
          call MPI_Recv(inInds(STmeta(kk)%iInStart:STmeta(kk)%iInEnd),nIn,MPI_INTEGER,0,STmeta(kk)%indST,comm,status,ierror)

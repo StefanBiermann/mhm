@@ -11,7 +11,7 @@ MODULE mo_HRD_types
 
   IMPLICIT NONE
 
-  public :: ptrTreeNode, treeNode, subtreeMeta, subtreeBuffer, processSchedule, treeNodeBuffer
+  public :: ptrTreeNode, treeNode, subtreeMeta, subtreeBuffer, processSchedule, treeNodeBuffer, MPI_parameter
 
   private
   
@@ -43,7 +43,14 @@ MODULE mo_HRD_types
   type treeNode
     integer(i4)                                :: origind   ! index in node in original array
     integer(i4)                                :: ind       ! index in node in routing ordered array
+    integer(i4)                                :: permind   ! index in node in original array, 
+                                                            ! ToDo: because there is a mess at the moment
     type(treeNodeBuffer), pointer              :: values    ! a buffer that holds the values associated to that node
+    type(treeNodeBuffer_dp), pointer           :: qTIN      ! a buffer that holds the values associated to that node
+    type(treeNodeBuffer_dp), pointer           :: qTR       ! a buffer that holds the values associated to that node
+    real(dp)                                   :: C1        ! a buffer that holds the values associated to that node
+    real(dp)                                   :: C2        ! a buffer that holds the values associated to that node
+    type(treeNodeBuffer_dp), pointer           :: qOut      ! a buffer that holds the values associated to that node
 
     type(ptrTreeNode)                          :: post      ! node downstream,
                                                             ! parent
@@ -81,8 +88,16 @@ MODULE mo_HRD_types
   end type subtreeNode
 
   type treeNodeBuffer
-     integer(i4),   dimension(:), allocatable  :: buffer
+    integer(i4),   dimension(:), allocatable  :: buffer
+    type(MPI_Status)                          :: status
+    type(MPI_Request)                         :: request
   end type treeNodeBuffer
+
+  type treeNodeBuffer_dp
+    real(dp),      dimension(:), allocatable  :: buffer
+    type(MPI_Status)                          :: status
+    type(MPI_Request)                         :: request
+  end type treeNodeBuffer_dp
 
   type subtreeMeta
     integer(i4)        :: indST
@@ -107,4 +122,13 @@ MODULE mo_HRD_types
      integer(i4)                                :: overallSize
      integer(i4)                                :: overallInSize ! number of all halo nodes
   end type processSchedule
+
+  type MPI_parameter
+    type(MPI_Comm)                   :: comm                ! MPI communicator
+    integer(i4)                      :: nproc
+    integer(i4)                      :: rank
+    integer(i4)                      :: bufferLength
+    integer(i4)                      :: lowBound
+    integer(i4)                      :: lowBoundOMP
+  end type MPI_parameter
 END MODULE mo_HRD_types

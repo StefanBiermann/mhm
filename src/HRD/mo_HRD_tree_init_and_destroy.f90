@@ -135,6 +135,17 @@ CONTAINS
     allocate(root%tN%values)
     allocate(root%tN%values%buffer(bufferLength+1))
     root%tN%values%buffer(:) = 0
+    allocate(root%tN%qTIN)
+    allocate(root%tN%qTIN%buffer(bufferLength+1))
+    root%tN%qTIN%buffer(:) = 0.0
+    allocate(root%tN%qTR)
+    allocate(root%tN%qTR%buffer(bufferLength+1))
+    root%tN%qTR%buffer(:) = 0.0
+    root%tN%C1 = 0.0
+    root%tN%C2 = 0.0
+    allocate(root%tN%qOut)
+    allocate(root%tN%qOut%buffer(bufferLength+1))
+    root%tN%qOut%buffer(:) = 0.0
     NChildren=size(root%tN%prae)
     do kk = 1, NChildren
        call tree_init_buffer(bufferLength, root%tN%prae(kk))
@@ -276,6 +287,7 @@ CONTAINS
     treenode%tN%sizUp=1
     treenode%tN%origind=kk
     treenode%tN%ind=0
+    treenode%tN%permind=0
     treenode%tN%post%tN=>null()
     treenode%tN%NSTinBranch=1
     treenode%tN%level=0
@@ -402,6 +414,18 @@ CONTAINS
     if (associated(root%tN%values)) then
        deallocate(root%tN%values%buffer)
        deallocate(root%tN%values)
+    end if
+    if (associated(root%tN%qTIN)) then
+       deallocate(root%tN%qTIN%buffer)
+       deallocate(root%tN%qTIN)
+    end if
+    if (associated(root%tN%qTR)) then
+       deallocate(root%tN%qTR%buffer)
+       deallocate(root%tN%qTR)
+    end if
+    if (associated(root%tN%qOut)) then
+       deallocate(root%tN%qOut%buffer)
+       deallocate(root%tN%qOut)
     end if
     if (associated(root%tN%ST)) then
        deallocate(root%tN%ST%praeST)

@@ -18,6 +18,7 @@
 module mo_common_variables
 
   use mo_kind, only : i4, i8, dp
+  use mo_HRD_types, only : MPI_parameter
   implicit none
 
   ! -------------------------------------------------------------------
@@ -38,6 +39,11 @@ module mo_common_variables
   real(dp), dimension(:), allocatable, public :: resolutionHydrology        ! [m or degree] resolution of hydrology - Level 1
   integer(i4), dimension(:), allocatable, public :: L0_Basin
   logical, public :: write_restart              ! flag
+
+  !-------------------------------------------------------------------
+  ! PARALLELIZATION variables
+  !-------------------------------------------------------------------
+  type(MPI_parameter), public :: MPIparam
 
   ! ------------------------------------------------------------------
   ! DIRECTORIES
