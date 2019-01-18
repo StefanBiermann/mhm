@@ -121,16 +121,17 @@ CONTAINS
     end do
   end subroutine tree_init_qTIN_with_array
 
-  subroutine tree_extract_qTIN_in_array(ind, trees, array)
+  subroutine tree_extract_qTIN_in_array(trees, array)
     implicit none
-    integer(i4),                       intent(in)    :: ind
-    type(ptrTreeNode),   dimension(:), intent(in)    :: trees
-    real(dp),            dimension(:), intent(inout) :: array
+    type(ptrTreeNode),   dimension(:),    intent(in)    :: trees
+    real(dp),            dimension(:, :), intent(inout) :: array
     ! local
-    integer(i4) :: kk
+    integer(i4) :: kk, jj
 
-    do kk = 1, size(array)
-      array(kk)=trees(kk)%tN%qTIN%buffer(ind)
+    do jj = 1, size(array, dim=2)
+      do kk = 1, size(array, dim=1)
+        array(kk, jj)=trees(kk)%tN%qTIN%buffer(jj)
+      end do
     end do
   end subroutine tree_extract_qTIN_in_array
 
@@ -146,54 +147,62 @@ CONTAINS
     end do
   end subroutine tree_init_qTR_with_array
 
-  subroutine tree_extract_qTR_in_array(ind, trees, array)
+  subroutine tree_extract_qTR_in_array(trees, array)
     implicit none
-    integer(i4),                       intent(in)    :: ind
-    type(ptrTreeNode),   dimension(:), intent(in)    :: trees
-    real(dp),            dimension(:), intent(inout) :: array
+    type(ptrTreeNode),   dimension(:),    intent(in)    :: trees
+    real(dp),            dimension(:, :), intent(inout) :: array
     ! local
-    integer(i4) :: kk
+    integer(i4) :: kk, jj
 
-    do kk = 1, size(array)
-      array(kk)=trees(kk)%tN%qTR%buffer(ind)
+    do jj = 1, size(array, dim=2)
+      do kk = 1, size(array, dim=1)
+        array(kk, jj)=trees(kk)%tN%qTR%buffer(jj)
+      end do
     end do
   end subroutine tree_extract_qTR_in_array
 
   subroutine tree_init_C1_with_array(array, trees)
     implicit none
-    real(dp),            dimension(:), intent(in)    :: array
-    type(ptrTreeNode),   dimension(:), intent(inout) :: trees
+    real(dp),            dimension(:, :), intent(in)    :: array
+    type(ptrTreeNode),   dimension(:),    intent(inout) :: trees
     ! local
-    integer(i4) :: kk
+    integer(i4) :: kk, jj
 
-    do kk = 1, size(array)
-      trees(kk)%tN%C1 = array(kk)
+    do jj = 1, size(array, dim=2)
+      do kk = 1, size(array, dim=1)
+        trees(kk)%tN%C1%buffer(jj) = array(kk, jj)
+      end do
     end do
   end subroutine tree_init_C1_with_array
 
   subroutine tree_init_C2_with_array(array, trees)
     implicit none
-    real(dp),            dimension(:), intent(in)    :: array
-    type(ptrTreeNode),   dimension(:), intent(inout) :: trees
+    real(dp),            dimension(:, :), intent(in)    :: array
+    type(ptrTreeNode),   dimension(:),    intent(inout) :: trees
     ! local
-    integer(i4) :: kk
+    integer(i4) :: kk, jj
 
-    do kk = 1, size(array)
-      trees(kk)%tN%C2 = array(kk)
+    do jj = 1, size(array, dim=2)
+      do kk = 1, size(array, dim=1)
+        trees(kk)%tN%C2%buffer(jj) = array(kk, jj)
+      end do
     end do
   end subroutine tree_init_C2_with_array
 
   subroutine tree_init_qOut_with_array(array, trees)
     implicit none
-    real(dp),            dimension(:), intent(in)    :: array
-    type(ptrTreeNode),   dimension(:), intent(inout) :: trees
+    real(dp),            dimension(:, :), intent(in)    :: array
+    type(ptrTreeNode),   dimension(:),    intent(inout) :: trees
     ! local
-    integer(i4) :: kk
+    integer(i4) :: kk, jj
 
-    do kk = 1, size(array)
-      trees(kk)%tN%qOut%buffer(1) = array(kk)
+    do jj = 1, size(array, dim=2)
+      do kk = 1, size(array, dim=1)
+        trees(kk)%tN%qOut%buffer(jj) = array(kk, jj)
+      end do
     end do
   end subroutine tree_init_qOut_with_array
+
   subroutine tree_write_values_to_array(trees, bufferLength, array)
     implicit none
     type(ptrTreeNode),   dimension(:), intent(in)    :: trees

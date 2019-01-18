@@ -48,8 +48,8 @@ MODULE mo_HRD_types
     type(treeNodeBuffer), pointer              :: values    ! a buffer that holds the values associated to that node
     type(treeNodeBuffer_dp), pointer           :: qTIN      ! a buffer that holds the values associated to that node
     type(treeNodeBuffer_dp), pointer           :: qTR       ! a buffer that holds the values associated to that node
-    real(dp)                                   :: C1        ! a buffer that holds the values associated to that node
-    real(dp)                                   :: C2        ! a buffer that holds the values associated to that node
+    type(treeNodeBuffer_dp), pointer           :: C1        ! a buffer that holds the values associated to that node
+    type(treeNodeBuffer_dp), pointer           :: C2        ! a buffer that holds the values associated to that node
     type(treeNodeBuffer_dp), pointer           :: qOut      ! a buffer that holds the values associated to that node
 
     type(ptrTreeNode)                          :: post      ! node downstream,
@@ -127,6 +127,7 @@ MODULE mo_HRD_types
     type(MPI_Comm)                   :: comm                ! MPI communicator
     integer(i4)                      :: nproc
     integer(i4)                      :: rank
+    integer(i4)                      :: bufferIndex
     integer(i4)                      :: bufferLength
     integer(i4)                      :: lowBound
     integer(i4)                      :: lowBoundOMP

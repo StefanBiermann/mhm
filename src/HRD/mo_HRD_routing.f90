@@ -21,7 +21,7 @@ MODULE mo_HRD_routing
 !
 !  use mo_HRD_subtree_meta, only: init_subtree_metadata, distribute_subtree_meta, &
 !                                 get_subtree_meta, destroy_subtree_meta
-  use mo_HRD_MPI_array_communication, only: get_array_dp, send_array_dp
+  use mo_HRD_MPI_array_communication, only: get_array_dp, send_array_dp, get_full_array_dp, send_full_array_dp
 !
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
   use mpi_f08
@@ -71,8 +71,9 @@ CONTAINS
     end do
   end subroutine muskignum_master_routing
 
-  subroutine muskignum_subtree_routing_process(MPIParam, STmeta, subtrees, inInds, trees, inTrees)
-    type(MPI_parameter), intent(in) :: MPIparam
+  subroutine muskignum_subtree_routing_process(MPIParam, routLoop, STmeta, subtrees, inInds, trees, inTrees)
+    type(MPI_parameter),                          intent(in)    :: MPIparam
+    integer(i4),                                  intent(in)    :: routLoop
     type(subtreeMeta), dimension(:),              intent(inout) :: STmeta
     type(ptrTreeNode), dimension(:), allocatable, intent(in)    :: subtrees            ! the array of
     integer(i4),       dimension(:), allocatable, intent(in)    :: inInds
@@ -80,32 +81,32 @@ CONTAINS
     type(ptrTreeNode), dimension(:), allocatable, intent(in)    :: inTrees             ! the array of halo leaves
     ! local
     integer(i4) :: ierror
-    integer(i4)                            :: routLoop
     integer(i4)                            :: nInflowGauges
     type(MPI_Status)                       :: status
     integer(i4) :: iBasin
     
-    real(dp), dimension(:), allocatable :: L11_C1
-    real(dp), dimension(:), allocatable :: L11_C2
-    real(dp), dimension(:), allocatable :: L11_qOut
-    real(dp), dimension(:), allocatable :: L11_qTIN
-    real(dp), dimension(:), allocatable :: L11_qTR
-    logical,  dimension(:), allocatable :: InflowGaugeHeadwater
+    real(dp), dimension(:, :), allocatable :: L11_C1
+    real(dp), dimension(:, :), allocatable :: L11_C2
+    real(dp), dimension(:, :), allocatable :: L11_qOut
+    real(dp), dimension(:),    allocatable :: L11_qTIN
+    real(dp), dimension(:),    allocatable :: L11_qTR
+    real(dp), dimension(:, :), allocatable :: L11_buf_qTIN
+    real(dp), dimension(:, :), allocatable :: L11_buf_qTR
+    logical,  dimension(:),    allocatable :: InflowGaugeHeadwater
     integer(i4), dimension(:), allocatable :: InflowGaugeNodeList
 
     integer(i4) :: tt
     ! ToDo: change
     iBasin = 1
-    call MPI_Recv(routLoop, 1, MPI_INTEGER, 0, 2, MPIparam%comm, status, ierror)
     call MPI_Recv(nInflowGauges, 1, MPI_INTEGER, 0, 2, MPIparam%comm, status, ierror)
     allocate(InflowGaugeHeadwater(nInflowGauges), InflowGaugeNodeList(nInflowGauges))
     call MPI_Recv(InflowGaugeHeadwater, nInflowGauges, MPI_LOGICAL, 0, 2, MPIparam%comm, status, ierror)
     call MPI_Recv(InflowGaugeNodeList, nInflowGauges, MPI_INTEGER, 0, 2, MPIparam%comm, status, ierror)
-    call get_array_dp(iBasin, MPIParam%nproc, MPIParam%rank, MPIParam%comm, STmeta, L11_C1)
+    call get_full_array_dp(iBasin, MPIParam, STmeta, L11_C1)
     call tree_init_C1_with_array(L11_C1, trees)
-    call get_array_dp(iBasin, MPIParam%nproc, MPIParam%rank, MPIParam%comm, STmeta, L11_C2)
+    call get_full_array_dp(iBasin, MPIParam, STmeta, L11_C2)
     call tree_init_C2_with_array(L11_C2, trees)
-    call get_array_dp(iBasin, MPIParam%nproc, MPIParam%rank, MPIParam%comm, STmeta, L11_qOut)
+    call get_full_array_dp(iBasin, MPIParam, STmeta, L11_qOut)
     call tree_init_qOut_with_array(L11_qOut, trees)
     do tt = 1, routLoop
       call get_array_dp(iBasin, MPIParam%nproc, MPIParam%rank, MPIParam%comm, STmeta, L11_qTIN)
@@ -115,10 +116,12 @@ CONTAINS
       call muskignum_subprocess_routing(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList,&
                                      STmeta, subtrees, inInds, inTrees, trees)
       call MPI_Barrier(MPIparam%comm)
-      call tree_extract_qTIN_in_array(2, trees, L11_qTIN)
-      call send_array_dp(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, STmeta, L11_qTIN)
-      call tree_extract_qTR_in_array(2, trees, L11_qTR)
-      call send_array_dp(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, STmeta, L11_qTR)
+      allocate(L11_buf_qTIN(size(L11_qTIN, dim=1), MPIparam%bufferLength))
+      allocate(L11_buf_qTR( size(L11_qTIN, dim=1), MPIparam%bufferLength))
+      call tree_extract_qTIN_in_array(trees, L11_buf_qTIN)
+      call send_full_array_dp(iBasin, MPIparam, STmeta, L11_buf_qTIN)
+      call tree_extract_qTR_in_array(trees, L11_buf_qTR)
+      call send_full_array_dp(iBasin, MPIparam, STmeta, L11_buf_qTR)
       call MPI_Barrier(MPIparam%comm)
     end do
     deallocate(InflowGaugeHeadwater, InflowGaugeNodeList)
@@ -246,8 +249,8 @@ CONTAINS
    !           + netLink_C1(i) * (netNode_qTIN(iNode, IT1) - netNode_qTR (iNode, IT1)) &
    !           + netLink_C2(i) * (netNode_qTIN(iNode, IT) - netNode_qTIN(iNode, IT1))
     root%tN%qTR%buffer(2) = root%tN%qTR%buffer(1) &
-               + root%tN%C1 * ( root%tN%qTIN%buffer(1) - root%tN%qTR%buffer(1) ) &
-               + root%tN%C2 * ( root%tN%qTIN%buffer(2) - root%tN%qTIN%buffer(1) )
+               + root%tN%C1%buffer(1) * ( root%tN%qTIN%buffer(1) - root%tN%qTR%buffer(1) ) &
+               + root%tN%C2%buffer(1) * ( root%tN%qTIN%buffer(2) - root%tN%qTIN%buffer(1) )
 
     !ToDo: is only necessery in incomplete catchments
     ! check if the inflow from upstream cells should be deactivated

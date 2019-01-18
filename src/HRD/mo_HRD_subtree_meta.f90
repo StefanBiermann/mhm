@@ -16,7 +16,7 @@ MODULE mo_HRD_subtree_meta
   IMPLICIT NONE
 
   public :: init_subtree_metadata, distribute_subtree_meta, get_subtree_meta, &
-            destroy_subtree_meta
+            destroy_subtree_meta, distribute_meta, get_meta
             
 
   private
@@ -85,6 +85,35 @@ CONTAINS
        end if
     end do
   end subroutine init_subtree_metadata
+
+  subroutine distribute_meta(iBasin, nproc, comm, nTimeSteps, processMatrix, timestep,&
+                             L11_tsRout, HourSecs, nTstepDay)
+    implicit none
+    integer(i4),                         intent(in)    :: iBasin
+    integer(i4),                         intent(in)    :: nproc
+    type(MPI_Comm)                                     :: comm
+    integer(i4),                         intent(in)    :: nTimeSteps
+    integer(i4),                         intent(in)    :: processMatrix
+    integer(i4),                         intent(in)    :: timestep
+    real(dp),                            intent(in)    :: L11_tsRout
+    real(dp),                            intent(in)    :: HourSecs
+    integer(i4),                         intent(in)    :: nTstepDay
+    ! local variables
+    integer(i4) :: kk
+    integer(i4) :: rank,ierror
+    integer(i4), dimension(:,:), allocatable :: iSends
+                                                      
+    allocate(iSends(6,nproc-1))
+    do kk=1,nproc-1
+       iSends(1,kk)=nTimeSteps
+       iSends(2,kk)=processMatrix
+       iSends(3,kk)=timestep
+       iSends(4,kk)=L11_tsRout
+       iSends(5,kk)=HourSecs
+       iSends(6,kk)=nTstepDay
+       call MPI_Send(iSends(:,kk),6,MPI_INTEGER,kk,0,comm,ierror)
+    end do
+  end subroutine distribute_meta
 
   subroutine distribute_subtree_meta(iBasin,nproc,comm,nSubtrees,nTimeSteps,STmeta,&
                                      permNodes,toNodes,toInNodes,schedule,subtrees)
@@ -236,6 +265,32 @@ CONTAINS
     end do
     call init_subtree_requests_and_statuses(STmeta)
   end subroutine get_subtree_meta
+
+  subroutine get_meta(iBasin, comm, nTimeSteps, processMatrix, timestep,&
+                             L11_tsRout, HourSecs, nTstepDay)
+    implicit none
+    integer(i4),                         intent(in)    :: iBasin
+    type(MPI_Comm)                                     :: comm
+    integer(i4),                         intent(out)   :: nTimeSteps
+    integer(i4),                         intent(out)   :: processMatrix
+    integer(i4),                         intent(out)   :: timestep
+    real(dp),                            intent(out)   :: L11_tsRout
+    real(dp),                            intent(out)   :: HourSecs
+    integer(i4),                         intent(out)   :: nTstepDay
+    ! local variables
+    integer(i4) :: kk
+    integer(i4) :: rank,ierror
+    type(MPI_Status) :: status
+    integer(i4), dimension(6) :: datasets ! number of incoming data sets
+                                                      
+    call MPI_Recv(datasets(:),6,MPI_INTEGER,0,0,comm,status,ierror)
+    nTimeSteps    = datasets (1)
+    processMatrix = datasets (2)
+    timestep      = datasets (3)
+    L11_tsRout    = datasets (4)
+    HourSecs      = datasets (5)
+    nTstepDay     = datasets (6)
+  end subroutine get_meta
 
   subroutine init_subtree_requests_and_statuses(STmeta)
     type(subtreeMeta),   dimension(:),              intent(inout) :: STmeta

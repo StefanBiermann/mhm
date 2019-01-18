@@ -37,10 +37,12 @@ MODULE mo_HRD_domain_decomposition
   use mo_HRD_schedule, only: create_schedule, create_schedule_hu, schedule_destroy
 
   use mo_HRD_subtree_meta, only: init_subtree_metadata, distribute_subtree_meta, &
-                                 get_subtree_meta, destroy_subtree_meta
+                                 get_subtree_meta, destroy_subtree_meta, get_meta
   use mo_HRD_MPI_array_communication, only: distribute_array, collect_array, &
                                  get_array, send_array
   use mo_HRD_routing, only: muskignum_subtree_routing_process
+
+  use mo_mrm_tools, only: set_input_variables_for_routing
 
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
   use mpi_f08
@@ -176,7 +178,7 @@ CONTAINS
       nNodes = level11(iBasin)%nCells
       call init_testarray(nNodes-1, testarray)
       ! the domain decompisition, prework
-      call domain_decomposition(nproc, lowBound, testarray, iBasin, &
+      call domain_decomposition(nproc, lowBound, iBasin, &
              toNodes, permNodes, toInNodes, subtrees, nSubtrees, STmeta, &
              roots, schedule)
       ! sends the meta data from master process to all the others
@@ -250,33 +252,42 @@ CONTAINS
     type(ptrTreeNode), dimension(:), allocatable :: inTrees             ! the array of halo leaves
     type(ptrTreeNode), dimension(:), allocatable :: subtreesDecompos    ! the array of
                                                                         ! subsubtrees for OpenMP in routing order
-    integer(i4),           dimension(:), allocatable :: subtestarray
-    logical                                :: doRout
-    type(MPI_Status)                       :: status
+
+    integer(i4)           :: processMatrix
+    integer(i4)           :: timestep
+    real(dp)              :: L11_tsRout
+    real(dp)              :: HourSecs
+    integer(i4)           :: nTstepDay
+
+    logical               :: doRout
+    real(dp)              :: tsRoutFactorIn
+    integer(i4)           :: timestep_rout
+    type(MPI_Status)      :: status
 
     ! ToDo: Send this information
     nBasins = 2
     do iBasin = 1, nBasins
       call get_subtree_meta(iBasin, MPIparam%comm, nTimeSteps, STmeta, permNodes, toNodes, toInNodes, inInds)
+      call get_meta(iBasin, MPIparam%comm, nTimeSteps, processMatrix, timestep,&
+                             L11_tsRout, HourSecs, nTstepDay)
+                                                                
       call subtree_init(MPIparam%lowBoundOMP, MPIparam%bufferLength, &
                         STmeta, permNodes, toNodes, toInNodes, subtrees, trees, inTrees)
       allocate(subtreesDecompos(size(toNodes)+size(toInNodes)))
       call decompose(MPIparam%lowBoundOMP, subtrees, subtreesDecompos, nSubtrees)
       do t = 1, nTimeSteps
-          call MPI_Recv(doRout, 1, MPI_LOGICAL, 0, 117, MPIparam%comm, status, ierror)
+          call set_input_variables_for_routing(t, nTimeSteps, &                            ! intent in
+                    processMatrix, timestep, L11_tsRout, HourSecs, &                       ! intent in, but could "use"
+                                                   doRout, tsRoutFactorIn, timestep_rout) ! intent out
+          ! calculate number of routing loops
           if (doRout) then
-            call MPI_Recv(routLoop, 1, MPI_INTEGER, 0, 117, MPIparam%comm, status, ierror)
-            call muskignum_subtree_routing_process(MPIParam, STmeta, subtrees, inInds, trees, inTrees)
-!            do tt = 1, routLoop
-!              call subtree_routing(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, MPIparam%bufferLength &
-!                            , subtrees, STmeta, inInds, trees, inTrees, subtestarray)
-!              call MPI_Barrier(MPIparam%comm)
-!            end do
+            routLoop = max(1_i4, nint(1._dp / tsRoutFactorIn))
+            call muskignum_subtree_routing_process(MPIParam, routLoop, STmeta, subtrees, inInds, trees, inTrees)
           end if
       end do
       call subdomain_cleanup(subtrees, subtreesDecompos, trees, inTrees, STmeta, inInds, permNodes, toNodes, toInNodes)
     end do
-  end subroutine
+  end subroutine subdomain_process
 
   ! ToDo: give input to the subroutine
   subroutine set_MPI_parameters(MPIparam)
@@ -293,6 +304,7 @@ CONTAINS
     call MPI_Comm_rank(MPIparam%comm, MPIparam%rank, ierror)
   !  do lowBound = 2,10,1!10,210,20
   !  do nproc = 2,20,2!2,6,2!96,2
+    MPIparam%bufferIndex = 1
     MPIparam%bufferLength = 4
     MPIparam%lowBoundOMP = 3
     MPIparam%lowBound = 5
@@ -340,12 +352,11 @@ CONTAINS
     deallocate(inInds, permNodes, toNodes, toInNodes)
   end subroutine subdomain_cleanup
 
-  subroutine domain_decomposition(nproc, lowBound, testarray, iBasin, &
+  subroutine domain_decomposition(nproc, lowBound, iBasin, &
              toNodes, permNodes, toInNodes, subtrees, nSubtrees, STmeta, &
              roots, schedule)
     integer(i4),                                      intent(in)    :: nproc
     integer(i4),                                      intent(in)    :: lowBound
-    integer(i4),           dimension(:),              intent(in)    :: testarray
     integer(i4),                                      intent(in)    :: iBasin
     integer(i4),           dimension(:), allocatable, intent(inout) :: toNodes
     integer(i4),           dimension(:), allocatable, intent(inout) :: permNodes

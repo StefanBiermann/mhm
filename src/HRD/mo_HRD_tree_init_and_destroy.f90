@@ -141,8 +141,12 @@ CONTAINS
     allocate(root%tN%qTR)
     allocate(root%tN%qTR%buffer(bufferLength+1))
     root%tN%qTR%buffer(:) = 0.0
-    root%tN%C1 = 0.0
-    root%tN%C2 = 0.0
+    allocate(root%tN%C1)
+    allocate(root%tN%C1%buffer(bufferLength+1))
+    root%tN%C1%buffer(:) = 0.0
+    allocate(root%tN%C2)
+    allocate(root%tN%C2%buffer(bufferLength+1))
+    root%tN%C2%buffer(:) = 0.0
     allocate(root%tN%qOut)
     allocate(root%tN%qOut%buffer(bufferLength+1))
     root%tN%qOut%buffer(:) = 0.0
@@ -422,6 +426,14 @@ CONTAINS
     if (associated(root%tN%qTR)) then
        deallocate(root%tN%qTR%buffer)
        deallocate(root%tN%qTR)
+    end if
+    if (associated(root%tN%C1)) then
+       deallocate(root%tN%C1%buffer)
+       deallocate(root%tN%C1)
+    end if
+    if (associated(root%tN%C2)) then
+       deallocate(root%tN%C2%buffer)
+       deallocate(root%tN%C2)
     end if
     if (associated(root%tN%qOut)) then
        deallocate(root%tN%qOut%buffer)

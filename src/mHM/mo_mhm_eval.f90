@@ -124,13 +124,14 @@ CONTAINS
     use mo_mrm_init, only : mrm_update_param, variables_default_init_routing
     use mo_mrm_restart, only : mrm_read_restart_states
     use mo_mrm_routing, only : mrm_routing, mrm_routing_par
+    use mo_mrm_tools, only : set_input_variables_for_routing
     use mo_mrm_write, only : mrm_write_output_fluxes!, mrm_write_output_river_head
     use mo_utils, only : ge
     use mo_mrm_river_head, only: calc_river_head, avg_and_write_timestep
     use mo_HRD_types, only : MPI_parameter, subtreeMeta, ptrTreeNode, processSchedule
     use mo_HRD_domain_decomposition, only : init_testarray, destroy_testarray, &
                                     domain_decomposition, master_cleanup
-    use mo_HRD_subtree_meta, only : distribute_subtree_meta
+    use mo_HRD_subtree_meta, only : distribute_subtree_meta, distribute_meta
 #endif
 #ifdef pgiFortran154
     use mo_write_fluxes_states, only : newOutputDataset
@@ -247,7 +248,6 @@ CONTAINS
     ! flag for performing routing
     logical :: do_rout
 
-    integer(i4),           dimension(:), allocatable  :: testarray
     integer(i4),           dimension(:), allocatable  :: toNodes
     integer(i4),           dimension(:), allocatable  :: permNodes
     integer(i4),           dimension(:), allocatable  :: toInNodes
@@ -258,6 +258,24 @@ CONTAINS
     type(processSchedule), dimension(:), allocatable  :: schedule
     integer(i4)                                       :: ierror
     integer(i4)                                       :: iproc
+    ! buffered variables for mRM
+    ! L11 muskingum parameter 1
+    real(dp), dimension(size(L11_C1, dim=1), MPIparam%bufferLength) :: L11_buf_C1
+
+    ! L11 muskingum parameter 2
+    real(dp), dimension(size(L11_C2, dim=1), MPIparam%bufferLength) :: L11_buf_C2
+
+    ! total runoff from L11 grid cells
+    real(dp), dimension(size(L11_qOut, dim=1), MPIparam%bufferLength) :: L11_buf_qOut
+
+    ! L11 inflow to the reach
+    real(dp), dimension(size(L11_qTIN, dim=1), MPIparam%bufferLength) :: L11_buf_qTIN
+
+    ! L11 routed outflow
+    real(dp), dimension(size(L11_qTR, dim=1), MPIparam%bufferLength) :: L11_buf_qTR
+
+    ! modelled discharge at each grid cell
+    real(dp), dimension(size(L11_qMod, dim=1), MPIparam%bufferLength) :: L11_buf_qMod
 
 #endif
     integer(i4) :: gg
@@ -378,14 +396,24 @@ CONTAINS
 
       ! calculate NtimeSteps for this basin
       nTimeSteps = (simPer(iBasin)%julEnd - simPer(iBasin)%julStart + 1) * nTstepDay
+
       ! create and distribute domain decomposition over the processes
-      call init_testarray(level11(iBasin)%nCells-1, testarray)
-      call domain_decomposition(MPIparam%nproc, MPIparam%lowBound, testarray, iBasin, &
+      call domain_decomposition(MPIparam%nproc, MPIparam%lowBound, iBasin, &
              toNodes, permNodes, toInNodes, subtrees, nSubtrees, STmeta, &
              roots, schedule)
       call distribute_subtree_meta(iBasin, MPIparam%nproc, MPIparam%comm, nSubtrees, nTimeSteps, STmeta, &
                                         permNodes, toNodes, toInNodes, schedule, subtrees(:))
+      call distribute_meta(iBasin, MPIparam%nproc, MPIparam%comm, nTimeSteps, processMatrix(8,1), timestep,&
+                             L11_tsRout(iBasin), HourSecs, nTstepDay)
 
+      L11_buf_C1(s11 : e11, :)   = 0.0_dp 
+      L11_buf_C2(s11 : e11, :)   = 0.0_dp
+      L11_buf_qTIN(s11 : e11, :) = 0.0_dp
+      L11_buf_qTR(s11 : e11, :)  = 0.0_dp
+      L11_buf_C1(s11 : e11, 1)   = L11_C1(s11 : e11)
+      L11_buf_C2(s11 : e11, 1)   = L11_C2(s11 : e11)
+      L11_buf_qTIN(s11 : e11, 1) = L11_qTIN(s11 : e11, 1)
+      L11_buf_qTR(s11 : e11, 1)  = L11_qTR(s11 : e11, 1)
 
       ! reinitialize time counter for LCover and MPR
       ! -0.5 is due to the fact that dec2date routine
@@ -431,34 +459,10 @@ CONTAINS
 
         ! preapare vector length specifications depending on the process case
         ! process 5 - PET
-        select case (processMatrix(5, 1))
-          !      (/pet,        tmax,    tmin,  netrad, absVapP,windspeed/)
-        case(-1 : 0) ! PET is input
-          s_p5 = (/s_meteo, 1, 1, 1, 1, 1/)
-          e_p5 = (/e_meteo, 1, 1, 1, 1, 1/)
-        case(1) ! Hargreaves-Samani
-          s_p5 = (/s_meteo, s_meteo, s_meteo, 1, 1, 1/)
-          e_p5 = (/e_meteo, e_meteo, e_meteo, 1, 1, 1/)
-        case(2) ! Priestely-Taylor
-          s_p5 = (/s_meteo, 1, 1, s_meteo, 1, 1/)
-          e_p5 = (/e_meteo, 1, 1, e_meteo, 1, 1/)
-        case(3) ! Penman-Monteith
-          s_p5 = (/s_meteo, 1, 1, s_meteo, s_meteo, s_meteo/)
-          e_p5 = (/e_meteo, 1, 1, e_meteo, e_meteo, e_meteo/)
-        end select
+        call prepare_vector_length_pet(processMatrix(5, 1), s_meteo, e_meteo, s_p5, e_p5)
 
         ! customize iMeteoTS for process 5 - PET
-        select case (processMatrix(5, 1))
-          !              (/     pet,     tmin,     tmax,   netrad,  absVapP,windspeed /)
-        case(-1 : 0) ! PET is input
-          iMeteo_p5 = (/iMeteoTS, 1, 1, 1, 1, 1 /)
-        case(1) ! Hargreaves-Samani
-          iMeteo_p5 = (/iMeteoTS, iMeteoTS, iMeteoTS, 1, 1, 1 /)
-        case(2) ! Priestely-Taylor
-          iMeteo_p5 = (/iMeteoTS, 1, 1, iMeteoTS, 1, 1 /)
-        case(3) ! Penman-Monteith
-          iMeteo_p5 = (/iMeteoTS, 1, 1, iMeteoTS, iMeteoTS, iMeteoTS /)
-        end select
+        call customize_iMeteoTS(processMatrix(5, 1), iMeteoTS, iMeteo_p5)
 
         select case (timeStep_LAI_input)
         case(0 : 1) ! long term mean monthly gridded fields or LUT-based values
@@ -541,61 +545,17 @@ CONTAINS
           ! set discharge timestep
           iDischargeTS = ceiling(real(tt, dp) / real(nTstepDay, dp))
           ! set input variables for routing
-          if (processMatrix(8, 1) .eq. 1) then
-            ! >>>
-            ! >>> original Muskingum routing, executed every time
-            ! >>>
-            do_rout = .True.
-            tsRoutFactorIn = 1._dp
-            timestep_rout = timestep
-            RunToRout = L1_total_runoff(s1 : e1) ! runoff [mm TST-1] mm per timestep
-            InflowDischarge = InflowGauge%Q(iDischargeTS, :) ! inflow discharge in [m3 s-1]
-            timestep_rout = timestep
-            !
-          else if (processMatrix(8, 1) .eq. 2) then
-            ! >>>
-            ! >>> adaptive timestep
-            ! >>>
-            do_rout = .False.
-            ! calculate factor
-            tsRoutFactor = L11_tsRout(iBasin) / (timestep * HourSecs)
-            ! print *, 'routing factor: ', tsRoutFactor
-            ! prepare routing call
-            if (tsRoutFactor .lt. 1._dp) then
-              ! ----------------------------------------------------------------
-              ! routing timesteps are shorter than hydrologic time steps
-              ! ----------------------------------------------------------------
-              ! set all input variables
-              tsRoutFactorIn = tsRoutFactor
-              RunToRout = L1_total_runoff(s1 : e1) ! runoff [mm TST-1] mm per timestep
-              InflowDischarge = InflowGauge%Q(iDischargeTS, :) ! inflow discharge in [m3 s-1]
-              timestep_rout = timestep
-              do_rout = .True.
-            else
-              ! ----------------------------------------------------------------
-              ! routing timesteps are longer than hydrologic time steps
-              ! ----------------------------------------------------------------
-              ! set all input variables
-              tsRoutFactorIn = tsRoutFactor
-              RunToRout = RunToRout + L1_total_runoff(s1 : e1)
-              InflowDischarge = InflowDischarge + InflowGauge%Q(iDischargeTS, :)
-              ! reset tsRoutFactorIn if last period did not cover full period
-              if ((tt .eq. nTimeSteps) .and. (mod(tt, nint(tsRoutFactorIn)) .ne. 0_i4)) &
-                      tsRoutFactorIn = mod(tt, nint(tsRoutFactorIn))
-              if ((mod(tt, nint(tsRoutFactorIn)) .eq. 0_i4) .or. (tt .eq. nTimeSteps)) then
-                InflowDischarge = InflowDischarge / tsRoutFactorIn
-                timestep_rout = timestep * nint(tsRoutFactor, i4)
-                do_rout = .True.
-              end if
-            end if
-          end if
+          call set_input_variables_for_routing(tt, nTimeSteps, &                                                 ! intent in
+                processMatrix(8, 1), timestep, L11_tsRout(iBasin), HourSecs, &                                   ! intent in, but could "use"
+                                               do_rout, tsRoutFactorIn, timestep_rout, &                         ! intent out
+                        L1_total_runoff=L1_total_runoff(s1 : e1), InflowGaugeQ=InflowGauge%Q(iDischargeTS, :), & ! optional in
+                                                      RunToRout=RunToRout, InflowDischarge=InflowDischarge)      ! optional out
           ! -------------------------------------------------------------------
           ! execute routing
           ! -------------------------------------------------------------------
-          do iproc = 1, MPIparam%nproc-1
-            call MPI_Send(do_rout, 1, MPI_LOGICAL, iproc, 117, MPIparam%comm, ierror)
-          end do
-          if (do_rout) call mRM_routing_par(&
+          if (do_rout) then
+            L11_buf_qMod(s11 : e11, 1) = L11_qMod(s11 : e11)
+            call mRM_routing_par(&
                   ! general INPUT variables
                   read_restart, &
                   processMatrix(8, 1), & ! parse process Case to be used
@@ -626,15 +586,17 @@ CONTAINS
                   L11_slope(s11 : e11 - 1), &
                   L11_nLinkFracFPimp(s11 : e11, yID), & ! fraction of impervious layer at L11 scale
                   ! general INPUT/OUTPUT variables
-                  L11_C1(s11 : e11), & ! first muskingum parameter
-                  L11_C2(s11 : e11), & ! second muskingum parameter
-                  L11_qOUT(s11 : e11), & ! routed runoff flowing out of L11 cell
-                  L11_qTIN(s11 : e11, :), & ! inflow water into the reach at L11
-                  L11_qTR(s11 : e11, :), & !
-                  L11_qMod(s11 : e11), &
+                  L11_buf_C1(s11 : e11, :), & ! first muskingum parameter
+                  L11_buf_C2(s11 : e11, :), & ! second muskingum parameter
+                  L11_buf_qOUT(s11 : e11, :), & ! routed runoff flowing out of L11 cell
+                  L11_buf_qTIN(s11 : e11, :), & ! inflow water into the reach at L11
+                  L11_buf_qTR(s11 : e11, :), & !
+                  L11_buf_qMod(s11 : e11, :), &
                   mRM_runoff(tt, :), &
-                  iBasin, MPIparam, subtrees, nSubtrees, STmeta, permNodes, schedule, testarray &
+                  iBasin, MPIparam, subtrees, nSubtrees, STmeta, permNodes, schedule &
                   )
+            L11_qMod(s11 : e11)    = L11_buf_qMod(s11 : e11, 1) 
+          end if
             ! -------------------------------------------------------------------
             ! groundwater coupling
             ! -------------------------------------------------------------------
@@ -665,25 +627,11 @@ CONTAINS
 #endif
 
         ! prepare the date and time information for next iteration step...
-        ! TODO: turn datetime information into type with procedure "increment"
-        ! set the current year as previous
-        prev_day = day
-        prev_month = month
-        prev_year = year
-        ! set the flags to false
-        is_new_day = .false.
-        is_new_month = .false.
-        is_new_year = .false.
-
-        ! increment of timestep
-        hour = mod(hour + timestep, 24)
-        newTime = julday(day, month, year) + real(hour + timestep, dp) / 24._dp
-        ! calculate new year, month and day
-        call caldat(int(newTime), yy = year, mm = month, dd = day)
-        ! update the flags
-        if (prev_day .ne. day) is_new_day = .true.
-        if (prev_month .ne. month) is_new_month = .true.
-        if (prev_year .ne. year) is_new_year = .true.
+        call increment_datetime(timestep,                                    & ! in
+                                  prev_day,   prev_month,   prev_year,       & ! out
+                                is_new_day, is_new_month, is_new_year,       & ! out
+                                       day,        month,        year, hour, & ! inout
+                                newTime)                                       ! inout
 
         if (.not. optimize) then
 #ifdef MRM2MHM
@@ -936,7 +884,6 @@ CONTAINS
 #endif
 
       call master_cleanup(schedule, STmeta, roots, subtrees, toNodes, permNodes, toInNodes)
-      call destroy_testarray(testarray)
     end do !<< BASIN LOOP
 #ifdef MRM2MHM
     ! =========================================================================
@@ -952,5 +899,84 @@ CONTAINS
 
   end SUBROUTINE mhm_eval
 
+  subroutine increment_datetime(timestep,                                    & ! in
+                                  prev_day,   prev_month,   prev_year,       & ! out
+                                is_new_day, is_new_month, is_new_year,       & ! out
+                                       day,        month,        year, hour, & ! inout
+                                newTime)                                       ! inout
+    use mo_julian, only : caldat, julday
+    integer(i4), intent(in)    :: timestep
+    integer(i4), intent(out)   ::   prev_day
+    integer(i4), intent(out)   ::   prev_month
+    integer(i4), intent(out)   ::   prev_year
+    logical,     intent(out)   :: is_new_day
+    logical,     intent(out)   :: is_new_month
+    logical,     intent(out)   :: is_new_year
+    integer(i4), intent(inout) ::        day
+    integer(i4), intent(inout) ::        month
+    integer(i4), intent(inout) ::        year
+    integer(i4), intent(inout) :: hour
+    real(dp),    intent(inout) :: newTime
+
+    ! TODO: turn datetime information into type with procedure "increment"
+    ! set the current year as previous
+    prev_day = day
+    prev_month = month
+    prev_year = year
+    ! set the flags to false
+    is_new_day = .false.
+    is_new_month = .false.
+    is_new_year = .false.
+
+    ! increment of timestep
+    hour = mod(hour + timestep, 24)
+    newTime = julday(day, month, year) + real(hour + timestep, dp) / 24._dp
+    ! calculate new year, month and day
+    call caldat(int(newTime), yy = year, mm = month, dd = day)
+    ! update the flags
+    if (prev_day .ne. day) is_new_day = .true.
+    if (prev_month .ne. month) is_new_month = .true.
+    if (prev_year .ne. year) is_new_year = .true.
+  end subroutine increment_datetime
+  
+  subroutine prepare_vector_length_pet(processMatrix, s_meteo, e_meteo, s_p5, e_p5)
+    integer(i4),               intent(in)  :: processMatrix
+    integer(i4),               intent(in)  :: s_meteo
+    integer(i4),               intent(in)  :: e_meteo
+    integer(i4), dimension(6), intent(out) :: s_p5
+    integer(i4), dimension(6), intent(out) :: e_p5
+    select case (processMatrix)
+      !      (/pet,        tmax,    tmin,  netrad, absVapP,windspeed/)
+    case(-1 : 0) ! PET is input
+      s_p5 = (/s_meteo, 1, 1, 1, 1, 1/)
+      e_p5 = (/e_meteo, 1, 1, 1, 1, 1/)
+    case(1) ! Hargreaves-Samani
+      s_p5 = (/s_meteo, s_meteo, s_meteo, 1, 1, 1/)
+      e_p5 = (/e_meteo, e_meteo, e_meteo, 1, 1, 1/)
+    case(2) ! Priestely-Taylor
+      s_p5 = (/s_meteo, 1, 1, s_meteo, 1, 1/)
+      e_p5 = (/e_meteo, 1, 1, e_meteo, 1, 1/)
+    case(3) ! Penman-Monteith
+      s_p5 = (/s_meteo, 1, 1, s_meteo, s_meteo, s_meteo/)
+      e_p5 = (/e_meteo, 1, 1, e_meteo, e_meteo, e_meteo/)
+    end select
+  end subroutine prepare_vector_length_pet
+
+  subroutine customize_iMeteoTS(processMatrix, iMeteoTS, iMeteo_p5)
+    integer(i4),               intent(in)  :: processMatrix
+    integer(i4),               intent(in)  :: iMeteoTS
+    integer(i4), dimension(6), intent(out) :: iMeteo_p5
+    select case (processMatrix)
+      !              (/     pet,     tmin,     tmax,   netrad,  absVapP,windspeed /)
+    case(-1 : 0) ! PET is input
+      iMeteo_p5 = (/iMeteoTS, 1, 1, 1, 1, 1 /)
+    case(1) ! Hargreaves-Samani
+      iMeteo_p5 = (/iMeteoTS, iMeteoTS, iMeteoTS, 1, 1, 1 /)
+    case(2) ! Priestely-Taylor
+      iMeteo_p5 = (/iMeteoTS, 1, 1, iMeteoTS, 1, 1 /)
+    case(3) ! Penman-Monteith
+      iMeteo_p5 = (/iMeteoTS, 1, 1, iMeteoTS, iMeteoTS, iMeteoTS /)
+    end select
+  end subroutine customize_iMeteoTS
 
 END MODULE mo_mhm_eval
