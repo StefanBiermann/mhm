@@ -11,7 +11,8 @@ MODULE mo_HRD_types
 
   IMPLICIT NONE
 
-  public :: ptrTreeNode, treeNode, subtreeMeta, subtreeBuffer, processSchedule, treeNodeBuffer, MPI_parameter
+  public :: ptrTreeNode, treeNode, subtreeMeta, subtreeBuffer, processSchedule, treeNodeBuffer, &
+            MPI_parameter, MPIParam_increment
 
   private
   
@@ -128,8 +129,28 @@ MODULE mo_HRD_types
     integer(i4)                      :: nproc
     integer(i4)                      :: rank
     integer(i4)                      :: bufferIndex
+    logical                          :: buffered
+    logical                          :: bufferWrite
     integer(i4)                      :: bufferLength
     integer(i4)                      :: lowBound
     integer(i4)                      :: lowBoundOMP
+    contains
+    procedure :: increment => MPIParam_increment
   end type MPI_parameter
+  
+  contains
+
+  subroutine MPIParam_increment(this)
+    class(MPI_parameter) :: this
+
+    if (this%bufferIndex < this%bufferLength) then
+      this%bufferIndex = this%bufferIndex + 1
+      this%buffered = .false.
+    else
+      this%bufferIndex = 1
+      this%buffered = .true.
+      this%bufferWrite = .true.
+    end if
+  end subroutine MPIParam_increment
+
 END MODULE mo_HRD_types

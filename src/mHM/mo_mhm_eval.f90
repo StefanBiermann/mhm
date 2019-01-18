@@ -169,7 +169,7 @@ CONTAINS
     integer(i4) :: nTimeSteps
 
     ! Counters
-    integer(i4) :: iBasin, tt
+    integer(i4) :: iBasin, tt, tt_buf
 
     ! No. of cells at level 1 for current basin
     integer(i4) :: nCells
@@ -194,6 +194,7 @@ CONTAINS
     logical, dimension(:, :), pointer :: mask1
 
     integer(i4) :: day, month, year, hour, prev_day, prev_month, prev_year
+    integer(i4) :: day_buf, month_buf, year_buf, hour_buf
 
     integer(i4) :: iMeteoTS
 
@@ -201,10 +202,11 @@ CONTAINS
 
     integer(i4) :: yId
 
-    real(dp) :: newTime
+    real(dp) :: newTime, newTime_buf
 
     ! flags for stepping into new period
     logical :: is_new_day, is_new_month, is_new_year
+    logical :: is_new_day_buf, is_new_month_buf, is_new_year_buf
 
     ! for averaging output
     integer(i4) :: average_counter
@@ -279,6 +281,8 @@ CONTAINS
 
 #endif
     integer(i4) :: gg
+    
+    integer(i4), dimension(:), allocatable :: bufferIndexList
 
     ! field of TWS
     real(dp), dimension(:), allocatable :: TWS_field
@@ -410,10 +414,15 @@ CONTAINS
       L11_buf_C2(s11 : e11, :)   = 0.0_dp
       L11_buf_qTIN(s11 : e11, :) = 0.0_dp
       L11_buf_qTR(s11 : e11, :)  = 0.0_dp
-      L11_buf_C1(s11 : e11, 1)   = L11_C1(s11 : e11)
-      L11_buf_C2(s11 : e11, 1)   = L11_C2(s11 : e11)
+      L11_buf_qMod(s11 : e11, 1) = 0.0_dp
+      do tt = 1, MPIparam%bufferLength
+        L11_buf_C1(s11 : e11, tt)   = L11_C1(s11 : e11)
+        L11_buf_C2(s11 : e11, tt)   = L11_C2(s11 : e11)
+      end do
       L11_buf_qTIN(s11 : e11, 1) = L11_qTIN(s11 : e11, 1)
       L11_buf_qTR(s11 : e11, 1)  = L11_qTR(s11 : e11, 1)
+      L11_buf_qMod(s11 : e11, 1) = L11_qMod(s11 : e11)
+      allocate(bufferIndexList(nTimeSteps))
 
       ! reinitialize time counter for LCover and MPR
       ! -0.5 is due to the fact that dec2date routine
@@ -435,6 +444,11 @@ CONTAINS
       hour = -timestep
       iLAI = 0
 
+      year_buf  = year
+      month_buf = month
+      day_buf   = day
+      hour_buf  = hour
+      tt_buf    = 1
       ! Loop over time
       do tt = 1, nTimeSteps
         ! time increment is done right after call to mrm (and initially before looping)
@@ -553,8 +567,8 @@ CONTAINS
           ! -------------------------------------------------------------------
           ! execute routing
           ! -------------------------------------------------------------------
+          bufferIndexList(tt) = MPIparam%bufferIndex
           if (do_rout) then
-            L11_buf_qMod(s11 : e11, 1) = L11_qMod(s11 : e11)
             call mRM_routing_par(&
                   ! general INPUT variables
                   read_restart, &
@@ -623,53 +637,66 @@ CONTAINS
                 RunToRout = 0._dp
               end if
             end if
-          end if
+        end if
 #endif
 
         ! prepare the date and time information for next iteration step...
         call increment_datetime(timestep,                                    & ! in
                                   prev_day,   prev_month,   prev_year,       & ! out
                                 is_new_day, is_new_month, is_new_year,       & ! out
-                                       day,        month,        year, hour, & ! inout
-                                newTime)                                       ! inout
+                                newTime,                                     & ! out
+                                       day,        month,        year, hour)   ! inout
 
         if (.not. optimize) then
 #ifdef MRM2MHM
-          if (any(outputFlxState_mrm)) then
-            call mrm_write_output_fluxes(&
-                  ! basin id
-                  iBasin, &
-                  ! nCells in basin
-                  level11(iBasin)%nCells, &
-                  ! output specification
-                  timeStep_model_outputs_mrm, &
-                  ! time specification
-                  warmingDays(iBasin), newTime, nTimeSteps, nTstepDay, &
-                  tt, &
-                  ! parse previous date to mRM writer
-                  prev_day, prev_month, prev_year, &
-                  timestep, &
-                  ! mask specification
-                  mask11, &
-                  ! output variables
-                  L11_qmod(s11 : e11))
-                if(gw_coupling) then
-                    !call mrm_write_output_river_head( &
-                    !     ! basin id
-                    !     ii, &
-                    !     ! output specification
-                    !     timeStep_model_outputs_mrm, &
-                    !     ! time specification
-                    !     warmingDays_mrm(ii), newTime, nTimeSteps, nTStepDay, &
-                    !     tt, &
-                    !     ! parse previous date to mRM writer
-                    !     day_counter, month_counter, year_counter, &
-                    !     timestep, &
-                    !     ! mask specification
-                    !     mask0, &
-                    !     ! output variables
-                    !     L0_river_head(s11:e11))
-                end if
+        if (any(outputFlxState_mrm)) then
+         ! write(0,*) '~~', prev_day, prev_month, prev_year, newTime, tt
+          if (MPIparam%bufferWrite) then
+            MPIparam%bufferWrite = .false.
+            do jj = tt_buf, (tt/MPIparam%bufferLength)*MPIparam%bufferLength
+              call increment_datetime(timestep,                               & ! in
+                                   prev_day,   prev_month,   prev_year,       & ! out
+                                 is_new_day_buf, is_new_month_buf, is_new_year_buf, & ! out
+                                 newTime_buf,                                     & ! out
+                                        day_buf,     month_buf,   year_buf, hour_buf)! inout
+              ! write(0,*) '--', prev_day, prev_month, prev_year, newTime, jj
+               call mrm_write_output_fluxes(&
+                     ! basin id
+                     iBasin, &
+                     ! nCells in basin
+                     level11(iBasin)%nCells, &
+                     ! output specification
+                     timeStep_model_outputs_mrm, &
+                     ! time specification
+                     warmingDays(iBasin), newTime_buf, nTimeSteps, nTstepDay, &
+                     jj, &
+                     ! parse previous date to mRM writer
+                     prev_day, prev_month, prev_year, &
+                     timestep, &
+                     ! mask specification
+                     mask11, &
+                     ! output variables
+                     L11_buf_qMod(s11 : e11, bufferIndexList(jj)))
+                   if(gw_coupling) then
+                       !call mrm_write_output_river_head( &
+                       !     ! basin id
+                       !     ii, &
+                       !     ! output specification
+                       !     timeStep_model_outputs_mrm, &
+                       !     ! time specification
+                       !     warmingDays_mrm(ii), newTime, nTimeSteps, nTStepDay, &
+                       !     tt, &
+                       !     ! parse previous date to mRM writer
+                       !     day_counter, month_counter, year_counter, &
+                       !     timestep, &
+                       !     ! mask specification
+                       !     mask0, &
+                       !     ! output variables
+                       !     L0_river_head(s11:e11))
+                   end if
+            end do
+            tt_buf = (tt/MPIparam%bufferLength)*MPIparam%bufferLength
+          end if
         end if
 #endif
 
@@ -873,6 +900,7 @@ CONTAINS
         end if
 
       end do !<< TIME STEPS LOOP
+      deallocate(bufferIndexList)
 
       ! deallocate TWS field temporal variable
       if (allocated(TWS_field)) deallocate(TWS_field)
@@ -902,8 +930,8 @@ CONTAINS
   subroutine increment_datetime(timestep,                                    & ! in
                                   prev_day,   prev_month,   prev_year,       & ! out
                                 is_new_day, is_new_month, is_new_year,       & ! out
-                                       day,        month,        year, hour, & ! inout
-                                newTime)                                       ! inout
+                                newTime,                                     & ! out
+                                       day,        month,        year, hour)   ! inout
     use mo_julian, only : caldat, julday
     integer(i4), intent(in)    :: timestep
     integer(i4), intent(out)   ::   prev_day
@@ -912,11 +940,11 @@ CONTAINS
     logical,     intent(out)   :: is_new_day
     logical,     intent(out)   :: is_new_month
     logical,     intent(out)   :: is_new_year
+    real(dp),    intent(out)   :: newTime
     integer(i4), intent(inout) ::        day
     integer(i4), intent(inout) ::        month
     integer(i4), intent(inout) ::        year
     integer(i4), intent(inout) :: hour
-    real(dp),    intent(inout) :: newTime
 
     ! TODO: turn datetime information into type with procedure "increment"
     ! set the current year as previous

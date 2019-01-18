@@ -306,12 +306,12 @@ CONTAINS
                         L11_areaCell, L11_L1_Id, L11_netPerm, L11_fromN, L11_toN, L11_nOutlets, timestep, tsRoutFactor, &
                         nNodes, nInflowGauges, InflowGaugeIndexList, InflowGaugeHeadwater, InflowGaugeNodeList, &
                         InflowDischarge, nGauges, gaugeIndexList, gaugeNodeList, map_flag, L11_length, L11_slope, &
-                        L11_FracFPimp, L11_C1, L11_C2, L11_qOut, L11_qTIN, L11_qTR, L11_qMod, GaugeDischarge, &
+                        L11_FracFPimp, L11_buf_C1, L11_buf_C2, L11_buf_qOut, L11_qTIN, L11_qTR, L11_qMod, GaugeDischarge, &
                         iBasin, MPIparam, subtrees, nSubtrees, STmeta, permNodes, schedule)
 
     use mo_mrm_global_variables, only : is_start
     use mo_mrm_mpr, only : reg_rout
-    use mo_HRD_types, only : MPI_parameter, ptrTreeNode, subtreeMeta, processSchedule
+    use mo_HRD_types, only : MPI_parameter, ptrTreeNode, subtreeMeta, processSchedule, MPIParam_increment
     use mo_HRD_domain_decomposition, only : routing
     use mo_HRD_routing, only : muskignum_master_routing
     use mo_HRD_MPI_array_communication, only : distribute_array_dp, collect_array_dp, distribute_full_array_dp, collect_full_array_dp
@@ -400,13 +400,13 @@ CONTAINS
     real(dp), dimension(:), intent(in) :: L11_FracFPimp
 
     ! L11 muskingum parameter 1
-    real(dp), dimension(:, :), intent(inout) :: L11_C1
+    real(dp), dimension(:, :), intent(inout) :: L11_buf_C1
 
     ! L11 muskingum parameter 2
-    real(dp), dimension(:, :), intent(inout) :: L11_C2
+    real(dp), dimension(:, :), intent(inout) :: L11_buf_C2
 
     ! total runoff from L11 grid cells
-    real(dp), dimension(:, :), intent(inout) :: L11_qOut
+    real(dp), dimension(:, :), intent(inout) :: L11_buf_qOut
 
     ! L11 inflow to the reach
     real(dp), dimension(:, :), intent(inout) :: L11_qTIN
@@ -437,10 +437,16 @@ CONTAINS
     integer(i4) :: rout_loop
 
     ! variable for accumulation
-    real(dp), dimension(size(L11_qMod, dim = 1)) :: L11_qAcc
+    real(dp), dimension(size(L11_qMod, dim = 1), size(L11_qMod, dim=2)) :: L11_qAcc
 
     integer(i4)                                  :: ierror
-    integer(i4)                                  :: iproc
+    integer(i4)                                  :: iproc, ind
+
+    real(dp), dimension(size(L11_buf_C1, dim=1)) :: L11_C1
+
+    real(dp), dimension(size(L11_buf_C2, dim=1)) :: L11_C2
+
+    real(dp), dimension(size(L11_buf_qOut, dim=1)) :: L11_qOut
 
     if (is_start) then
       is_start = .false.
@@ -453,7 +459,13 @@ CONTAINS
       if (nNodes .GT. 1) then
         call reg_rout(global_routing_param, &
                 L11_length, L11_slope, L11_FracFPimp(: nNodes - L11_nOutlets), &
-                real(timeStep, dp), L11_C1(: nNodes - L11_nOutlets, 1), L11_C2(: nNodes - L11_nOutlets, 1))
+                real(timeStep, dp), L11_buf_C1(: nNodes - L11_nOutlets, MPIparam%bufferIndex), &
+                                    L11_buf_C2(: nNodes - L11_nOutlets, MPIparam%bufferIndex))
+        ! ToDo: Test this
+        L11_buf_C1(: nNodes - L11_nOutlets,mod(MPIparam%bufferIndex+1,MPIparam%bufferLength)+1) = &
+                                          L11_buf_C1(: nNodes - L11_nOutlets, MPIparam%bufferIndex)
+        L11_buf_C2(: nNodes - L11_nOutlets,mod(MPIparam%bufferIndex+1,MPIparam%bufferLength)+1) = &
+                                          L11_buf_C2(: nNodes - L11_nOutlets, MPIparam%bufferIndex)
       end if
     end if
 
@@ -467,7 +479,7 @@ CONTAINS
     call L11_runoff_acc(L1_total_runoff, L1_areaCell, L1_L11_Id, &
             L11_areaCell, L11_L1_Id, timeStep, & ! Intent IN
             map_flag, & ! Intent IN
-            L11_qOut(:, 1)) ! Intent OUT
+            L11_buf_qOut(:, MPIparam%bufferIndex)) ! Intent OUT
 
     ! add inflow
     call add_inflow(nInflowGauges, &
@@ -475,64 +487,77 @@ CONTAINS
             InflowGaugeHeadwater, &
             InflowGaugeNodeList, &
             InflowDischarge, & ! Intent IN
-            L11_qOUT(:, 1)) ! Intent INOUT
+            L11_buf_qOUT(:, MPIparam%bufferIndex)) ! Intent INOUT
 
     ! for a single node model run
     if(nNodes .GT. 1) then
-      ! sending intent ins of L11_routing to all nodes
-      do iproc = 1, MPIparam%nproc-1
-        call MPI_Send(nInflowGauges, 1, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
-        call MPI_Send(InflowGaugeHeadwater, nInflowGauges, MPI_LOGICAL, iproc, 2, MPIparam%comm, ierror)
-        call MPI_Send(InflowGaugeNodeList, nInflowGauges, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
-      end do
-      ! ToDo: If C1, C2 were not constant maybe the sorting would be wrong
-      call distribute_full_array_dp(iBasin, MPIparam, &
-                            nSubtrees, STmeta,permNodes, schedule, L11_C1(:, :))
-      call distribute_full_array_dp(iBasin, MPIparam, &
-                            nSubtrees, STmeta,permNodes, schedule, L11_C2(:, :))
-      call distribute_full_array_dp(iBasin, MPIparam, &
-                            nSubtrees, STmeta,permNodes, schedule, L11_qOut(:, :))
       ! routing multiple times if timestep is smaller than 1
       !
-      L11_qAcc = 0._dp
       do tt = 1, rout_loop
-        call distribute_array_dp(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, &
-                              nSubtrees, STmeta,permNodes, schedule, L11_qTIN(:, 1))
-        call distribute_array_dp(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, &
-                              nSubtrees, STmeta,permNodes, schedule, L11_qTR(:, 1))
-       ! ! routing of water within river reaches
-       ! call L11_routing(nNodes, nNodes - L11_nOutlets, &
-       !         L11_netPerm, &
-       !         L11_fromN, & ! Intent IN
-       !         L11_toN, & ! Intent IN
-       !         L11_C1, & ! Intent IN
-       !         L11_C2, & ! Intent IN
-       !         L11_qOut, & ! Intent IN
-       !         nInflowGauges, & ! Intent IN
-       !         InflowGaugeHeadwater, & ! Intent IN
-       !         InflowGaugeNodeList, & ! Intent IN
-       !         L11_qTIN, & ! Intent INOUT
-       !         L11_qTR, & ! Intent INOUT
-       !         L11_qMod) ! Intent OUT
-        call muskignum_master_routing(iBasin, MPIparam, subtrees, nSubtrees, STmeta, schedule)
-        call MPI_Barrier(MPIparam%comm)
-        ! backflow t-> t-1
-        call collect_full_array_dp(iBasin, MPIParam, &
-                              nSubtrees, STmeta, permNodes, schedule, L11_qTIN(:, :))
-        call collect_full_array_dp(iBasin, MPIParam, &
-                              nSubtrees, STmeta, permNodes, schedule, L11_qTR(:, :))
-        L11_qTIN(:, 1) = L11_qTIN(:, 2)
-        L11_qTR(:, 1)  = L11_qTR(:, 2)
-        call MPI_Barrier(MPIparam%comm)
-        ! store generated discharge
-        L11_qMod(1 : nNodes, 1) = L11_qTIN(1 : nNodes, 1)
-        ! accumulate values of individual subtimesteps
-        L11_qAcc(:) = L11_qAcc(:) + L11_qMod(:, 1)
+       ! L11_buf_C1(:, MPIparam%bufferIndex)   = L11_C1(:)
+       ! L11_buf_C2(:, MPIparam%bufferIndex)   = L11_C2(:)
+       ! L11_buf_qOut(:, MPIparam%bufferIndex) = L11_qOut(:)
+        call MPIparam%increment()
+        ! sending intent ins of L11_routing to all nodes ToDo: send arrays and buffer
+        if (MPIparam%buffered) then
+          do iproc = 1, MPIparam%nproc-1
+            call MPI_Send(nInflowGauges, 1, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
+            call MPI_Send(InflowGaugeHeadwater, nInflowGauges, MPI_LOGICAL, iproc, 2, MPIparam%comm, ierror)
+            call MPI_Send(InflowGaugeNodeList, nInflowGauges, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
+          end do
+          ! ToDo: If C1, C2 were not constant maybe the sorting would be wrong
+          call distribute_full_array_dp(iBasin, MPIparam, &
+                                nSubtrees, STmeta,permNodes, schedule, L11_buf_C1(:, :))
+          call distribute_full_array_dp(iBasin, MPIparam, &
+                                nSubtrees, STmeta,permNodes, schedule, L11_buf_C2(:, :))
+          call distribute_full_array_dp(iBasin, MPIparam, &
+                                nSubtrees, STmeta,permNodes, schedule, L11_buf_qOut(:, :))
+          call distribute_array_dp(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, &
+                                nSubtrees, STmeta,permNodes, schedule, L11_qTIN(:, 1))
+          call distribute_array_dp(iBasin, MPIparam%nproc, MPIparam%rank, MPIparam%comm, &
+                                nSubtrees, STmeta,permNodes, schedule, L11_qTR(:, 1))
+          ! routing of water within river reaches
+          call muskignum_master_routing(iBasin, MPIparam, subtrees, nSubtrees, STmeta, schedule)
+          call MPI_Barrier(MPIparam%comm)
+          ! backflow t-> t-1
+          call collect_full_array_dp(iBasin, MPIParam, &
+                                nSubtrees, STmeta, permNodes, schedule, L11_qTIN(:, :))
+          call collect_full_array_dp(iBasin, MPIParam, &
+                                nSubtrees, STmeta, permNodes, schedule, L11_qTR(:, :))
+          call MPI_Barrier(MPIparam%comm)
+          ! store generated discharge
+          do iproc = 1, MPIparam%bufferLength
+            write(*,*) L11_qTIN(1 : nNodes, iproc), iproc, MPIparam%bufferLength
+            read(*,*)
+          end do
+          L11_qMod(1 : nNodes, :) = L11_qTIN(1 : nNodes, :)
+          L11_qTIN(:, 1) = L11_qTIN(:, MPIparam%bufferLength)
+          L11_qTR(:, 1)  = L11_qTR(:, MPIparam%bufferLength)
+        end if
       end do
-      ! calculate mean over routing period (timestep)
-      L11_qMod(:, 1) = L11_qAcc(:) / real(rout_loop, dp)
+      ! ToDo: also when was buffered
+      if (MPIparam%buffered) then
+        tt = 0
+        ind = 1
+        do gg = 1, MPIparam%bufferLength
+          L11_qAcc = 0._dp
+          ! accumulate values of individual subtimesteps
+          L11_qAcc(:, ind) = L11_qAcc(:, ind) + L11_qMod(:, gg)
+          tt = tt + 1
+          ! calculate mean over routing period (timestep) ToDo: handle
+          ! bufferLength % routloop /= 0
+          if (tt == rout_loop) then
+            do tt = ind, gg
+              L11_qMod(:, tt) = L11_qAcc(:, gg) / real(rout_loop, dp)
+            end do
+            ind = ind + 1
+            tt = 0
+          end if
+        end do
+      end if
     else
-      L11_Qmod(:, 1) = L11_qOUT(:, 1)
+      ! ToDo: Check this case
+      L11_Qmod(:, :) = L11_buf_qOUT(:, :)
     end if
 
     !----------------------------------------------------------------------

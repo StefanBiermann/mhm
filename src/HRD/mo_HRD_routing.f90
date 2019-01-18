@@ -98,33 +98,37 @@ CONTAINS
     integer(i4) :: tt
     ! ToDo: change
     iBasin = 1
-    call MPI_Recv(nInflowGauges, 1, MPI_INTEGER, 0, 2, MPIparam%comm, status, ierror)
-    allocate(InflowGaugeHeadwater(nInflowGauges), InflowGaugeNodeList(nInflowGauges))
-    call MPI_Recv(InflowGaugeHeadwater, nInflowGauges, MPI_LOGICAL, 0, 2, MPIparam%comm, status, ierror)
-    call MPI_Recv(InflowGaugeNodeList, nInflowGauges, MPI_INTEGER, 0, 2, MPIparam%comm, status, ierror)
-    call get_full_array_dp(iBasin, MPIParam, STmeta, L11_C1)
-    call tree_init_C1_with_array(L11_C1, trees)
-    call get_full_array_dp(iBasin, MPIParam, STmeta, L11_C2)
-    call tree_init_C2_with_array(L11_C2, trees)
-    call get_full_array_dp(iBasin, MPIParam, STmeta, L11_qOut)
-    call tree_init_qOut_with_array(L11_qOut, trees)
     do tt = 1, routLoop
-      call get_array_dp(iBasin, MPIParam%nproc, MPIParam%rank, MPIParam%comm, STmeta, L11_qTIN)
-      call tree_init_qTIN_with_array(L11_qTIN, trees)
-      call get_array_dp(iBasin, MPIParam%nproc, MPIParam%rank, MPIParam%comm, STmeta, L11_qTR)
-      call tree_init_qTR_with_array(L11_qTR, trees)
-      call muskignum_subprocess_routing(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList,&
-                                     STmeta, subtrees, inInds, inTrees, trees)
-      call MPI_Barrier(MPIparam%comm)
-      allocate(L11_buf_qTIN(size(L11_qTIN, dim=1), MPIparam%bufferLength))
-      allocate(L11_buf_qTR( size(L11_qTIN, dim=1), MPIparam%bufferLength))
-      call tree_extract_qTIN_in_array(trees, L11_buf_qTIN)
-      call send_full_array_dp(iBasin, MPIparam, STmeta, L11_buf_qTIN)
-      call tree_extract_qTR_in_array(trees, L11_buf_qTR)
-      call send_full_array_dp(iBasin, MPIparam, STmeta, L11_buf_qTR)
-      call MPI_Barrier(MPIparam%comm)
+      call MPIparam%increment()
+      if (MPIparam%buffered) then
+        call MPI_Recv(nInflowGauges, 1, MPI_INTEGER, 0, 2, MPIparam%comm, status, ierror)
+        allocate(InflowGaugeHeadwater(nInflowGauges), InflowGaugeNodeList(nInflowGauges))
+        call MPI_Recv(InflowGaugeHeadwater, nInflowGauges, MPI_LOGICAL, 0, 2, MPIparam%comm, status, ierror)
+        call MPI_Recv(InflowGaugeNodeList, nInflowGauges, MPI_INTEGER, 0, 2, MPIparam%comm, status, ierror)
+        call get_full_array_dp(iBasin, MPIParam, STmeta, L11_C1)
+        call tree_init_C1_with_array(L11_C1, trees)
+        call get_full_array_dp(iBasin, MPIParam, STmeta, L11_C2)
+        call tree_init_C2_with_array(L11_C2, trees)
+        call get_full_array_dp(iBasin, MPIParam, STmeta, L11_qOut)
+        call tree_init_qOut_with_array(L11_qOut, trees)
+        call get_array_dp(iBasin, MPIParam%nproc, MPIParam%rank, MPIParam%comm, STmeta, L11_qTIN)
+        call tree_init_qTIN_with_array(L11_qTIN, trees)
+        call get_array_dp(iBasin, MPIParam%nproc, MPIParam%rank, MPIParam%comm, STmeta, L11_qTR)
+        call tree_init_qTR_with_array(L11_qTR, trees)
+        call muskignum_subprocess_routing(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList,&
+                                       STmeta, subtrees, inInds, inTrees, trees)
+        call MPI_Barrier(MPIparam%comm)
+        allocate(L11_buf_qTIN(size(L11_qTIN, dim=1), MPIparam%bufferLength))
+        allocate(L11_buf_qTR( size(L11_qTIN, dim=1), MPIparam%bufferLength))
+        call tree_extract_qTIN_in_array(trees, L11_buf_qTIN)
+        call send_full_array_dp(iBasin, MPIparam, STmeta, L11_buf_qTIN)
+        call tree_extract_qTR_in_array(trees, L11_buf_qTR)
+        call send_full_array_dp(iBasin, MPIparam, STmeta, L11_buf_qTR)
+        call MPI_Barrier(MPIparam%comm)
+        deallocate(L11_buf_qTIN, L11_buf_qTR)
+        deallocate(InflowGaugeHeadwater, InflowGaugeNodeList)
+      end if
     end do
-    deallocate(InflowGaugeHeadwater, InflowGaugeNodeList)
     
   end subroutine muskignum_subtree_routing_process
 
@@ -222,46 +226,62 @@ CONTAINS
     type(MPI_Status)                       :: status
     integer(i4) :: iBasin
 
-    integer(i4) :: kk
+    integer(i4) :: kk, jj, bufferLength
 
     do kk = 1, root%tN%Nprae
       call muskignum_subtree_routing_serial(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList, &
                                      STmeta, root%tN%prae(kk), inInds, inTrees, trees)
     end do
+    bufferLength = MPIparam%bufferLength
     ! add routed water to downstream node
    !   netNode_qTIN(tNode, IT) = netNode_qTIN(tNode, IT) + netNode_qTR(iNode, IT)
-    if (size(root%tN%prae) > 0 .and. .not. root%tN%isIn) then
-      do kk = 1, size(root%tN%prae)
-        root%tN%qTIN%buffer(2) = root%tN%qTIN%buffer(2) + &
-                                      root%tN%prae(kk)%tN%qTR%buffer(2)
-      end do
-   end if
-   if (.not. root%tN%isIn) then
-    ! accumulate all inputs in iNode
-   ! netNode_qTIN(iNode, IT) = netNode_qTIN(iNode, IT) + netNode_qOUT(iNode)
-    root%tN%qTIN%buffer(2) = root%tN%qTIN%buffer(2) + root%tN%qOut%buffer(1)
+    do jj = 2, bufferLength+1
+      if (size(root%tN%prae) > 0 .and. .not. root%tN%isIn) then
+        do kk = 1, size(root%tN%prae)
+          root%tN%qTIN%buffer(jj) = root%tN%qTIN%buffer(jj) + &
+                                      root%tN%prae(kk)%tN%qTR%buffer(jj)
+        end do
+      end if
 
-    ! routing iNode
-    ! Here is a difference compared to the old code. This is also done for the
-    ! root node, but wasn't before. But qTR is a temporary result and this last
-    ! value has no impact anyhow. So we leave it as it is.
-   !   netNode_qTR(iNode, IT) = netNode_qTR(iNode, IT1)                               &
-   !           + netLink_C1(i) * (netNode_qTIN(iNode, IT1) - netNode_qTR (iNode, IT1)) &
-   !           + netLink_C2(i) * (netNode_qTIN(iNode, IT) - netNode_qTIN(iNode, IT1))
-    root%tN%qTR%buffer(2) = root%tN%qTR%buffer(1) &
-               + root%tN%C1%buffer(1) * ( root%tN%qTIN%buffer(1) - root%tN%qTR%buffer(1) ) &
-               + root%tN%C2%buffer(1) * ( root%tN%qTIN%buffer(2) - root%tN%qTIN%buffer(1) )
+    !  if (size(root%tN%prae) == 0 .and. .not. root%tN%isIn) then
+    !    root%tN%qTR%buffer(jj) = root%tN%qTR%buffer(jj-1)
+    !    root%tN%qTIN%buffer(jj) = root%tN%qTIN%buffer(jj-1)
+    !  else if (size(root%tN%prae) > 0) then
+    !    do kk = 1, size(root%tN%prae)
+    !      root%tN%qTIN%buffer(jj) = root%tN%qTIN%buffer(jj) + &
+    !                                  root%tN%prae(kk)%tN%qTR%buffer(jj)
+    !    end do
+    !  end if
+      if (.not. root%tN%isIn) then
+      ! accumulate all inputs in iNode
+     ! netNode_qTIN(iNode, IT) = netNode_qTIN(iNode, IT) + netNode_qOUT(iNode)
+      root%tN%qTIN%buffer(jj) = root%tN%qTIN%buffer(jj) + root%tN%qOut%buffer(jj-1)
 
-    !ToDo: is only necessery in incomplete catchments
-    ! check if the inflow from upstream cells should be deactivated
-   !   if (nInflowGauges .GT. 0) then
-   !     do i = 1, nInflowGauges
-   !       ! check if downstream Node (tNode) is inflow gauge and headwaters should be ignored
-   !       if ((tNode == InflowNodeList(i)) .AND. (.NOT. InflowHeadwater(i))) netNode_qTR(iNode, IT) = 0.0_dp
-   !     end do
-   !   end if
+      ! routing iNode
+      ! Here is a difference compared to the old code. This is also done for the
+      ! root node, but wasn't before. But qTR is a temporary result and this last
+      ! value has no impact anyhow. So we leave it as it is.
+     !   netNode_qTR(iNode, IT) = netNode_qTR(iNode, IT1)                               &
+     !           + netLink_C1(i) * (netNode_qTIN(iNode, IT1) - netNode_qTR (iNode, IT1)) &
+     !           + netLink_C2(i) * (netNode_qTIN(iNode, IT) - netNode_qTIN(iNode, IT1))
+      root%tN%qTR%buffer(jj) = root%tN%qTR%buffer(jj-1) &
+                 + root%tN%C1%buffer(jj-1) * ( root%tN%qTIN%buffer(jj-1) -  root%tN%qTR%buffer(jj-1) ) &
+                 + root%tN%C2%buffer(jj-1) * ( root%tN%qTIN%buffer(jj)   - root%tN%qTIN%buffer(jj-1) )
+             !    write(*,*) root%tN%C1%buffer(jj-1),root%tN%qTIN%buffer(jj-1), root%tN%qTR%buffer(jj-1),&
+             !               root%tN%C2%buffer(jj-1),root%tN%qTIN%buffer(jj)  , root%tN%qTIN%buffer(jj-1)
+             !    write(*,*) '*****************'
 
-   end if
+      !ToDo: is only necessery in incomplete catchments
+      ! check if the inflow from upstream cells should be deactivated
+     !   if (nInflowGauges .GT. 0) then
+     !     do i = 1, nInflowGauges
+     !       ! check if downstream Node (tNode) is inflow gauge and headwaters should be ignored
+     !       if ((tNode == InflowNodeList(i)) .AND. (.NOT. InflowHeadwater(i))) netNode_qTR(iNode, IT) = 0.0_dp
+     !     end do
+     !   end if
+
+      end if
+   end do
   end subroutine muskignum_subtree_routing_serial
 
 END MODULE mo_HRD_routing

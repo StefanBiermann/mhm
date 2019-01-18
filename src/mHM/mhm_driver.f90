@@ -386,7 +386,7 @@ PROGRAM mhm_driver
   ! WRITE RUNOFF (INCLUDING RESTART FILES, has to be called after mHM restart
   ! files are written)
   ! --------------------------------------------------------------------------
-  if (processMatrix(8, 1) .ne. 0) call mrm_write()
+ ! if (processMatrix(8, 1) .ne. 0) call mrm_write()
 #endif
 
 
@@ -414,7 +414,6 @@ PROGRAM mhm_driver
 
   else if (rank < nproc) then ! mpi
     call subdomain_process(MPIparam)
-    write(*,*) 'test from', rank
   end if
 
   if (.false.) then

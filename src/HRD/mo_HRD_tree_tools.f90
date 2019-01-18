@@ -116,8 +116,8 @@ CONTAINS
     integer(i4) :: kk
 
     do kk = 1, size(array)
+      trees(kk)%tN%qTIN%buffer(:) = 0.0_dp
       trees(kk)%tN%qTIN%buffer(1) = array(kk)
-      trees(kk)%tN%qTIN%buffer(2) = 0.0_dp
     end do
   end subroutine tree_init_qTIN_with_array
 
@@ -130,7 +130,7 @@ CONTAINS
 
     do jj = 1, size(array, dim=2)
       do kk = 1, size(array, dim=1)
-        array(kk, jj)=trees(kk)%tN%qTIN%buffer(jj)
+        array(kk, jj)=trees(kk)%tN%qTIN%buffer(jj+1)
       end do
     end do
   end subroutine tree_extract_qTIN_in_array
@@ -143,6 +143,7 @@ CONTAINS
     integer(i4) :: kk
 
     do kk = 1, size(array)
+      trees(kk)%tN%qTIN%buffer(:) = 0.0_dp
       trees(kk)%tN%qTR%buffer(1) = array(kk)
     end do
   end subroutine tree_init_qTR_with_array
@@ -156,7 +157,7 @@ CONTAINS
 
     do jj = 1, size(array, dim=2)
       do kk = 1, size(array, dim=1)
-        array(kk, jj)=trees(kk)%tN%qTR%buffer(jj)
+        array(kk, jj)=trees(kk)%tN%qTR%buffer(jj+1)
       end do
     end do
   end subroutine tree_extract_qTR_in_array
