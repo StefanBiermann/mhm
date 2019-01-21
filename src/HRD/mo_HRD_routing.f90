@@ -46,7 +46,8 @@ CONTAINS
     type(processSchedule), dimension(:), intent(in)    :: schedule
     ! local
     integer(i4)                            :: kk, iproc, next, indST
-    integer(i4), dimension(MPIparam%bufferLength+1) :: buffer, qTIN, qTR
+    integer(i4), dimension(MPIparam%bufferLength+1) :: buffer
+    real(dp), dimension(MPIparam%bufferLength+1) :: qTIN, qTR
     integer(i4)                            :: ierror
     type(MPI_Status)                       :: status
 
@@ -55,8 +56,8 @@ CONTAINS
       ! the root tree node
       call MPI_Recv(buffer, MPIparam%bufferLength+1, MPI_INTEGER, MPI_ANY_SOURCE, 0, MPIparam%comm, status, ierror)
       indST = buffer(1)
-      call MPI_Recv(qTIN,   MPIparam%bufferLength+1, MPI_INTEGER, MPI_ANY_SOURCE, indST, MPIparam%comm, status, ierror)
-      call MPI_Recv(qTR,    MPIparam%bufferLength+1, MPI_INTEGER, MPI_ANY_SOURCE, indST, MPIparam%comm, status, ierror)
+      call MPI_Recv(qTIN,   MPIparam%bufferLength+1, MPI_DOUBLE_PRECISION, MPI_ANY_SOURCE, indST, MPIparam%comm, status, ierror)
+      call MPI_Recv(qTR,    MPIparam%bufferLength+1, MPI_DOUBLE_PRECISION, MPI_ANY_SOURCE, indST, MPIparam%comm, status, ierror)
       ! if the root node of the subtree has a parent
       if (associated(subtrees(indST)%tN%post%tN)) then
         ! next becomes the index of the parent subtree root node (the subtree
@@ -64,9 +65,9 @@ CONTAINS
         next = subtrees(indST)%tN%ST%postST%tN%ST%indST
         ! iproc is the process the parent subtree is assigned to
         iproc = subtrees(next)%tN%ST%sched(1)
-        call MPI_Send(buffer, MPIparam%bufferLength, MPI_INTEGER, iproc, indST, MPIparam%comm, ierror)
-        call MPI_Send(qTIN,   MPIparam%bufferLength, MPI_INTEGER, iproc, indST, MPIparam%comm, ierror)
-        call MPI_Send(qTR,    MPIparam%bufferLength, MPI_INTEGER, iproc, indST, MPIparam%comm, ierror)
+        call MPI_Send(buffer, MPIparam%bufferLength+1, MPI_INTEGER, iproc, indST, MPIparam%comm, ierror)
+        call MPI_Send(qTIN,   MPIparam%bufferLength+1, MPI_DOUBLE_PRECISION, iproc, indST, MPIparam%comm, ierror)
+        call MPI_Send(qTR,    MPIparam%bufferLength+1, MPI_DOUBLE_PRECISION, iproc, indST, MPIparam%comm, ierror)
       end if
     end do
   end subroutine muskignum_master_routing
@@ -113,6 +114,9 @@ CONTAINS
         call tree_init_qOut_with_array(L11_qOut, trees)
         call get_array_dp(iBasin, MPIParam%nproc, MPIParam%rank, MPIParam%comm, STmeta, L11_qTIN)
         call tree_init_qTIN_with_array(L11_qTIN, trees)
+       ! write(*,*) '----'
+       ! write(*,*) L11_qTIN
+       ! write(*,*) '---'
         call get_array_dp(iBasin, MPIParam%nproc, MPIParam%rank, MPIParam%comm, STmeta, L11_qTR)
         call tree_init_qTR_with_array(L11_qTR, trees)
         call muskignum_subprocess_routing(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList,&
@@ -159,12 +163,12 @@ CONTAINS
         ! for every subtree for every leaf, where data comes in, receive this
         ! data. Via inInds(ii) we write the right incoming data to the
         ! matching buffer.
-        call MPI_IRecv(inTrees(ii)%tN%values%buffer, MPIparam%bufferLength, &
+        call MPI_IRecv(inTrees(ii)%tN%values%buffer, MPIparam%bufferLength+1, &
                                          MPI_INTEGER, 0, inInds(ii), MPIParam%comm, inTrees(ii)%tN%values%request, ierror)
-        call MPI_IRecv(inTrees(ii)%tN%qTIN%buffer,   MPIparam%bufferLength, &
-                                         MPI_INTEGER, 0, inInds(ii), MPIParam%comm, inTrees(ii)%tN%qTIN%request,   ierror)
-        call MPI_IRecv(inTrees(ii)%tN%qTR%buffer,    MPIparam%bufferLength, &
-                                         MPI_INTEGER, 0, inInds(ii), MPIParam%comm, inTrees(ii)%tN%qTR%request,    ierror)
+        call MPI_IRecv(inTrees(ii)%tN%qTIN%buffer,   MPIparam%bufferLength+1, &
+                                         MPI_DOUBLE_PRECISION, 0, inInds(ii), MPIParam%comm, inTrees(ii)%tN%qTIN%request,   ierror)
+        call MPI_IRecv(inTrees(ii)%tN%qTR%buffer,    MPIparam%bufferLength+1, &
+                                         MPI_DOUBLE_PRECISION, 0, inInds(ii), MPIParam%comm, inTrees(ii)%tN%qTR%request,    ierror)
       end do
     end do
     ! now we run over the subtrees on the computing node in routing order
@@ -177,19 +181,26 @@ CONTAINS
         call MPI_Wait(inTrees(ii)%tN%values%request, inTrees(ii)%tN%values%status, ierror)
         call MPI_Wait(inTrees(ii)%tN%qTIN%request,   inTrees(ii)%tN%qTIN%status,   ierror)
         call MPI_Wait(inTrees(ii)%tN%qTR%request,    inTrees(ii)%tN%qTR%status,    ierror)
+      !  if (.not. MPI_ASYNC_PROTECTS_NONBLOCKING) call MPI_F_SYNC_REG(inTrees(ii)%tN%values%buffer)
+      !  if (.not. MPI_ASYNC_PROTECTS_NONBLOCKING) call MPI_F_SYNC_REG(inTrees(ii)%tN%qTIN%buffer)
+      !  if (.not. MPI_ASYNC_PROTECTS_NONBLOCKING) call MPI_F_SYNC_REG(inTrees(ii)%tN%qTR%buffer)
+      !  write(*,*) inTrees(ii)%tN%qTR%buffer
+      !  write(*,*) '---'
       end do
       call muskignum_subtree_routing(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList, &
-                                       STmeta, subtrees(kk), inInds, inTrees, trees)
+                                       STmeta, subtrees(kk), inInds, inTrees)
       subtrees(kk)%tN%values%buffer(1) = STmeta(kk)%indST
       ! send the outflow to the master process
+      ! write(*,*) subtrees(kk)%tN%qTR%buffer, MPIparam%bufferLength
+      ! write(*,*) '~~~'
       call MPI_Send(subtrees(kk)%tN%values%buffer, MPIparam%bufferLength+1, MPI_INTEGER, 0, 0, MPIparam%comm, ierror)
-      call MPI_Send(subtrees(kk)%tN%qTIN%buffer,   MPIparam%bufferLength+1, MPI_INTEGER, 0, STmeta(kk)%indST, MPIparam%comm, ierror)
-      call MPI_Send(subtrees(kk)%tN%qTR%buffer,    MPIparam%bufferLength+1, MPI_INTEGER, 0, STmeta(kk)%indST, MPIparam%comm, ierror)
+      call MPI_Send(subtrees(kk)%tN%qTIN%buffer,   MPIparam%bufferLength+1, MPI_DOUBLE_PRECISION, 0, STmeta(kk)%indST, MPIparam%comm, ierror)
+      call MPI_Send(subtrees(kk)%tN%qTR%buffer,    MPIparam%bufferLength+1, MPI_DOUBLE_PRECISION, 0, STmeta(kk)%indST, MPIparam%comm, ierror)
     end do
   end subroutine muskignum_subprocess_routing
 
   recursive subroutine muskignum_subtree_routing(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList, &
-                                       STmeta, root, inInds, inTrees, trees)
+                                       STmeta, root, inInds, inTrees)
     type(MPI_parameter), intent(in) :: MPIparam
     logical,           dimension(:), allocatable, intent(in)    :: InflowGaugeHeadwater
     integer(i4),       dimension(:), allocatable, intent(in)    :: InflowGaugeNodeList
@@ -197,20 +208,19 @@ CONTAINS
     type(ptrTreeNode),                            intent(in)    :: root             ! the array of
     integer(i4),       dimension(:), allocatable, intent(in)    :: inInds
     type(ptrTreeNode), dimension(:), allocatable, intent(in)    :: inTrees             ! the array of halo leaves
-    type(ptrTreeNode), dimension(:), allocatable, intent(inout) :: trees               ! the array of all nodes of the trees
     ! local
     integer(i4) :: kk
 
     do kk = 1, root%tN%ST%NpraeST
       call muskignum_subtree_routing(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList, &
-                                       STmeta, root%tN%ST%praeST(kk), inInds, inTrees, trees)
+                                       STmeta, root%tN%ST%praeST(kk), inInds, inTrees)
     end do
     call muskignum_subtree_routing_serial(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList, &
-                                       STmeta, root, inInds, inTrees, trees)
+                                       STmeta, root, inInds, inTrees)
   end subroutine muskignum_subtree_routing
 
   recursive subroutine muskignum_subtree_routing_serial(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList, &
-                                       STmeta, root, inInds, inTrees, trees)
+                                       STmeta, root, inInds, inTrees)
     type(MPI_parameter), intent(in) :: MPIparam
     logical,           dimension(:), allocatable, intent(in)    :: InflowGaugeHeadwater
     integer(i4),       dimension(:), allocatable, intent(in)    :: InflowGaugeNodeList
@@ -218,7 +228,6 @@ CONTAINS
     type(ptrTreeNode),                            intent(in)    :: root             ! the array of
     integer(i4),       dimension(:), allocatable, intent(in)    :: inInds
     type(ptrTreeNode), dimension(:), allocatable, intent(in)    :: inTrees             ! the array of halo leaves
-    type(ptrTreeNode), dimension(:), allocatable, intent(inout) :: trees               ! the array of all nodes of the trees
     ! local
     integer(i4) :: ierror
     integer(i4)                            :: routLoop
@@ -230,14 +239,17 @@ CONTAINS
 
     do kk = 1, root%tN%Nprae
       call muskignum_subtree_routing_serial(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList, &
-                                     STmeta, root%tN%prae(kk), inInds, inTrees, trees)
+                                     STmeta, root%tN%prae(kk), inInds, inTrees)
     end do
     bufferLength = MPIparam%bufferLength
     ! add routed water to downstream node
    !   netNode_qTIN(tNode, IT) = netNode_qTIN(tNode, IT) + netNode_qTR(iNode, IT)
     do jj = 2, bufferLength+1
       if (size(root%tN%prae) > 0 .and. .not. root%tN%isIn) then
+       ! write(*,*) root%tN%qTIN%buffer(jj), jj
         do kk = 1, size(root%tN%prae)
+         ! write(*,*) root%tN%prae(kk)%tN%qTR%buffer(jj-1), &
+         ! root%tN%prae(kk)%tN%qTR%buffer(jj), root%tN%permind, root%tN%prae(kk)%tN%permind, root%tN%prae(kk)%tN%isIn
           root%tN%qTIN%buffer(jj) = root%tN%qTIN%buffer(jj) + &
                                       root%tN%prae(kk)%tN%qTR%buffer(jj)
         end do
@@ -256,6 +268,7 @@ CONTAINS
       ! accumulate all inputs in iNode
      ! netNode_qTIN(iNode, IT) = netNode_qTIN(iNode, IT) + netNode_qOUT(iNode)
       root%tN%qTIN%buffer(jj) = root%tN%qTIN%buffer(jj) + root%tN%qOut%buffer(jj-1)
+             !  write(*,*) root%tN%qTIN%buffer(jj), root%tN%qOut%buffer(jj-1), root%tN%permInd
 
       ! routing iNode
       ! Here is a difference compared to the old code. This is also done for the
@@ -267,9 +280,11 @@ CONTAINS
       root%tN%qTR%buffer(jj) = root%tN%qTR%buffer(jj-1) &
                  + root%tN%C1%buffer(jj-1) * ( root%tN%qTIN%buffer(jj-1) -  root%tN%qTR%buffer(jj-1) ) &
                  + root%tN%C2%buffer(jj-1) * ( root%tN%qTIN%buffer(jj)   - root%tN%qTIN%buffer(jj-1) )
-             !    write(*,*) root%tN%C1%buffer(jj-1),root%tN%qTIN%buffer(jj-1), root%tN%qTR%buffer(jj-1),&
-             !               root%tN%C2%buffer(jj-1),root%tN%qTIN%buffer(jj)  , root%tN%qTIN%buffer(jj-1)
-             !    write(*,*) '*****************'
+               !  write(*,*) root%tN%C1%buffer(jj-1),root%tN%qTIN%buffer(jj-1), root%tN%qTR%buffer(jj-1),&
+               !             root%tN%C2%buffer(jj-1),root%tN%qTIN%buffer(jj), &
+               !             root%tN%permind
+               !  write(*,*) '*****************'
+               !   write(*,*) root%tN%qTR%buffer(jj), root%tN%permind
 
       !ToDo: is only necessery in incomplete catchments
       ! check if the inflow from upstream cells should be deactivated

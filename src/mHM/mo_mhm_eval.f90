@@ -278,6 +278,8 @@ CONTAINS
 
     ! modelled discharge at each grid cell
     real(dp), dimension(size(L11_qMod, dim=1), MPIparam%bufferLength) :: L11_buf_qMod
+    ! modelled discharge at each grid cell
+    real(dp), dimension(size(L11_qMod, dim=1)) :: L11_write_buf_qMod
 
 #endif
     integer(i4) :: gg
@@ -415,6 +417,7 @@ CONTAINS
       L11_buf_qTIN(s11 : e11, :) = 0.0_dp
       L11_buf_qTR(s11 : e11, :)  = 0.0_dp
       L11_buf_qMod(s11 : e11, 1) = 0.0_dp
+      L11_write_buf_qMod(s11 : e11) = 0.0_dp
       do tt = 1, MPIparam%bufferLength
         L11_buf_C1(s11 : e11, tt)   = L11_C1(s11 : e11)
         L11_buf_C2(s11 : e11, tt)   = L11_C2(s11 : e11)
@@ -567,7 +570,6 @@ CONTAINS
           ! -------------------------------------------------------------------
           ! execute routing
           ! -------------------------------------------------------------------
-          bufferIndexList(tt) = MPIparam%bufferIndex
           if (do_rout) then
             call mRM_routing_par(&
                   ! general INPUT variables
@@ -611,6 +613,7 @@ CONTAINS
                   )
             L11_qMod(s11 : e11)    = L11_buf_qMod(s11 : e11, 1) 
           end if
+          bufferIndexList(tt) = MPIparam%bufferIndex - 1
             ! -------------------------------------------------------------------
             ! groundwater coupling
             ! -------------------------------------------------------------------
@@ -654,48 +657,100 @@ CONTAINS
           if (MPIparam%bufferWrite) then
             MPIparam%bufferWrite = .false.
             do jj = tt_buf, (tt/MPIparam%bufferLength)*MPIparam%bufferLength
-              call increment_datetime(timestep,                               & ! in
-                                   prev_day,   prev_month,   prev_year,       & ! out
-                                 is_new_day_buf, is_new_month_buf, is_new_year_buf, & ! out
-                                 newTime_buf,                                     & ! out
-                                        day_buf,     month_buf,   year_buf, hour_buf)! inout
-              ! write(0,*) '--', prev_day, prev_month, prev_year, newTime, jj
-               call mrm_write_output_fluxes(&
-                     ! basin id
-                     iBasin, &
-                     ! nCells in basin
-                     level11(iBasin)%nCells, &
-                     ! output specification
-                     timeStep_model_outputs_mrm, &
-                     ! time specification
-                     warmingDays(iBasin), newTime_buf, nTimeSteps, nTstepDay, &
-                     jj, &
-                     ! parse previous date to mRM writer
-                     prev_day, prev_month, prev_year, &
-                     timestep, &
-                     ! mask specification
-                     mask11, &
-                     ! output variables
-                     L11_buf_qMod(s11 : e11, bufferIndexList(jj)))
-                   if(gw_coupling) then
-                       !call mrm_write_output_river_head( &
-                       !     ! basin id
-                       !     ii, &
-                       !     ! output specification
-                       !     timeStep_model_outputs_mrm, &
-                       !     ! time specification
-                       !     warmingDays_mrm(ii), newTime, nTimeSteps, nTStepDay, &
-                       !     tt, &
-                       !     ! parse previous date to mRM writer
-                       !     day_counter, month_counter, year_counter, &
-                       !     timestep, &
-                       !     ! mask specification
-                       !     mask0, &
-                       !     ! output variables
-                       !     L0_river_head(s11:e11))
-                   end if
+              if (bufferIndexList(jj) == 0) then
+                call increment_datetime(timestep,                               & ! in
+                                     prev_day,   prev_month,   prev_year,       & ! out
+                                   is_new_day_buf, is_new_month_buf, is_new_year_buf, & ! out
+                                   newTime_buf,                                     & ! out
+                                          day_buf,     month_buf,   year_buf, hour_buf)! inout
+                ! write(0,*) '--', prev_day, prev_month, prev_year, newTime, jj
+               !  write(*,*) newTime_buf, nTimeSteps, nTstepDay, &
+               !        jj, &
+               !        L11_write_buf_qMod(s11 : e11)
+               !  read(*,*)
+                 call mrm_write_output_fluxes(&
+                       ! basin id
+                       iBasin, &
+                       ! nCells in basin
+                       level11(iBasin)%nCells, &
+                       ! output specification
+                       timeStep_model_outputs_mrm, &
+                       ! time specification
+                       warmingDays(iBasin), newTime_buf, nTimeSteps, nTstepDay, &
+                       jj, &
+                       ! parse previous date to mRM writer
+                       prev_day, prev_month, prev_year, &
+                       timestep, &
+                       ! mask specification
+                       mask11, &
+                       ! output variables
+                       L11_write_buf_qMod(s11 : e11))
+                     if(gw_coupling) then
+                         !call mrm_write_output_river_head( &
+                         !     ! basin id
+                         !     ii, &
+                         !     ! output specification
+                         !     timeStep_model_outputs_mrm, &
+                         !     ! time specification
+                         !     warmingDays_mrm(ii), newTime, nTimeSteps, nTStepDay, &
+                         !     tt, &
+                         !     ! parse previous date to mRM writer
+                         !     day_counter, month_counter, year_counter, &
+                         !     timestep, &
+                         !     ! mask specification
+                         !     mask0, &
+                         !     ! output variables
+                         !     L0_river_head(s11:e11))
+                     end if
+              else
+                L11_write_buf_qMod(s11 : e11) = L11_buf_qmod(s11 : e11, MPIparam%bufferLength)
+                call increment_datetime(timestep,                               & ! in
+                                     prev_day,   prev_month,   prev_year,       & ! out
+                                   is_new_day_buf, is_new_month_buf, is_new_year_buf, & ! out
+                                   newTime_buf,                                     & ! out
+                                          day_buf,     month_buf,   year_buf, hour_buf)! inout
+                ! write(0,*) '--', prev_day, prev_month, prev_year, newTime, jj
+               !  write(*,*) newTime_buf, nTimeSteps, nTstepDay, &
+               !        jj, &
+               !        L11_buf_qmod(s11 : e11, bufferIndexList(jj))
+               !  read(*,*)
+                 call mrm_write_output_fluxes(&
+                       ! basin id
+                       iBasin, &
+                       ! nCells in basin
+                       level11(iBasin)%nCells, &
+                       ! output specification
+                       timeStep_model_outputs_mrm, &
+                       ! time specification
+                       warmingDays(iBasin), newTime_buf, nTimeSteps, nTstepDay, &
+                       jj, &
+                       ! parse previous date to mRM writer
+                       prev_day, prev_month, prev_year, &
+                       timestep, &
+                       ! mask specification
+                       mask11, &
+                       ! output variables
+                       L11_buf_qMod(s11 : e11, bufferIndexList(jj)))
+                     if(gw_coupling) then
+                         !call mrm_write_output_river_head( &
+                         !     ! basin id
+                         !     ii, &
+                         !     ! output specification
+                         !     timeStep_model_outputs_mrm, &
+                         !     ! time specification
+                         !     warmingDays_mrm(ii), newTime, nTimeSteps, nTStepDay, &
+                         !     tt, &
+                         !     ! parse previous date to mRM writer
+                         !     day_counter, month_counter, year_counter, &
+                         !     timestep, &
+                         !     ! mask specification
+                         !     mask0, &
+                         !     ! output variables
+                         !     L0_river_head(s11:e11))
+                     end if
+              end if
             end do
-            tt_buf = (tt/MPIparam%bufferLength)*MPIparam%bufferLength
+            tt_buf = (tt/MPIparam%bufferLength)*MPIparam%bufferLength + 1
           end if
         end if
 #endif

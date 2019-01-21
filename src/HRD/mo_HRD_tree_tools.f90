@@ -143,7 +143,7 @@ CONTAINS
     integer(i4) :: kk
 
     do kk = 1, size(array)
-      trees(kk)%tN%qTIN%buffer(:) = 0.0_dp
+      trees(kk)%tN%qTR%buffer(:) = 0.0_dp
       trees(kk)%tN%qTR%buffer(1) = array(kk)
     end do
   end subroutine tree_init_qTR_with_array

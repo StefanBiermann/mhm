@@ -526,10 +526,10 @@ CONTAINS
                                 nSubtrees, STmeta, permNodes, schedule, L11_qTR(:, :))
           call MPI_Barrier(MPIparam%comm)
           ! store generated discharge
-          do iproc = 1, MPIparam%bufferLength
-            write(*,*) L11_qTIN(1 : nNodes, iproc), iproc, MPIparam%bufferLength
-            read(*,*)
-          end do
+         ! do iproc = 1, MPIparam%bufferLength
+         !   write(*,*) L11_qTR(1 : nNodes, iproc), iproc, MPIparam%bufferLength
+         !   read(*,*)
+         ! end do
           L11_qMod(1 : nNodes, :) = L11_qTIN(1 : nNodes, :)
           L11_qTIN(:, 1) = L11_qTIN(:, MPIparam%bufferLength)
           L11_qTR(:, 1)  = L11_qTR(:, MPIparam%bufferLength)
@@ -537,23 +537,23 @@ CONTAINS
       end do
       ! ToDo: also when was buffered
       if (MPIparam%buffered) then
-        tt = 0
-        ind = 1
-        do gg = 1, MPIparam%bufferLength
-          L11_qAcc = 0._dp
-          ! accumulate values of individual subtimesteps
-          L11_qAcc(:, ind) = L11_qAcc(:, ind) + L11_qMod(:, gg)
-          tt = tt + 1
-          ! calculate mean over routing period (timestep) ToDo: handle
-          ! bufferLength % routloop /= 0
-          if (tt == rout_loop) then
-            do tt = ind, gg
-              L11_qMod(:, tt) = L11_qAcc(:, gg) / real(rout_loop, dp)
-            end do
-            ind = ind + 1
-            tt = 0
-          end if
-        end do
+       ! tt = 0
+       ! ind = 1
+       ! do gg = 1, MPIparam%bufferLength
+       !   L11_qAcc = 0._dp
+       !   ! accumulate values of individual subtimesteps
+       !   L11_qAcc(:, ind) = L11_qAcc(:, ind) + L11_qMod(:, gg)
+       !   tt = tt + 1
+       !   ! calculate mean over routing period (timestep) ToDo: handle
+       !   ! bufferLength % routloop /= 0
+       !   if (tt == rout_loop) then
+       !     do tt = ind, gg
+       !       L11_qMod(:, tt) = L11_qAcc(:, gg) / real(rout_loop, dp)
+       !     end do
+       !     ind = ind + 1
+       !     tt = 0
+       !   end if
+       ! end do
       end if
     else
       ! ToDo: Check this case
