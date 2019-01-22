@@ -114,9 +114,6 @@ CONTAINS
         call tree_init_qOut_with_array(L11_qOut, trees)
         call get_array_dp(iBasin, MPIParam%nproc, MPIParam%rank, MPIParam%comm, STmeta, L11_qTIN)
         call tree_init_qTIN_with_array(L11_qTIN, trees)
-       ! write(*,*) '----'
-       ! write(*,*) L11_qTIN
-       ! write(*,*) '---'
         call get_array_dp(iBasin, MPIParam%nproc, MPIParam%rank, MPIParam%comm, STmeta, L11_qTR)
         call tree_init_qTR_with_array(L11_qTR, trees)
         call muskignum_subprocess_routing(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList,&
@@ -184,15 +181,17 @@ CONTAINS
       !  if (.not. MPI_ASYNC_PROTECTS_NONBLOCKING) call MPI_F_SYNC_REG(inTrees(ii)%tN%values%buffer)
       !  if (.not. MPI_ASYNC_PROTECTS_NONBLOCKING) call MPI_F_SYNC_REG(inTrees(ii)%tN%qTIN%buffer)
       !  if (.not. MPI_ASYNC_PROTECTS_NONBLOCKING) call MPI_F_SYNC_REG(inTrees(ii)%tN%qTR%buffer)
-      !  write(*,*) inTrees(ii)%tN%qTR%buffer
-      !  write(*,*) '---'
       end do
+      !!$OMP parallel num_threads(jj) private(rank)
+      !$OMP parallel private(rank) shared(subtrees)
+      !$OMP single
       call muskignum_subtree_routing(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList, &
                                        STmeta, subtrees(kk), inInds, inTrees)
+      !$OMP end single
+      !$OMP barrier
+      !$OMP end parallel
       subtrees(kk)%tN%values%buffer(1) = STmeta(kk)%indST
       ! send the outflow to the master process
-      ! write(*,*) subtrees(kk)%tN%qTR%buffer, MPIparam%bufferLength
-      ! write(*,*) '~~~'
       call MPI_Send(subtrees(kk)%tN%values%buffer, MPIparam%bufferLength+1, MPI_INTEGER, 0, 0, MPIparam%comm, ierror)
       call MPI_Send(subtrees(kk)%tN%qTIN%buffer,   MPIparam%bufferLength+1, MPI_DOUBLE_PRECISION, 0, STmeta(kk)%indST, MPIparam%comm, ierror)
       call MPI_Send(subtrees(kk)%tN%qTR%buffer,    MPIparam%bufferLength+1, MPI_DOUBLE_PRECISION, 0, STmeta(kk)%indST, MPIparam%comm, ierror)
@@ -212,9 +211,12 @@ CONTAINS
     integer(i4) :: kk
 
     do kk = 1, root%tN%ST%NpraeST
+      !$OMP task shared(root)
       call muskignum_subtree_routing(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList, &
                                        STmeta, root%tN%ST%praeST(kk), inInds, inTrees)
+      !$OMP end task
     end do
+    !$OMP taskwait
     call muskignum_subtree_routing_serial(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList, &
                                        STmeta, root, inInds, inTrees)
   end subroutine muskignum_subtree_routing

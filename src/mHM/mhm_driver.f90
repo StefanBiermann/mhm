@@ -386,7 +386,7 @@ PROGRAM mhm_driver
   ! WRITE RUNOFF (INCLUDING RESTART FILES, has to be called after mHM restart
   ! files are written)
   ! --------------------------------------------------------------------------
- ! if (processMatrix(8, 1) .ne. 0) call mrm_write()
+  if (processMatrix(8, 1) .ne. 0) call mrm_write()
 #endif
 
 

@@ -459,14 +459,13 @@ CONTAINS
       if (nNodes .GT. 1) then
         call reg_rout(global_routing_param, &
                 L11_length, L11_slope, L11_FracFPimp(: nNodes - L11_nOutlets), &
-                real(timeStep, dp), L11_buf_C1(: nNodes - L11_nOutlets, MPIparam%bufferIndex), &
-                                    L11_buf_C2(: nNodes - L11_nOutlets, MPIparam%bufferIndex))
-        ! ToDo: Test this
-        L11_buf_C1(: nNodes - L11_nOutlets,mod(MPIparam%bufferIndex+1,MPIparam%bufferLength)+1) = &
-                                          L11_buf_C1(: nNodes - L11_nOutlets, MPIparam%bufferIndex)
-        L11_buf_C2(: nNodes - L11_nOutlets,mod(MPIparam%bufferIndex+1,MPIparam%bufferLength)+1) = &
-                                          L11_buf_C2(: nNodes - L11_nOutlets, MPIparam%bufferIndex)
+                real(timeStep, dp), L11_C1(: nNodes - L11_nOutlets), &
+                                    L11_C2(: nNodes - L11_nOutlets))
       end if
+    else
+       !ToDo: this is far from beautiful
+       L11_C1(:) = L11_buf_C1(:, 1)
+       L11_C2(:) = L11_buf_C2(:, 1)
     end if
 
     ! =====================================================================
@@ -479,7 +478,7 @@ CONTAINS
     call L11_runoff_acc(L1_total_runoff, L1_areaCell, L1_L11_Id, &
             L11_areaCell, L11_L1_Id, timeStep, & ! Intent IN
             map_flag, & ! Intent IN
-            L11_buf_qOut(:, MPIparam%bufferIndex)) ! Intent OUT
+            L11_qOut(:)) ! Intent OUT
 
     ! add inflow
     call add_inflow(nInflowGauges, &
@@ -487,16 +486,16 @@ CONTAINS
             InflowGaugeHeadwater, &
             InflowGaugeNodeList, &
             InflowDischarge, & ! Intent IN
-            L11_buf_qOUT(:, MPIparam%bufferIndex)) ! Intent INOUT
+            L11_qOUT(:)) ! Intent INOUT
 
     ! for a single node model run
     if(nNodes .GT. 1) then
       ! routing multiple times if timestep is smaller than 1
       !
       do tt = 1, rout_loop
-       ! L11_buf_C1(:, MPIparam%bufferIndex)   = L11_C1(:)
-       ! L11_buf_C2(:, MPIparam%bufferIndex)   = L11_C2(:)
-       ! L11_buf_qOut(:, MPIparam%bufferIndex) = L11_qOut(:)
+        L11_buf_C1(:, MPIparam%bufferIndex)   = L11_C1(:)
+        L11_buf_C2(:, MPIparam%bufferIndex)   = L11_C2(:)
+        L11_buf_qOut(:, MPIparam%bufferIndex) = L11_qOut(:)
         call MPIparam%increment()
         ! sending intent ins of L11_routing to all nodes ToDo: send arrays and buffer
         if (MPIparam%buffered) then
@@ -506,6 +505,7 @@ CONTAINS
             call MPI_Send(InflowGaugeNodeList, nInflowGauges, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
           end do
           ! ToDo: If C1, C2 were not constant maybe the sorting would be wrong
+          ! ToDo: only buffered correctly in case rout_loop = 1
           call distribute_full_array_dp(iBasin, MPIparam, &
                                 nSubtrees, STmeta,permNodes, schedule, L11_buf_C1(:, :))
           call distribute_full_array_dp(iBasin, MPIparam, &
