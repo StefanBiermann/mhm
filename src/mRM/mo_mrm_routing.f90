@@ -537,23 +537,18 @@ CONTAINS
       end do
       ! ToDo: also when was buffered
       if (MPIparam%buffered) then
-       ! tt = 0
-       ! ind = 1
-       ! do gg = 1, MPIparam%bufferLength
-       !   L11_qAcc = 0._dp
-       !   ! accumulate values of individual subtimesteps
-       !   L11_qAcc(:, ind) = L11_qAcc(:, ind) + L11_qMod(:, gg)
-       !   tt = tt + 1
-       !   ! calculate mean over routing period (timestep) ToDo: handle
-       !   ! bufferLength % routloop /= 0
-       !   if (tt == rout_loop) then
-       !     do tt = ind, gg
-       !       L11_qMod(:, tt) = L11_qAcc(:, gg) / real(rout_loop, dp)
-       !     end do
-       !     ind = ind + 1
-       !     tt = 0
-       !   end if
-       ! end do
+        ! ToDo: only works, if rout_loop is a divisor of MPIparam%bufferLength.
+        ! Check this.
+        L11_qAcc(:, :) = 0.0_dp
+        do gg = 1, MPIparam%bufferLength/rout_loop
+          do tt = 1, rout_loop
+            L11_qAcc(:, gg) = L11_qAcc(:, gg) + L11_qMod(:, (gg - 1) * rout_loop + tt) 
+          end do
+          do tt = 1, rout_loop
+            L11_qMod(:, (gg - 1) * rout_loop + tt) = &
+                         L11_qAcc(:, gg)/real(rout_loop, dp)
+          end do
+        end do
       end if
     else
       ! ToDo: Check this case
