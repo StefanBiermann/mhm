@@ -305,7 +305,7 @@ CONTAINS
   !  do lowBound = 2,10,1!10,210,20
   !  do nproc = 2,20,2!2,6,2!96,2
     MPIparam%bufferIndex = 1
-    MPIparam%bufferLength = 8
+    MPIparam%bufferLength = 1000
     MPIparam%buffered = .false.
     MPIparam%bufferWrite = .false.
     MPIparam%lowBoundOMP = 50

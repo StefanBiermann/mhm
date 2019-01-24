@@ -491,7 +491,7 @@ CONTAINS
     if(nNodes .GT. 1) then
       ! routing multiple times if timestep is smaller than 1
       !
-      write(*,*) 'rout_loop', rout_loop
+     ! write(*,*) 'rout_loop', rout_loop
       do tt = 1, rout_loop
         if (processCase .eq. 1_i4 .AND. (.not. read_states)) then
           L11_buf_C1(:, MPIparam%bufferIndex)   = 0.0_dp
@@ -507,6 +507,7 @@ CONTAINS
         call MPIparam%increment()
         ! sending intent ins of L11_routing to all nodes ToDo: send arrays and buffer
         if (MPIparam%buffered) then
+         write(*,*) 'start buffered routing'
          ! do iproc = 1, MPIparam%nproc-1
          !   call MPI_Send(nInflowGauges, 1, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
          !   call MPI_Send(InflowGaugeHeadwater, nInflowGauges, MPI_LOGICAL, iproc, 2, MPIparam%comm, ierror)
@@ -541,9 +542,10 @@ CONTAINS
           L11_qMod(1 : nNodes, :) = L11_qTIN(1 : nNodes, :)
           L11_qTIN(:, 1) = L11_qTIN(:, MPIparam%bufferLength)
           L11_qTR(:, 1)  = L11_qTR(:, MPIparam%bufferLength)
+         write(*,*) 'end buffered routing'
         end if
       end do
-      write(*,*) 'end rout_loop'
+     ! write(*,*) 'end rout_loop'
       ! ToDo: also when was buffered
       if (MPIparam%buffered) then
         ! ToDo: only works, if rout_loop is a divisor of MPIparam%bufferLength.

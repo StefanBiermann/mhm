@@ -102,7 +102,7 @@ CONTAINS
     iBasin = 1
     nInflowGauges = 0
     allocate(InflowGaugeHeadwater(nInflowGauges), InflowGaugeNodeList(nInflowGauges))
-    write(*,*) 'routLoop', MPIparam%rank, routLoop
+   ! write(*,*) 'routLoop', MPIparam%rank, routLoop
     do tt = 1, routLoop
       call MPIparam%increment()
       if (MPIparam%buffered) then
@@ -130,8 +130,9 @@ CONTAINS
         call tree_extract_qTR_in_array(trees, L11_buf_qTR)
         call send_full_array_dp(iBasin, MPIparam, STmeta, L11_buf_qTR)
         call MPI_Barrier(MPIparam%comm)
-        deallocate(L11_buf_qTIN, L11_buf_qTR, L11_C1, L11_C2, L11_qOut)
+        deallocate(L11_buf_qTIN, L11_buf_qTR, L11_C1, L11_C2, L11_qOut, L11_qTIN, L11_qTR)
        ! deallocate(InflowGaugeHeadwater, InflowGaugeNodeList)
+       write(*,*) 'finished subprocess buffered routing'
       end if
     end do
     deallocate(InflowGaugeHeadwater, InflowGaugeNodeList)

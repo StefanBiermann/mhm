@@ -282,7 +282,7 @@ CONTAINS
     real(dp), dimension(size(L11_qMod, dim=1)) :: L11_write_buf_qMod
 
 #endif
-    integer(i4) :: gg, k, i, iNode
+    integer(i4) :: gg, k, i, iNode, rout_loop
     
     integer(i4), dimension(:), allocatable :: bufferIndexList
 
@@ -422,13 +422,14 @@ CONTAINS
         do k = 1, level11(iBasin)%nCells - L11_nOutlets(iBasin)
           i = L11_netPerm(s11 + k - 1)
           iNode = L11_fromN(s11 + i - 1)
-          write(*,*) s11 + iNode - 1, size(L11_buf_C1, dim=1)
-          write(*,*) s11 + i - 1, size(L11_C1)
-          write(*,*) '---'
+        !  write(*,*) s11 + iNode - 1, size(L11_buf_C1, dim=1)
+        !  write(*,*) s11 + i - 1, size(L11_C1)
+        !  write(*,*) '---'
           L11_buf_C1(s11 + iNode - 1, tt) = L11_C1(s11 + i - 1)
           L11_buf_C2(s11 + iNode - 1, tt) = L11_C2(s11 + i - 1)
         end do
       end do
+      write(*,*) 'done initializing C1, C2, nTimeSteps = ', nTimeSteps
       L11_buf_qTIN(s11 : e11, 1) = L11_qTIN(s11 : e11, 1)
       L11_buf_qTR(s11 : e11, 1)  = L11_qTR(s11 : e11, 1)
       L11_buf_qMod(s11 : e11, 1) = L11_qMod(s11 : e11)
@@ -578,7 +579,7 @@ CONTAINS
           ! execute routing
           ! -------------------------------------------------------------------
           if (do_rout) then
-            write(*,*) 'start routing'
+          !  write(*,*) 'start routing'
             call mRM_routing_par(&
                   ! general INPUT variables
                   read_restart, &
@@ -620,7 +621,7 @@ CONTAINS
                   iBasin, MPIparam, subtrees, nSubtrees, STmeta, permNodes, schedule &
                   )
             L11_qMod(s11 : e11)    = L11_buf_qMod(s11 : e11, 1)
-            write(*,*) 'end routing'
+          !  write(*,*) 'end routing'
           end if
           bufferIndexList(tt) = MPIparam%bufferIndex - 1
             ! -------------------------------------------------------------------
@@ -665,7 +666,8 @@ CONTAINS
          ! write(0,*) '~~', prev_day, prev_month, prev_year, newTime, tt
           if (MPIparam%bufferWrite) then
             MPIparam%bufferWrite = .false.
-            do jj = tt_buf, (tt/MPIparam%bufferLength)*MPIparam%bufferLength
+            rout_loop = max(1_i4, nint(1._dp / tsRoutFactorIn))
+            do jj = tt_buf, (tt/(MPIparam%bufferLength/rout_loop))*(MPIparam%bufferLength/rout_loop)
               if (bufferIndexList(jj) == 0) then
                 call increment_datetime(timestep,                               & ! in
                                      prev_day,   prev_month,   prev_year,       & ! out
@@ -759,7 +761,7 @@ CONTAINS
                      end if
               end if
             end do
-            tt_buf = (tt/MPIparam%bufferLength)*MPIparam%bufferLength + 1
+            tt_buf = (tt/(MPIparam%bufferLength/rout_loop))*(MPIparam%bufferLength/rout_loop) + 1
           end if
         end if
 #endif
