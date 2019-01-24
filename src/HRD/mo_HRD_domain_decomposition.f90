@@ -265,7 +265,7 @@ CONTAINS
     type(MPI_Status)      :: status
 
     ! ToDo: Send this information
-    nBasins = 2
+    nBasins = 1
     do iBasin = 1, nBasins
       call get_subtree_meta(iBasin, MPIparam%comm, nTimeSteps, STmeta, permNodes, toNodes, toInNodes, inInds)
       call get_meta(iBasin, MPIparam%comm, nTimeSteps, processMatrix, timestep,&
