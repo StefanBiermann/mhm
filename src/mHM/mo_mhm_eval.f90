@@ -262,10 +262,10 @@ CONTAINS
     integer(i4)                                       :: iproc
     ! buffered variables for mRM
     ! L11 muskingum parameter 1
-    real(dp), dimension(size(L11_C1, dim=1), MPIparam%bufferLength) :: L11_buf_C1
+    real(dp), dimension(size(L11_qOut, dim=1), MPIparam%bufferLength) :: L11_buf_C1
 
     ! L11 muskingum parameter 2
-    real(dp), dimension(size(L11_C2, dim=1), MPIparam%bufferLength) :: L11_buf_C2
+    real(dp), dimension(size(L11_qOut, dim=1), MPIparam%bufferLength) :: L11_buf_C2
 
     ! total runoff from L11 grid cells
     real(dp), dimension(size(L11_qOut, dim=1), MPIparam%bufferLength) :: L11_buf_qOut
@@ -282,7 +282,7 @@ CONTAINS
     real(dp), dimension(size(L11_qMod, dim=1)) :: L11_write_buf_qMod
 
 #endif
-    integer(i4) :: gg
+    integer(i4) :: gg, k, i, iNode
     
     integer(i4), dimension(:), allocatable :: bufferIndexList
 
@@ -419,8 +419,15 @@ CONTAINS
       L11_buf_qMod(s11 : e11, 1) = 0.0_dp
       L11_write_buf_qMod(s11 : e11) = 0.0_dp
       do tt = 1, MPIparam%bufferLength
-        L11_buf_C1(s11 : e11, tt)   = L11_C1(s11 : e11)
-        L11_buf_C2(s11 : e11, tt)   = L11_C2(s11 : e11)
+        do k = 1, level11(iBasin)%nCells - L11_nOutlets(iBasin)
+          i = L11_netPerm(s11 + k - 1)
+          iNode = L11_fromN(s11 + i - 1)
+          write(*,*) s11 + iNode - 1, size(L11_buf_C1, dim=1)
+          write(*,*) s11 + i - 1, size(L11_C1)
+          write(*,*) '---'
+          L11_buf_C1(s11 + iNode - 1, tt) = L11_C1(s11 + i - 1)
+          L11_buf_C2(s11 + iNode - 1, tt) = L11_C2(s11 + i - 1)
+        end do
       end do
       L11_buf_qTIN(s11 : e11, 1) = L11_qTIN(s11 : e11, 1)
       L11_buf_qTR(s11 : e11, 1)  = L11_qTR(s11 : e11, 1)
@@ -571,6 +578,7 @@ CONTAINS
           ! execute routing
           ! -------------------------------------------------------------------
           if (do_rout) then
+            write(*,*) 'start routing'
             call mRM_routing_par(&
                   ! general INPUT variables
                   read_restart, &
@@ -611,7 +619,8 @@ CONTAINS
                   mRM_runoff(tt, :), &
                   iBasin, MPIparam, subtrees, nSubtrees, STmeta, permNodes, schedule &
                   )
-            L11_qMod(s11 : e11)    = L11_buf_qMod(s11 : e11, 1) 
+            L11_qMod(s11 : e11)    = L11_buf_qMod(s11 : e11, 1)
+            write(*,*) 'end routing'
           end if
           bufferIndexList(tt) = MPIparam%bufferIndex - 1
             ! -------------------------------------------------------------------
@@ -955,6 +964,7 @@ CONTAINS
         end if
 
       end do !<< TIME STEPS LOOP
+      write(*,*) 'end time steps loop'
       deallocate(bufferIndexList)
 
       ! deallocate TWS field temporal variable

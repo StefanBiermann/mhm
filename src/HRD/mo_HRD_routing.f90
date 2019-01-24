@@ -21,7 +21,8 @@ MODULE mo_HRD_routing
 !
 !  use mo_HRD_subtree_meta, only: init_subtree_metadata, distribute_subtree_meta, &
 !                                 get_subtree_meta, destroy_subtree_meta
-  use mo_HRD_MPI_array_communication, only: get_array_dp, send_array_dp, get_full_array_dp, send_full_array_dp
+  use mo_HRD_MPI_array_communication, only: get_array_dp, send_array_dp, get_full_array_dp, send_full_array_dp, &
+                                            get_full_edge_array_dp
 !
   !$ use omp_lib,      only: OMP_GET_THREAD_NUM, OMP_GET_NUM_THREADS
   use mpi_f08
@@ -99,13 +100,16 @@ CONTAINS
     integer(i4) :: tt
     ! ToDo: change
     iBasin = 1
+    nInflowGauges = 0
+    allocate(InflowGaugeHeadwater(nInflowGauges), InflowGaugeNodeList(nInflowGauges))
+    write(*,*) 'routLoop', MPIparam%rank, routLoop
     do tt = 1, routLoop
       call MPIparam%increment()
       if (MPIparam%buffered) then
-        call MPI_Recv(nInflowGauges, 1, MPI_INTEGER, 0, 2, MPIparam%comm, status, ierror)
-        allocate(InflowGaugeHeadwater(nInflowGauges), InflowGaugeNodeList(nInflowGauges))
-        call MPI_Recv(InflowGaugeHeadwater, nInflowGauges, MPI_LOGICAL, 0, 2, MPIparam%comm, status, ierror)
-        call MPI_Recv(InflowGaugeNodeList, nInflowGauges, MPI_INTEGER, 0, 2, MPIparam%comm, status, ierror)
+       ! call MPI_Recv(nInflowGauges, 1, MPI_INTEGER, 0, 2, MPIparam%comm, status, ierror)
+       ! allocate(InflowGaugeHeadwater(nInflowGauges), InflowGaugeNodeList(nInflowGauges))
+       ! call MPI_Recv(InflowGaugeHeadwater, nInflowGauges, MPI_LOGICAL, 0, 2, MPIparam%comm, status, ierror)
+       ! call MPI_Recv(InflowGaugeNodeList, nInflowGauges, MPI_INTEGER, 0, 2, MPIparam%comm, status, ierror)
         call get_full_array_dp(iBasin, MPIParam, STmeta, L11_C1)
         call tree_init_C1_with_array(L11_C1, trees)
         call get_full_array_dp(iBasin, MPIParam, STmeta, L11_C2)
@@ -126,10 +130,11 @@ CONTAINS
         call tree_extract_qTR_in_array(trees, L11_buf_qTR)
         call send_full_array_dp(iBasin, MPIparam, STmeta, L11_buf_qTR)
         call MPI_Barrier(MPIparam%comm)
-        deallocate(L11_buf_qTIN, L11_buf_qTR)
-        deallocate(InflowGaugeHeadwater, InflowGaugeNodeList)
+        deallocate(L11_buf_qTIN, L11_buf_qTR, L11_C1, L11_C2, L11_qOut)
+       ! deallocate(InflowGaugeHeadwater, InflowGaugeNodeList)
       end if
     end do
+    deallocate(InflowGaugeHeadwater, InflowGaugeNodeList)
     
   end subroutine muskignum_subtree_routing_process
 
@@ -150,7 +155,7 @@ CONTAINS
     type(MPI_Status)                       :: status
     integer(i4) :: iBasin
 
-    integer(i4) :: nST, kk, jj, ii, nIn
+    integer(i4) :: nST, kk, jj, ii, nIn, rank
 
     nST = size(STmeta)
 
@@ -178,12 +183,12 @@ CONTAINS
         call MPI_Wait(inTrees(ii)%tN%values%request, inTrees(ii)%tN%values%status, ierror)
         call MPI_Wait(inTrees(ii)%tN%qTIN%request,   inTrees(ii)%tN%qTIN%status,   ierror)
         call MPI_Wait(inTrees(ii)%tN%qTR%request,    inTrees(ii)%tN%qTR%status,    ierror)
-      !  if (.not. MPI_ASYNC_PROTECTS_NONBLOCKING) call MPI_F_SYNC_REG(inTrees(ii)%tN%values%buffer)
-      !  if (.not. MPI_ASYNC_PROTECTS_NONBLOCKING) call MPI_F_SYNC_REG(inTrees(ii)%tN%qTIN%buffer)
-      !  if (.not. MPI_ASYNC_PROTECTS_NONBLOCKING) call MPI_F_SYNC_REG(inTrees(ii)%tN%qTR%buffer)
+        if (.not. MPI_ASYNC_PROTECTS_NONBLOCKING) call MPI_F_SYNC_REG(inTrees(ii)%tN%values%buffer)
+        if (.not. MPI_ASYNC_PROTECTS_NONBLOCKING) call MPI_F_SYNC_REG(inTrees(ii)%tN%qTIN%buffer)
+        if (.not. MPI_ASYNC_PROTECTS_NONBLOCKING) call MPI_F_SYNC_REG(inTrees(ii)%tN%qTR%buffer)
       end do
-      !!$OMP parallel num_threads(jj) private(rank)
-      !$OMP parallel private(rank) shared(subtrees)
+      !!$OMP parallel num_threads(jj) private(MPIparam)
+      !$OMP parallel num_threads(24) private(MPIparam) shared(subtrees)
       !$OMP single
       call muskignum_subtree_routing(MPIParam, InflowGaugeHeadwater, InflowGaugeNodeList, &
                                        STmeta, subtrees(kk), inInds, inTrees)

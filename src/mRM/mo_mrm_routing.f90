@@ -314,7 +314,8 @@ CONTAINS
     use mo_HRD_types, only : MPI_parameter, ptrTreeNode, subtreeMeta, processSchedule, MPIParam_increment
     use mo_HRD_domain_decomposition, only : routing
     use mo_HRD_routing, only : muskignum_master_routing
-    use mo_HRD_MPI_array_communication, only : distribute_array_dp, collect_array_dp, distribute_full_array_dp, collect_full_array_dp
+    use mo_HRD_MPI_array_communication, only : distribute_array_dp, collect_array_dp, distribute_full_array_dp, collect_full_array_dp, &
+                                                                   distribute_full_edge_array_dp
 
     implicit none
 
@@ -433,6 +434,8 @@ CONTAINS
 
     integer(i4) :: tt
 
+    integer(i4) :: k, i, iNode
+
     ! number of routing loops
     integer(i4) :: rout_loop
 
@@ -462,10 +465,6 @@ CONTAINS
                 real(timeStep, dp), L11_C1(: nNodes - L11_nOutlets), &
                                     L11_C2(: nNodes - L11_nOutlets))
       end if
-    else
-       !ToDo: this is far from beautiful
-       L11_C1(:) = L11_buf_C1(:, 1)
-       L11_C2(:) = L11_buf_C2(:, 1)
     end if
 
     ! =====================================================================
@@ -492,18 +491,27 @@ CONTAINS
     if(nNodes .GT. 1) then
       ! routing multiple times if timestep is smaller than 1
       !
+      write(*,*) 'rout_loop', rout_loop
       do tt = 1, rout_loop
-        L11_buf_C1(:, MPIparam%bufferIndex)   = L11_C1(:)
-        L11_buf_C2(:, MPIparam%bufferIndex)   = L11_C2(:)
+        if (processCase .eq. 1_i4 .AND. (.not. read_states)) then
+          L11_buf_C1(:, MPIparam%bufferIndex)   = 0.0_dp
+          L11_buf_C2(:, MPIparam%bufferIndex)   = 0.0_dp
+          do k = 1, nNodes - L11_nOutlets
+            i = L11_netPerm(k)
+            iNode = L11_fromN(i)
+            L11_buf_C1(iNode, MPIparam%bufferIndex) = L11_C1(i)
+            L11_buf_C2(iNode, MPIparam%bufferIndex) = L11_C2(i)
+          end do
+        end if
         L11_buf_qOut(:, MPIparam%bufferIndex) = L11_qOut(:)
         call MPIparam%increment()
         ! sending intent ins of L11_routing to all nodes ToDo: send arrays and buffer
         if (MPIparam%buffered) then
-          do iproc = 1, MPIparam%nproc-1
-            call MPI_Send(nInflowGauges, 1, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
-            call MPI_Send(InflowGaugeHeadwater, nInflowGauges, MPI_LOGICAL, iproc, 2, MPIparam%comm, ierror)
-            call MPI_Send(InflowGaugeNodeList, nInflowGauges, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
-          end do
+         ! do iproc = 1, MPIparam%nproc-1
+         !   call MPI_Send(nInflowGauges, 1, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
+         !   call MPI_Send(InflowGaugeHeadwater, nInflowGauges, MPI_LOGICAL, iproc, 2, MPIparam%comm, ierror)
+         !   call MPI_Send(InflowGaugeNodeList, nInflowGauges, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
+         ! end do
           ! ToDo: If C1, C2 were not constant maybe the sorting would be wrong
           ! ToDo: only buffered correctly in case rout_loop = 1
           call distribute_full_array_dp(iBasin, MPIparam, &
@@ -535,6 +543,7 @@ CONTAINS
           L11_qTR(:, 1)  = L11_qTR(:, MPIparam%bufferLength)
         end if
       end do
+      write(*,*) 'end rout_loop'
       ! ToDo: also when was buffered
       if (MPIparam%buffered) then
         ! ToDo: only works, if rout_loop is a divisor of MPIparam%bufferLength.

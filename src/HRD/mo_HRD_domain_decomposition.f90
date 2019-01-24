@@ -308,8 +308,8 @@ CONTAINS
     MPIparam%bufferLength = 8
     MPIparam%buffered = .false.
     MPIparam%bufferWrite = .false.
-    MPIparam%lowBoundOMP = 3
-    MPIparam%lowBound = 5
+    MPIparam%lowBoundOMP = 50
+    MPIparam%lowBound = 200
   end subroutine set_MPI_parameters
 
   subroutine master_cleanup(schedule, STmeta, roots, subtrees, toNodes, permNodes, toInNodes)
