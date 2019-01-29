@@ -101,17 +101,16 @@ CONTAINS
     ! local variables
     integer(i4) :: kk
     integer(i4) :: rank,ierror
-    integer(i4), dimension(:,:), allocatable :: iSends
+    integer(i4), dimension(6) :: iSends
                                                       
-    allocate(iSends(6,nproc-1))
     do kk=1,nproc-1
-       iSends(1,kk)=nTimeSteps
-       iSends(2,kk)=processMatrix
-       iSends(3,kk)=timestep
-       iSends(4,kk)=L11_tsRout
-       iSends(5,kk)=HourSecs
-       iSends(6,kk)=nTstepDay
-       call MPI_Send(iSends(:,kk),6,MPI_INTEGER,kk,0,comm,ierror)
+       iSends(1)=nTimeSteps
+       iSends(2)=processMatrix
+       iSends(3)=timestep
+       iSends(4)=L11_tsRout
+       iSends(5)=HourSecs
+       iSends(6)=nTstepDay
+       call MPI_Send(iSends,6,MPI_INTEGER,kk,0,comm,ierror)
     end do
   end subroutine distribute_meta
 
@@ -132,20 +131,25 @@ CONTAINS
     ! local variables
     integer(i4) :: kk,ii,jj,i,iPerm,iproc,sizST,iST,nIn
     integer(i4) :: rank,ierror
-    integer(i4), dimension(:,:), allocatable :: iSends ! the number and over all
+    integer(i4), dimension(4) :: iSends ! the number and over all
                                                        ! length of arrays to be send to a process
     integer(i4), dimension(:), allocatable :: sendarray
 
     ! send number of subtrees and total number of tree nodes assigned
     ! to the processes to the corresponding process, so arrays can be
     ! allocated in the receiving subroutines
-    allocate(iSends(4,nproc-1))
     do kk=1,nproc-1
-       iSends(1,kk)=schedule(kk)%nTrees
-       iSends(2,kk)=schedule(kk)%overallSize
-       iSends(3,kk)=schedule(kk)%overallInSize
-       iSends(4,kk)=nTimeSteps
-       call MPI_Send(iSends(:,kk),4,MPI_INTEGER,kk,0,comm,ierror)
+      ! write(0,*) 'kk', kk
+      ! write(0,*) nTimeSteps
+      ! write(0,*) schedule(kk)%nTrees
+      ! write(0,*) schedule(kk)%overallSize
+      ! write(0,*) schedule(kk)%overallInSize
+       iSends(1)=schedule(kk)%nTrees
+       iSends(2)=schedule(kk)%overallSize
+       iSends(3)=schedule(kk)%overallInSize
+       iSends(4)=nTimeSteps
+      ! write(0,*) iSends(:,kk)
+       call MPI_Send(iSends,4,MPI_INTEGER,kk,0,comm,ierror)
     end do
     ! send metadata of the subtrees to the nodes where they are assigned to
     ! size, identifying index corresponding to the subtree array and number of
@@ -197,7 +201,6 @@ CONTAINS
        end do
     end do
 
-    deallocate(iSends)
   end subroutine distribute_subtree_meta
 
   subroutine get_subtree_meta(iBasin,comm,nTimeSteps,STmeta,permNodes,toNodes,toInNodes,inInds)
@@ -284,12 +287,12 @@ CONTAINS
     integer(i4), dimension(6) :: datasets ! number of incoming data sets
                                                       
     call MPI_Recv(datasets(:),6,MPI_INTEGER,0,0,comm,status,ierror)
-    nTimeSteps    = datasets (1)
-    processMatrix = datasets (2)
-    timestep      = datasets (3)
-    L11_tsRout    = datasets (4)
-    HourSecs      = datasets (5)
-    nTstepDay     = datasets (6)
+    nTimeSteps    = datasets(1)
+    processMatrix = datasets(2)
+    timestep      = datasets(3)
+    L11_tsRout    = datasets(4)
+    HourSecs      = datasets(5)
+    nTstepDay     = datasets(6)
   end subroutine get_meta
 
   subroutine init_subtree_requests_and_statuses(STmeta)
