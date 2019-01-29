@@ -237,10 +237,10 @@ CONTAINS
   end subroutine test_MDF
 
   subroutine subdomain_process(MPIparam)
-    type(MPI_parameter), intent(in) :: MPIparam
+    type(MPI_parameter), intent(inout) :: MPIparam
     ! local
     integer(i4) :: ierror
-    integer(i4) :: iBasin, nBasins, nSubtrees
+    integer(i4) :: iBasin, nBasins, nSubtrees, nproc
     integer(i4) :: tt, routLoop, t, nTimeSteps
     type(subtreeMeta), dimension(:), allocatable :: STmeta
     integer(i4),       dimension(:), allocatable :: permNodes
@@ -267,6 +267,8 @@ CONTAINS
     ! ToDo: Send this information
     nBasins = 1
     do iBasin = 1, nBasins
+      do nproc = 4, 8, 4
+      MPIparam%nproc = nproc
       call get_subtree_meta(iBasin, MPIparam%comm, nTimeSteps, STmeta, permNodes, toNodes, toInNodes, inInds)
       call get_meta(iBasin, MPIparam%comm, nTimeSteps, processMatrix, timestep,&
                              L11_tsRout, HourSecs, nTstepDay)
@@ -286,6 +288,7 @@ CONTAINS
           end if
       end do
       call subdomain_cleanup(subtrees, subtreesDecompos, trees, inTrees, STmeta, inInds, permNodes, toNodes, toInNodes)
+      end do
     end do
   end subroutine subdomain_process
 

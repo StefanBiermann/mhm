@@ -141,7 +141,7 @@ MODULE mo_HRD_types
   contains
 
   subroutine MPIParam_increment(this)
-    class(MPI_parameter) :: this
+    class(MPI_parameter), intent(inout) :: this
 
     if (this%bufferIndex < this%bufferLength) then
       this%bufferIndex = this%bufferIndex + 1

@@ -169,7 +169,7 @@ CONTAINS
     integer(i4) :: nTimeSteps
 
     ! Counters
-    integer(i4) :: iBasin, tt, tt_buf
+    integer(i4) :: iBasin, tt, tt_buf, nproc
 
     ! No. of cells at level 1 for current basin
     integer(i4) :: nCells
@@ -292,6 +292,7 @@ CONTAINS
     real(dp) :: area_basin
 
 
+    write(0,*) 'enter mhm_eval'
     !----------------------------------------------------------
     ! Check optionals and initialize
     !----------------------------------------------------------
@@ -402,7 +403,10 @@ CONTAINS
 
       ! calculate NtimeSteps for this basin
       nTimeSteps = (simPer(iBasin)%julEnd - simPer(iBasin)%julStart + 1) * nTstepDay
+      nTimeSteps = 501
 
+      do nproc = 4, 8, 4
+      MPIparam%nproc = nproc
       ! create and distribute domain decomposition over the processes
       call domain_decomposition(MPIparam%nproc, MPIparam%lowBound, iBasin, &
              toNodes, permNodes, toInNodes, subtrees, nSubtrees, STmeta, &
@@ -979,6 +983,7 @@ CONTAINS
 #endif
 
       call master_cleanup(schedule, STmeta, roots, subtrees, toNodes, permNodes, toInNodes)
+      end do
     end do !<< BASIN LOOP
 #ifdef MRM2MHM
     ! =========================================================================

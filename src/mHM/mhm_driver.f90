@@ -362,6 +362,7 @@ PROGRAM mhm_driver
     ! --------------------------------------------------------------------------
     call message('  Run mHM')
     call timer_start(iTimer)
+    write(0,*) 'before enter of mhm_eval'
     call mhm_eval(global_parameters(:, 3))
     call timer_stop(itimer)
     call message('    in ', trim(num2str(timer_get(itimer), '(F12.3)')), ' seconds.')

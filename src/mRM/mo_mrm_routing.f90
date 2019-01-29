@@ -309,6 +309,8 @@ CONTAINS
                         L11_FracFPimp, L11_buf_C1, L11_buf_C2, L11_buf_qOut, L11_qTIN, L11_qTR, L11_qMod, GaugeDischarge, &
                         iBasin, MPIparam, subtrees, nSubtrees, STmeta, permNodes, schedule)
 
+    USE mo_timer, ONLY : &
+            timers_init, timer_start, timer_stop, timer_get, timer_clear  ! Timing of processes
     use mo_mrm_global_variables, only : is_start
     use mo_mrm_mpr, only : reg_rout
     use mo_HRD_types, only : MPI_parameter, ptrTreeNode, subtreeMeta, processSchedule, MPIParam_increment
@@ -422,7 +424,7 @@ CONTAINS
     real(dp), dimension(:), intent(inout) :: GaugeDischarge
 
     integer(i4), intent(in) :: iBasin
-    type(MPI_parameter), intent(in) :: MPIparam
+    type(MPI_parameter), intent(inout) :: MPIparam
     type(ptrTreeNode),     dimension(:), intent(in)    :: subtrees ! the array of
     integer(i4),                         intent(in)    :: nSubtrees
     type(subtreeMeta),     dimension(:), intent(inout) :: STmeta
@@ -450,6 +452,8 @@ CONTAINS
     real(dp), dimension(size(L11_buf_C2, dim=1)) :: L11_C2
 
     real(dp), dimension(size(L11_buf_qOut, dim=1)) :: L11_qOut
+
+    integer(i4)                                      :: iTimer              ! Current timer number
 
     if (is_start) then
       is_start = .false.
@@ -507,7 +511,9 @@ CONTAINS
         call MPIparam%increment()
         ! sending intent ins of L11_routing to all nodes ToDo: send arrays and buffer
         if (MPIparam%buffered) then
-         write(*,*) 'start buffered routing'
+          write(*,*) 'start buffered routing', rout_loop
+          iTimer = 26
+          call timer_start(itimer)
          ! do iproc = 1, MPIparam%nproc-1
          !   call MPI_Send(nInflowGauges, 1, MPI_INTEGER, iproc, 2, MPIparam%comm, ierror)
          !   call MPI_Send(InflowGaugeHeadwater, nInflowGauges, MPI_LOGICAL, iproc, 2, MPIparam%comm, ierror)
@@ -542,6 +548,10 @@ CONTAINS
           L11_qMod(1 : nNodes, :) = L11_qTIN(1 : nNodes, :)
           L11_qTIN(:, 1) = L11_qTIN(:, MPIparam%bufferLength)
           L11_qTR(:, 1)  = L11_qTR(:, MPIparam%bufferLength)
+          call timer_stop(itimer)
+          write(*,*) MPIparam%nproc, timer_get(itimer), nSubtrees, MPIparam%lowBound, &
+                  MPIparam%lowBoundOMP, MPIparam%bufferLength
+          call timer_clear(itimer)
          write(*,*) 'end buffered routing'
         end if
       end do
