@@ -182,7 +182,8 @@ CONTAINS
              toNodes, permNodes, toInNodes, subtrees, nSubtrees, STmeta, &
              roots, schedule)
       ! sends the meta data from master process to all the others
-      call distribute_subtree_meta(iBasin, nproc, comm, nSubtrees, nTimeSteps, STmeta, permNodes, toNodes, toInNodes, schedule, subtrees(:))
+      call distribute_subtree_meta(iBasin, nproc, comm, nSubtrees, nTimeSteps, STmeta, permNodes, toNodes, toInNodes, &
+                                                                                                schedule, subtrees(:))
       ! - sends data (testarray) corresponding to subtrees to nodes
       ! - collects processed data from roots from subtrees and sends this
       !   data to corresponding leaves in connected subtrees
@@ -267,7 +268,7 @@ CONTAINS
     ! ToDo: Send this information
     nBasins = 1
     do iBasin = 1, nBasins
-      do nproc = 4, 8, 4
+      do nproc = 4, 4, 1
       MPIparam%nproc = nproc
       call get_subtree_meta(iBasin, MPIparam%comm, nTimeSteps, STmeta, permNodes, toNodes, toInNodes, inInds)
       call get_meta(iBasin, MPIparam%comm, nTimeSteps, processMatrix, timestep,&

@@ -316,7 +316,8 @@ CONTAINS
     use mo_HRD_types, only : MPI_parameter, ptrTreeNode, subtreeMeta, processSchedule, MPIParam_increment
     use mo_HRD_domain_decomposition, only : routing
     use mo_HRD_routing, only : muskignum_master_routing
-    use mo_HRD_MPI_array_communication, only : distribute_array_dp, collect_array_dp, distribute_full_array_dp, collect_full_array_dp, &
+    use mo_HRD_MPI_array_communication, only : distribute_array_dp, collect_array_dp, &
+                                     distribute_full_array_dp, collect_full_array_dp, &
                                                                    distribute_full_edge_array_dp
 
     implicit none

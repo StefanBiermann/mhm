@@ -208,9 +208,11 @@ CONTAINS
       ! send the outflow to the master process
       call MPI_Send(subtrees(kk)%tN%values%buffer, MPIparam%bufferLength+1, MPI_INTEGER, 0, 0, MPIparam%comm, ierror)
      ! write(0,*) 'subproc sent values:', STmeta(kk)%indST, kk, MPIparam%rank
-      call MPI_Send(subtrees(kk)%tN%qTIN%buffer,   MPIparam%bufferLength+1, MPI_DOUBLE_PRECISION, 0, STmeta(kk)%indST, MPIparam%comm, ierror)
+      call MPI_Send(subtrees(kk)%tN%qTIN%buffer,   MPIparam%bufferLength+1, MPI_DOUBLE_PRECISION, 0, &
+                                                                STmeta(kk)%indST, MPIparam%comm, ierror)
      ! write(0,*) 'subproc sent qTIN:', STmeta(kk)%indST, kk, MPIparam%rank
-      call MPI_Send(subtrees(kk)%tN%qTR%buffer,    MPIparam%bufferLength+1, MPI_DOUBLE_PRECISION, 0, STmeta(kk)%indST, MPIparam%comm, ierror)
+      call MPI_Send(subtrees(kk)%tN%qTR%buffer,    MPIparam%bufferLength+1, MPI_DOUBLE_PRECISION, 0, &
+                                                                STmeta(kk)%indST, MPIparam%comm, ierror)
      ! write(0,*) 'subproc sent qTR:', STmeta(kk)%indST, kk, MPIparam%rank
     end do
   end subroutine muskignum_subprocess_routing

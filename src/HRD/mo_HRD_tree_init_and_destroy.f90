@@ -288,6 +288,11 @@ CONTAINS
     treenode%tN%siz=1
     treenode%tN%sizOrig=1
     treenode%tN%values=>null()
+    treenode%tN%qTIN  =>null()
+    treenode%tN%qTR   =>null()
+    treenode%tN%C1    =>null()
+    treenode%tN%C2    =>null()
+    treenode%tN%qOut  =>null()
     treenode%tN%sizUp=1
     treenode%tN%origind=kk
     treenode%tN%ind=0

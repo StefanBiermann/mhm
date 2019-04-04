@@ -413,7 +413,7 @@ PROGRAM mhm_driver
   call message('Finished at ', trim(message_text), '.')
   call message()
 
-  else if (rank < nproc) then ! mpi
+  else if (MPIparam%rank < MPIparam%nproc) then ! mpi
     call subdomain_process(MPIparam)
   end if
 
