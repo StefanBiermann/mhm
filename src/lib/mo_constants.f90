@@ -109,6 +109,16 @@ MODULE mo_constants
   REAL(sp), PARAMETER :: RadiusEarth_sp = 6371228._sp
   ! Earth radius [m] in double precision
   REAL(dp), PARAMETER :: RadiusEarth_dp = 6371228._dp
+  ! (kg mol-1) molecular weight of air
+  REAL(dp), PARAMETER   ::  MA_dp       = 28.9644e-3_dp
+  ! (kg mol-1) molecular weight of water
+  REAL(dp), PARAMETER   ::  MW_dp       = 18.0148e-3_dp
+  ! (MW/MA) unitless ratio of molec weights
+  REAL(dp), PARAMETER   ::  EPS_dp      = MW_dp/MA_dp
+  ! (m3 Pa mol-1 K-1) gas law constant
+  REAL(dp), PARAMETER   ::  R_dp        = 8.3143_dp
+  ! (-K m-1) standard temperature lapse rate
+  REAL(dp), PARAMETER   ::  LRstd_dp    = 0.0065
 
   !> standard atmospehere
   !> Standard pressure [Pa] in double precision
@@ -123,6 +133,8 @@ MODULE mo_constants
   REAL(dp), PARAMETER :: cp0_dp = 1005.0_dp                   ! Standard specific heat of air
   !> specific heat capacity of air [J kg^-1 K^-1] in single precision
   REAL(sp), PARAMETER :: cp0_sp = 1005.0_sp
+  !> standard temp at 0.0 m elevation [K] in double precision
+  REAL(sp), PARAMETER :: Tstd_dp = 288.15_dp
 
   ! Numerical Recipes
   !> Pi in double precision
