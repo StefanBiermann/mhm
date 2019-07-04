@@ -1059,7 +1059,6 @@ end function snowpack
   !    HISTORY
   !        Written,  Johannes Brenner, Sept 2016
 
-! JBJBJBJB
 function calc_pet(rad, ta, pa, dayl)!, CP=cp0_dp, EPS)
    !
    real(dp), intent(in) :: rad
