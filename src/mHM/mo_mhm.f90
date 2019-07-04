@@ -24,6 +24,7 @@
 !>       5          | PET                       |   1   | Hargreaves-Samani
 !>       5          | PET                       |   2   | Priestley-Taylor
 !>       5          | PET                       |   3   | Penman-Monteith
+!>       5          | PET                       |   4   | corrected Penman-Monteith / Monteith-Unsworth
 !>       6          | interflow                 |   1   | Nonlinear reservoir with saturation excess
 !>       7          | percolation and base flow |   1   | GW linear reservoir
 !>       8          | routing                   |   0   | no routing
@@ -173,7 +174,7 @@ CONTAINS
   ! Luis Samaniego                  Feb 2013 - call routine
   ! Rohini Kumar                    Feb 2013 - MPR call and other pre-requisite variables for this call
   ! Rohini Kumar                    May 2013 - Error checks
-  ! Rohini Kumar                    Jun 2013 - sealed area correction in total runoff 
+  ! Rohini Kumar                    Jun 2013 - sealed area correction in total runoff
   !                                          - initalization of soil moist. at first timestep
   ! Rohini Kumar                    Aug 2013 - dynamic LAI option included, and changed within the code
   !                                            made accordingly (e.g., canopy intecpt.)
@@ -193,9 +194,10 @@ CONTAINS
   ! Zink M. Demirel C.              Mar 2017 - added Jarvis soil water stress function at SM process(3)
   ! M.Cuneyd Demirel & Simon Stisen May 2017 - added FC dependency on root fraction coef. at SM process(3)
   ! M.Cuneyd Demirel & Simon Stisen Jun 2017 - added PET correction based on LAI at PET process(5)
-  ! Robert Schweppe, Stephan Thober Nov 2017 - moved call to MPR to mhm_eval 
+  ! Robert Schweppe, Stephan Thober Nov 2017 - moved call to MPR to mhm_eval
   ! Robert Schweppe                 Jun 2018 - refactoring and reformatting
   ! Robert Schweppe                 Nov 2018 - added c2TSTu for unit conversion (moved here from MPR)
+  ! Johannes Brenner                Jul 2019 - added corrected Monteith-Unsworth PET method, process(5)=4
 
   subroutine mHM(read_states, tt, time, processMatrix, horizon_depth, nCells1, nHorizons_mHM, ntimesteps_day, &
                 c2TSTu, neutron_integral_AFast, &
@@ -552,6 +554,11 @@ CONTAINS
       case(3) ! Penman-Monteith
         pet = pet_penman  (max(netrad_in(k), 0.0_dp), temp_in(k), absvappres_in(k) / 1000.0_dp, &
                 aeroResist(k) / windspeed_in(k), surfResist(k), 1.0_dp, 1.0_dp)
+
+      case(4) ! Monteith-Unsworth exchanging sensible heat with air on both sides of the leaf
+        pet = pet_penman  (max(netrad_in(k), 0.0_dp), temp_in(k), absvappres_in(k)/1000.0_dp, &
+                aeroResist(k) / windspeed_in(k), surfResist(k), 1.0_dp, 2.0_dp)
+
 
       end select
       ! temporal disaggreagtion of forcing variables

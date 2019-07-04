@@ -79,6 +79,7 @@ CONTAINS
   ! Zink M. Demirel C.   Mar 2017 - Added Jarvis soil water stress function at SM process(3)
   ! Robert Schweppe      Dec 2017 - extracted call to mpr from inside mhm
   ! Robert Schweppe      Jun 2018 - refactoring and reformatting
+  ! Johannes Brenner     Jul 2019 - added corrected Monteith-Unsworth PET method, process(5)=4
 
   SUBROUTINE mhm_eval(parameterset, runoff, sm_opti, basin_avg_tws, neutrons_opti, et_opti)
 
@@ -422,6 +423,9 @@ CONTAINS
         case(3) ! Penman-Monteith
           s_p5 = (/s_meteo, 1, 1, s_meteo, s_meteo, s_meteo/)
           e_p5 = (/e_meteo, 1, 1, e_meteo, e_meteo, e_meteo/)
+        case(4) ! corrected Monteith-Unsworth
+          s_p5 = (/s_meteo, 1, 1, s_meteo, s_meteo, s_meteo/)
+          e_p5 = (/e_meteo, 1, 1, e_meteo, e_meteo, e_meteo/)
         end select
 
         ! customize iMeteoTS for process 5 - PET
@@ -434,6 +438,8 @@ CONTAINS
         case(2) ! Priestely-Taylor
           iMeteo_p5 = (/iMeteoTS, 1, 1, iMeteoTS, 1, 1 /)
         case(3) ! Penman-Monteith
+          iMeteo_p5 = (/iMeteoTS, 1, 1, iMeteoTS, iMeteoTS, iMeteoTS /)
+        case(4) ! corrected Monteith-Unsworth
           iMeteo_p5 = (/iMeteoTS, 1, 1, iMeteoTS, iMeteoTS, iMeteoTS /)
         end select
 

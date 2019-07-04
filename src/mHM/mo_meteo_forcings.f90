@@ -59,6 +59,7 @@ CONTAINS
   ! Stephan Thober,  Nov 2016 - moved processMatrix to common variables
   ! Stephan Thober,  Jan 2017 - added subroutine for meteo_weights
   ! Robert Schweppe  Jun 2018 - refactoring and reformatting
+  ! Johannes Brenner Jul 2019 - added corrected Monteith-Unsworth PET method, process(5)=4
 
   subroutine prepare_meteo_forcings_data(iBasin, tt)
 
@@ -172,7 +173,7 @@ CONTAINS
           allocate(L1_absvappress(1, 1)); allocate(L1_windspeed(1, 1))
         end if
 
-      case(3) ! Penman-Monteith formulation (input: net radiationm absulute vapour pressure, windspeed)
+    case(3:4) ! Penman-Monteith formulation (input: net radiationm absulute vapour pressure, windspeed)
         if (timeStep_model_inputs(iBasin) .eq. 0) call message('    read net radiation        ...')
         call meteo_forcings_wrapper(iBasin, dirNetRadiation(iBasin), inputFormat_meteo_forcings, &
                 L1_netrad, lower = -500.0_dp, upper = 1500._dp, ncvarName = 'net_rad')

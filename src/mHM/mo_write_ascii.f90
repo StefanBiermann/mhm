@@ -426,7 +426,7 @@ CONTAINS
 
   ! Modifications:
   ! Rohini Kumar Aug 2013 - change in structure of the code including call statements
-  ! Juliane Mai  Oct 2013 - clear parameter names added 
+  ! Juliane Mai  Oct 2013 - clear parameter names added
   !                       - double precision written
   ! Robert Schweppe Jun 2018 - refactoring and reformatting
 
@@ -603,6 +603,8 @@ CONTAINS
           write(uopti_nml, *) '&PET2'
         case(3)
           write(uopti_nml, *) '&PET3'
+        case(4)
+          write(uopti_nml, *) '&PET4'
         end select
       case(6)
         if (processMatrix(iProc, 1) .eq. 1) then

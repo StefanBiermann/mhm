@@ -74,6 +74,7 @@
 ! Stephan Thober                Nov 2016 - implemented adaptive timestep for routing
 ! Rohini Kumar                  Dec 2016 - options to read (monthly mean) LAI fields
 ! Robert Schweppe               Jun 2018 - refactoring and reformatting
+! Johannes Brenner              Jul 2019 - added corrected Monteith-Unsworth PET method, process(5)=4
 
 PROGRAM mhm_driver
 
@@ -89,7 +90,7 @@ PROGRAM mhm_driver
           dirReferenceET, &      ! PET input path  if process 5 is 'PET is input' (case 0)
           dirMinTemperature, dirMaxTemperature, &      ! PET input paths if process 5 is Hargreaves-Samani  (case 1)
           dirNetRadiation, &      ! PET input paths if process 5 is Priestley-Taylor (case 2)
-          dirabsVapPressure, dirwindspeed, &      ! PET input paths if process 5 is Penman-Monteith  (case 3)
+          dirabsVapPressure, dirwindspeed, &      ! PET input paths if process 5 is Penman-Monteith  (case 3, case 4)
           timestep_model_inputs !frequency of input read
   USE mo_common_mHM_mRM_variables, ONLY : &
           nTstepDay, &      ! number of timesteps per day (former: NAGG)
@@ -214,6 +215,10 @@ PROGRAM mhm_driver
     case(2) ! Priestely-Taylor
       call message('    Net radiation directory:    ', trim(dirNetRadiation(iBasin)))
     case(3) ! Penman-Monteith
+      call message('    Net radiation directory:    ', trim(dirNetRadiation(iBasin)))
+      call message('    Abs. vap. press. directory: ', trim(dirabsVapPressure(iBasin)))
+      call message('    Windspeed directory:        ', trim(dirwindspeed(iBasin)))
+    case(4) ! corrected Monteith-Unsworth
       call message('    Net radiation directory:    ', trim(dirNetRadiation(iBasin)))
       call message('    Abs. vap. press. directory: ', trim(dirabsVapPressure(iBasin)))
       call message('    Windspeed directory:        ', trim(dirwindspeed(iBasin)))
