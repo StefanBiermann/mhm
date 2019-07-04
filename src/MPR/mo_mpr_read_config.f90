@@ -271,6 +271,9 @@ contains
     ! Penman-Monteith
     namelist /PET3/  canopyheigth_forest, canopyheigth_impervious, canopyheigth_pervious, displacementheight_coeff, &
             roughnesslength_momentum_coeff, roughnesslength_heat_coeff, stomatal_resistance
+    ! corrected Monteith Unsworth
+    namelist /PET4/  canopyheigth_forest, canopyheigth_impervious, canopyheigth_pervious, displacementheight_coeff, &
+            roughnesslength_momentum_coeff, roughnesslength_heat_coeff, stomatal_resistance
     namelist /interflow1/ interflowStorageCapacityFactor, interflowRecession_slope, fastInterflowRecession_forest, &
             slowInterflowRecession_Ks, exponentSlowInterflow
     namelist /percolation1/ rechargeCoefficient, rechargeFactor_karstic, gain_loss_GWreservoir_karstic
@@ -730,6 +733,37 @@ contains
       ! check if parameter are in range
       if (.not. in_bound(global_parameters)) then
         call message('***ERROR: parameter in namelist "PET3" out of bound in ', &
+                trim(adjustl(file_namelist_param)))
+        stop
+      end if
+
+    case(4) ! 4 - Penman-Monteith method - with two side sensible heat transfer to air
+            ! additional input needed: net_rad, abs. vapour pressue, windspeed JBJBJB
+      call position_nml('PET4', unamelist_param)
+      read(unamelist_param, nml = PET4)
+      processMatrix(5, 2) = 7_i4
+      processMatrix(5, 3) = sum(processMatrix(1 : 5, 2))
+
+      call append(global_parameters, reshape(canopyheigth_forest, (/1, nColPars/)))
+      call append(global_parameters, reshape(canopyheigth_impervious, (/1, nColPars/)))
+      call append(global_parameters, reshape(canopyheigth_pervious, (/1, nColPars/)))
+      call append(global_parameters, reshape(displacementheight_coeff, (/1, nColPars/)))
+      call append(global_parameters, reshape(roughnesslength_momentum_coeff, (/1, nColPars/)))
+      call append(global_parameters, reshape(roughnesslength_heat_coeff, (/1, nColPars/)))
+      call append(global_parameters, reshape(stomatal_resistance, (/1, nColPars/)))
+
+      call append(global_parameters_name, (/ &
+               'canopyheigth_forest           ', &
+               'canopyheigth_impervious       ', &
+               'canopyheigth_pervious         ', &
+               'displacementheight_coeff      ', &
+               'roughnesslength_momentum_coeff', &
+               'roughnesslength_heat_coeff    ', &
+               'stomatal_resistance           '/))
+
+      ! check if parameter are in range
+      if ( .not. in_bound(global_parameters) ) then
+        call message('***ERROR: parameter in namelist "PET4" out of bound in ', &
                 trim(adjustl(file_namelist_param)))
         stop
       end if
