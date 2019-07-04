@@ -10,8 +10,8 @@
 !>       \date Aug 2015
 
 ! Modifications:
-! Robert Schweppe Dec 2017 - adapted for MPR
-! Robert Schweppe Jun 2018 - refactoring and reformatting
+! Robert Schweppe  Dec 2017 - adapted for MPR
+! Robert Schweppe  Jun 2018 - refactoring and reformatting
 
 module mo_mpr_read_config
 
@@ -47,9 +47,10 @@ contains
   !>       \date Aug 2015
 
   ! Modifications:
-  ! Stephan Thober  Sep 2015 - removed stop condition when routing resolution is smaller than hydrologic resolution
-  ! Stephan Thober  Oct 2015 - added NLoutputResults namelist, fileLatLon to directories_general namelist, and readLatLon flag
-  ! Robert Schweppe Dec 2017 - adapted for MPR
+  ! Stephan Thober   Sep 2015 - removed stop condition when routing resolution is smaller than hydrologic resolution
+  ! Stephan Thober   Oct 2015 - added NLoutputResults namelist, fileLatLon to directories_general namelist, and readLatLon flag
+  ! Robert Schweppe  Dec 2017 - adapted for MPR
+  ! Johannes Brenner Jul 2019 - added corrected Monteith-Unsworth PET method, process(5)=4
 
   subroutine mpr_read_config(file_namelist, unamelist, file_namelist_param, unamelist_param)
 
@@ -271,7 +272,7 @@ contains
     ! Penman-Monteith
     namelist /PET3/  canopyheigth_forest, canopyheigth_impervious, canopyheigth_pervious, displacementheight_coeff, &
             roughnesslength_momentum_coeff, roughnesslength_heat_coeff, stomatal_resistance
-    ! corrected Monteith Unsworth
+    ! corrected Monteith-Unsworth
     namelist /PET4/  canopyheigth_forest, canopyheigth_impervious, canopyheigth_pervious, displacementheight_coeff, &
             roughnesslength_momentum_coeff, roughnesslength_heat_coeff, stomatal_resistance
     namelist /interflow1/ interflowStorageCapacityFactor, interflowRecession_slope, fastInterflowRecession_forest, &
@@ -737,8 +738,8 @@ contains
         stop
       end if
 
-    case(4) ! 4 - Penman-Monteith method - with two side sensible heat transfer to air
-            ! additional input needed: net_rad, abs. vapour pressue, windspeed JBJBJB
+    case(4) ! 4 - corrected Monteith-Unsworth method - with two side sensible heat transfer to air
+            ! additional input needed: net_rad, abs. vapour pressue, windspeed
       call position_nml('PET4', unamelist_param)
       read(unamelist_param, nml = PET4)
       processMatrix(5, 2) = 7_i4

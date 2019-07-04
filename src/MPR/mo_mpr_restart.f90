@@ -90,10 +90,11 @@ CONTAINS
   !>       \date Jun 2014
 
   ! Modifications:
-  ! Stephan Thober     Aug  2015 - moved write of routing states to mRM
-  ! David Schaefer     Nov  2015 - mo_netcdf
-  ! Stephan Thober     Nov  2016 - moved processMatrix to common variables
+  ! Stephan Thober     Aug 2015 - moved write of routing states to mRM
+  ! David Schaefer     Nov 2015 - mo_netcdf
+  ! Stephan Thober     Nov 2016 - moved processMatrix to common variables
   ! Zink M. Demirel C. Mar 2017 - Added Jarvis soil water stress function at SM process(3)
+  ! Johannes Brenner   Jul 2019 - Added corrected Monteith-Unsworth PET method, process(5)=4
 
   subroutine write_mpr_restart_files(OutPath)
 
@@ -126,7 +127,6 @@ CONTAINS
     type(NcDataset) :: nc
 
     type(NcDimension) :: rows1, cols1, soil1, lcscenes, lais
-
 
     basin_loop : do iBasin = 1, size(OutPath)
 
@@ -346,6 +346,14 @@ CONTAINS
               "Priestley Taylor coeffiecient (alpha)")
 
     case(3) ! Penman-Monteith
+      call unpack_field_and_write(nc, "L1_aeroResist", &
+              (/rows1, cols1, lais, lcscenes/), nodata_dp, L1_aeroResist(s1 : e1, :, :), mask1, &
+              "aerodynamical resitance")
+
+      call unpack_field_and_write(nc, "L1_surfResist", &
+              (/rows1, cols1, lais/), nodata_dp, L1_surfResist(s1 : e1, :, 1), mask1, &
+              "bulk surface resitance")
+    case(4) ! corrected Monteith-Unsworth
       call unpack_field_and_write(nc, "L1_aeroResist", &
               (/rows1, cols1, lais, lcscenes/), nodata_dp, L1_aeroResist(s1 : e1, :, :), mask1, &
               "aerodynamical resitance")

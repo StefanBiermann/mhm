@@ -119,6 +119,7 @@ contains
   ! Demirel M.C. & S. Stisen Apr 2017 - Added FC dependency on root fraction coefficient at SM process(3)
   ! Robert Schweppe          Dec 2017 - added loop over LCscenes inside MPR, renamed variables rewrite
   ! Robert Schweppe          Jun 2018 - refactoring and reformatting
+  ! Johannes Brenner         Jul 2019 - Added corrected Monteith-Unsworth PET method
 
   subroutine mpr(mask0, geoUnit0, soilId0, Asp0, gridded_LAI0, LCover0, slope_emp0, y0, Id0, upper_bound1, lower_bound1, &
                 left_bound1, right_bound1, n_subcells1, fSealed1, alpha1, degDayInc1, degDayMax1, degDayNoPre1, fAsp1, &
@@ -339,7 +340,6 @@ contains
     ! [1]  Fraction of permeable cover
     real(dp), dimension(size(fSealed1, dim = 1)) :: fPerm1
 
-
     if (present(parameterset)) then
       param => parameterset
     else
@@ -379,7 +379,7 @@ contains
       fPerm1(:) = 1.0_dp - fSealed1(:, 1, iiLC) - fForest1(:)
 
       ! ------------------------------------------------------------------
-      ! snow parameters 
+      ! snow parameters
       ! ------------------------------------------------------------------
       select case(processMatrix(2, 1))
       case(1)
@@ -399,7 +399,7 @@ contains
       end select
 
       ! ------------------------------------------------------------------
-      ! Soil moisture parametrization 
+      ! Soil moisture parametrization
       ! ------------------------------------------------------------------
       msoil = size(soilDB%is_present, 1)
       mLC = maxval(LCover0(:, iiLC), (LCover0(:, iiLC) .ne. nodata_i4))
@@ -510,7 +510,7 @@ contains
       ! potential evapotranspiration (PET)
       ! ------------------------------------------------------------------
       ! Penman-Monteith method is only method that is LCscene dependent
-      if (processMatrix(5, 1) == 3) then
+      if (processMatrix(5, 1) == 3 .OR. processMatrix(5, 1) == 4) then
         iStart = processMatrix(5, 3) - processMatrix(5, 2) + 1
         iEnd = processMatrix(5, 3)
         call aerodynamical_resistance(gridded_LAI0, LCover0(:, iiLC), param(iStart : iEnd - 1), mask0, &
@@ -573,6 +573,7 @@ contains
       deallocate(SMs_FC0)
 
     end do
+
     ! ------------------------------------------------------------------
     ! sealed area threshold for runoff generation
     ! ------------------------------------------------------------------
@@ -619,11 +620,19 @@ contains
       call bulksurface_resistance(gridded_LAI0, param(iEnd), mask0, &
               nodata_dp, Id0, n_subcells1, upper_bound1, lower_bound1, left_bound1, right_bound1, &
               surfResist1(:, :, 1))
+    case(4) ! Monteith-Unsworth correction method
+      ! aerodynamic resistance is calculated inside LCscene loop
+      iStart = processMatrix(5, 3) - processMatrix(5, 2) + 1
+      iEnd = processMatrix(5, 3)
+      call bulksurface_resistance(gridded_LAI0, param(iEnd), mask0, &
+              nodata_dp, Id0, n_subcells1, upper_bound1, lower_bound1, left_bound1, right_bound1, &
+              surfResist1(:, :, 1))
     case default
       call message()
       call message('***ERROR: Process description for process "pet correction" does not exist! mo_multi_param_reg')
       stop
     end select
+
     ! ------------------------------------------------------------------
     ! baseflow recession parameter
     ! ------------------------------------------------------------------
@@ -947,7 +956,7 @@ contains
 
   ! Modifications:
   ! Stephan Thober Dec 2013 - changed intent(inout) to intent(out)
-  ! Stephan Thober Dec 2013 - changed intent(inout) to intent(out) 
+  ! Stephan Thober Dec 2013 - changed intent(inout) to intent(out)
   ! Robert Schweppe Jun 2018 - refactoring and reformatting
 
   subroutine karstic_layer(param, geoUnit0, mask0, SMs_FC0, KsVar_V0, Id0, n_subcells1, upper_bound1, lower_bound1, &
@@ -1135,7 +1144,7 @@ contains
 
 
     ! ------------------------------------------------------------------
-    ! Maximum interception parameter 
+    ! Maximum interception parameter
     ! ------------------------------------------------------------------
     select case(processMatrix(1, 1))
     case(1)
