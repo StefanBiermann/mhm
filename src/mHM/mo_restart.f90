@@ -550,7 +550,7 @@ CONTAINS
       L1_degDayInc(s1 : e1, 1, ii) = pack(dummyD3(:, :, ii), mask1)
     end do
 
-    ! maximum degree-day factor 
+    ! maximum degree-day factor
     var = nc%getVariable("L1_degDayMax")
     call var%getData(dummyD3)
     do ii = 1, nLCoverScene
@@ -576,7 +576,7 @@ CONTAINS
     call var%getData(dummyD2)
     L1_karstLoss(s1 : e1, 1, 1) = pack(dummyD2, mask1)
 
-    ! Fraction of roots in soil horizons    
+    ! Fraction of roots in soil horizons
     var = nc%getVariable("L1_fRoots")
     call var%getData(dummyD4)
     do jj = 1, nLCoverScene
@@ -585,26 +585,26 @@ CONTAINS
       end do
     end do
 
-    ! Maximum interception 
+    ! Maximum interception
     var = nc%getVariable("L1_maxInter")
     call var%getData(dummyD3)
     do ii = 1, nLAI
       L1_maxInter(s1 : e1, ii, 1) = pack(dummyD3(:, :, ii), mask1)
     end do
 
-    ! fast interflow recession coefficient 
+    ! fast interflow recession coefficient
     var = nc%getVariable("L1_kfastFlow")
     call var%getData(dummyD3)
     do ii = 1, nLCoverScene
       L1_kfastFlow(s1 : e1, 1, ii) = pack(dummyD3(:, :, ii), mask1)
     end do
 
-    ! slow interflow recession coefficient 
+    ! slow interflow recession coefficient
     var = nc%getVariable("L1_kSlowFlow")
     call var%getData(dummyD2)
     L1_kSlowFlow(s1 : e1, 1, 1) = pack(dummyD2, mask1)
 
-    ! baseflow recession coefficient 
+    ! baseflow recession coefficient
     var = nc%getVariable("L1_kBaseFlow")
     call var%getData(dummyD2)
     L1_kBaseFlow(s1 : e1, 1, 1) = pack(dummyD2, mask1)
@@ -716,7 +716,7 @@ CONTAINS
         L1_PrieTayAlpha(s1 : e1, ii, 1) = pack(dummyD3(:, :, ii), mask1)
       end do
 
-    case(3) ! Penman-Monteith
+    case(3:4) ! Penman-Monteith
 
       ! aerodynamical resitance
       var = nc%getVariable("L1_aeroResist")
