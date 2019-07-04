@@ -23,11 +23,13 @@ MODULE mo_pet
 
   PRIVATE :: extraterr_rad_approx
   PRIVATE :: slope_satpressure
-  PRIVATE :: sat_vap_pressure
+
+  PUBLIC :: sat_vap_pressure
 
   PUBLIC :: pet_hargreaves ! Hargreaves-Samani
   PUBLIC :: pet_priestly   ! Priestley-Taylor
   PUBLIC :: pet_penman     ! Penman-Monteith
+  PUBLIC :: pet_penman48   ! Penman
 
 
   ! ------------------------------------------------------------------
@@ -124,10 +126,10 @@ CONTAINS
   !        pet_priestly
 
   !    PURPOSE
-  !>       \brief Reference Evapotranspiration after Priestly-Taylor
+  !>       \brief Reference Evapotranspiration after Priestley-Taylor
 
   !>       \details Calculates the Reference Evapotranspiration \f$ [mm\;d^{-1}] \f$ based on the
-  !>       Priestly-Taylor (1972) model for every given cell by applying the equation
+  !>       Priestley-Taylor (1972) model for every given cell by applying the equation
   !>       \f[ PET = \alpha * \frac{\Delta}{(\gamma + \Delta)} * R_n \f]
   !>       where \f$R_n\;[W\;m^{-2}]\f$ is the net solar radiation \f$\Delta =  f(T_{avg})\f$ is the slope
   !>       of the saturation-vapour pressure curve and \f$\alpha\f$ is a emperical coefficient.
@@ -171,7 +173,7 @@ CONTAINS
 
 
     delta = slope_satpressure(Tavg) ! slope of saturation vapor pressure curve
-    ! in [mm d-1] 
+    ! in [mm d-1]
     pet_priestly = PrieTayParam * delta / (Psychro_dp + delta) * (Rn * DaySecs / SpecHeatET_dp)
 
   END FUNCTION pet_priestly
@@ -235,8 +237,9 @@ CONTAINS
   ! Johannes Brenner Nov 2017 - include arguments a_s and a_sh to enable corrected MU approach
   ! Robert Schweppe Jun 2018 - refactoring and reformatting
 
-  elemental pure FUNCTION pet_penman(net_rad, tavg, act_vap_pressure, aerodyn_resistance, bulksurface_resistance, a_s, &
-                                    a_sh)
+  elemental pure FUNCTION pet_penman(net_rad, tavg, act_vap_pressure, &
+      aerodyn_resistance, bulksurface_resistance, &
+      a_s, a_sh)
 
     use mo_common_constants, only : DaySecs
     use mo_constants, only : Psychro_dp, SpecHeatET_dp, cp0_dp, rho0_dp
@@ -274,6 +277,78 @@ CONTAINS
             (slope_satpressure(tavg) + Psychro_dp * a_sh / a_s * (1.0_dp + bulksurface_resistance / aerodyn_resistance))
 
   END FUNCTION pet_penman
+
+  ! ------------------------------------------------------------------
+
+  !    NAME
+  !        pet_penman48
+
+  !    PURPOSE
+  !>       \brief Potential Evapotranspiration after Penman (1948)
+
+  !>       \details Calculates the open water evaporation /
+  !>       apparent potential evaporation \f$ [mm\;d^{-1}] \f$
+  !>       (Penman model (1948, 1956)) for every given cell by applying the equation
+  !>       \f[ PET = \frac{1}{\lambda}  \cdot
+  !>       \frac{\Delta \cdot R_n + \gamma \cdot f_u \cdot (e_s-e)}{\Delta + \gamma} \f]
+  !>       where \f$R_n\;[W\;m^{-2}]\f$ is the net solar radiation,
+  !>       \f$\Delta\;[kPa\;K^{-1}]\f$ is the slope of the saturation-vapour pressure curve,
+  !>       \f$ \lambda\;[MJ\;kg^{-1}] \f$ is the latent heat of vaporization,
+  !>       \f$ (e_s-e)\;[kPa] \f$ is the vapour pressure deficit of the air,
+  !>       \f$ \rho\;[kg\;m^{-3}] \f$ is the mean atmospheric density,
+  !>       \f$ c_p=1005.0\;J\;kg^{-1}\;K^{-1} \f$ is the specific heat of the air,
+  !>       \f$ \gamma [kPa\;K^{-1}] \f$ is the psychrometric constant.
+
+  !    INTENT(IN)
+  !>       \param[in] "real(dp) :: net_rad"                net radiation \f$[W m^{-2}]\f$
+  !>       \param[in] "real(dp) :: tavg"                   average daily temperature \f$[^{\circ}C]\f$
+  !>       \param[in] "real(dp) :: act_vap_pressure"       actual vapor pressure \f$[kPa]\f$
+
+  !    RETURN
+  !>       \return real(dp) :: pet_penman48 &mdash; Potential Evapotranspiration [mm s-1]
+
+  !    HISTORY
+  !>       \authors Johannes Brenner
+
+  !>       \date Jul 2019
+
+  ! Modifications:
+
+  elemental pure FUNCTION pet_penman48(net_rad, tavg, windspeed, act_vap_pressure)
+
+    use mo_common_constants, only : DaySecs
+    use mo_constants, only : Psychro_dp, SpecHeatET_dp
+
+    implicit none
+
+    ! net radiation \f$[W m^{-2}]\f$
+    real(dp), intent(in) :: net_rad
+
+    ! average daily temperature \f$[^{\circ}C]\f$
+    real(dp), intent(in) :: tavg
+
+    ! average daily wind speed at 2m hight \f$[m s^{−1}]\f$
+    real(dp), intent(in) :: windspeed
+
+    ! actual vapur pressure \f$[kPa]\f$
+    real(dp), intent(in) :: act_vap_pressure
+
+    ! wind function
+    real(dp) :: fu
+
+    ! reference evapotranspiration in [mm s-1]
+    real(dp) :: pet_penman48
+
+    ! wind function containing the 2-m wind speed (windspeed, m s−1)
+    fu = 0.26_dp * (1.0_dp + 0.54_dp * windspeed)
+
+    pet_penman48 = slope_satpressure(tavg) * &
+              DaySecs / SpecHeatET_dp * net_rad + &
+              ! conversion factor [W m-2] to [mm d-1]
+              Psychro_dp * fu * (sat_vap_pressure(tavg) - act_vap_pressure) / &
+              (slope_satpressure(tavg) + Psychro_dp)
+
+  END FUNCTION pet_penman48
 
   ! ------------------------------------------------------------------
 
