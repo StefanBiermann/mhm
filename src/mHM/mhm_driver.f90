@@ -151,6 +151,15 @@ PROGRAM mhm_driver
 #endif
   !$ USE omp_lib, ONLY : OMP_GET_NUM_THREADS           ! OpenMP routines
 #ifdef MPI
+#ifdef MRM2MHM
+  USE mo_MDF_domain_decomposition, ONLY : domain_decomposition
+  USE mo_MDF_types, ONLY: decompositionData, MPI_parameter
+  USE mo_mrm_MDF_tools, ONLY: get_decomposition_input
+  USE mo_mrm_global_variables, only : &
+            L11_fromN,    & ! IN: for an edge this is the incoming tree node
+            L11_toN,      & ! IN: for an edge this is the outgoing tree node
+            L11_netPerm     ! IN: network routing order
+#endif
   USE mpi_f08
 #endif
 
@@ -176,6 +185,14 @@ PROGRAM mhm_driver
   integer             :: ierror
   integer(i4)         :: nproc
   integer(i4)         :: rank, oldrank
+
+#ifdef MRM2MHM
+  type(decompositionData) :: decom
+  type(MPI_parameter) :: MPIparam
+  integer(i4) :: nNodes
+  integer(i4) :: nLinks
+  integer(i4) :: iStart11
+#endif
 
 ! Initialize MPI
   call MPI_Init(ierror)
@@ -360,6 +377,26 @@ PROGRAM mhm_driver
   mrm_coupling_mode = -1_i4
 #endif
 
+  ! --------------------------------------------------------------------------
+  ! INITIALIZE MDF (MPI parallelized Decomposition of Forests)
+  ! --------------------------------------------------------------------------
+#ifdef MPI
+#ifdef MRM2MHM
+  do iDomain = 1, domainMeta%nDomains
+    ! setting bufferLength, lowBound and lowBoundOMP
+    call MPIparam%init(1000, 3, 3)
+    call get_decomposition_input(iDomain, nNodes, nLinks, iStart11)
+    call domain_decomposition(MPIparam%lowBound, &  
+         nLinks, nNodes, &     ! number of edges and nodes in the forest data structure
+         L11_toN(iStart11:iStart11+nLinks-1), &     ! toNode array for domain iDomain
+         L11_fromN(iStart11:iStart11+nLinks-1), &   ! fromNode array for domain iDomain
+         L11_netPerm(iStart11:iStart11+nLinks-1), & ! permNode array for domain iDomain
+         decom &
+         )
+  end do
+#endif
+#endif
+  ! --------------------------------------------------------------------------
   !this call may be moved to another position as it writes the master config out file for all domains
   call write_configfile()
 
