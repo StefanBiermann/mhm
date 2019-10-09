@@ -183,11 +183,11 @@ PROGRAM mhm_driver
 
 #ifdef MPI
   integer             :: ierror
-  integer(i4)         :: nproc
-  integer(i4)         :: rank, oldrank
+  integer(i4)         :: nproc, nprocMasters, nprocLocal
+  integer(i4)         :: rank, rankMasters, rankLocal
 
 #ifdef MRM2MHM
-  type(decompositionData) :: decom
+  type(decompositionData), dimension(:), allocatable :: decom
   type(MPI_parameter) :: MPIparam
   integer(i4) :: nNodes
   integer(i4) :: nLinks
@@ -201,7 +201,6 @@ PROGRAM mhm_driver
   call MPI_Comm_size(comm, nproc, ierror)
   ! find the number the process is referred to, called rank
   call MPI_Comm_rank(comm, rank, ierror)
-  oldrank = rank
   write(*,*) 'MPI!, comm', rank, nproc
 #endif
   ! --------------------------------------------------------------------------
@@ -241,9 +240,13 @@ PROGRAM mhm_driver
   call message('Read namelist file: ', trim(file_defOutput))
   call common_read_config(file_namelist_mhm, unamelist_mhm)
 #ifdef MPI
-  call MPI_Comm_size(domainMeta%comMaster, nproc, ierror)
+  call MPI_Comm_size(domainMeta%comMaster, nprocMasters, ierror)
   ! find the number the process is referred to, called rank
-  call MPI_Comm_rank(domainMeta%comMaster, rank, ierror)
+  call MPI_Comm_rank(domainMeta%comMaster, rankMasters, ierror)
+  ! ToDo: just for testing
+ ! call MPI_Comm_size(domainMeta%comLocal, nprocLocal, ierror)
+ ! call MPI_Comm_rank(domainMeta%comLocal, rankLocal, ierror)
+ ! write(0,*) nproc, rank, 'Locals', nprocLocal, rankLocal, 'Master', nprocMasters, rankMasters
 #endif
   call mpr_read_config(file_namelist_mhm, unamelist_mhm, file_namelist_mhm_param, unamelist_mhm_param)
   call common_mHM_mRM_read_config(file_namelist_mhm, unamelist_mhm)
@@ -297,7 +300,7 @@ PROGRAM mhm_driver
   ! domain, with a master and subprocesses. Only the master processes of these
   ! groups need to read the data. The master process with rank 0 only
   ! coordinates the other processes and does not need to read the data.
-  if (rank > 0 .and. domainMeta%isMasterInComLocal) then
+  if (rankMasters > 0 .and. domainMeta%isMasterInComLocal) then
 #endif
   call message()
 
@@ -382,16 +385,19 @@ PROGRAM mhm_driver
   ! --------------------------------------------------------------------------
 #ifdef MPI
 #ifdef MRM2MHM
+  allocate(decom(domainMeta%nDomains))
+  !ToDo: Don't forget to deallocate in the end
   do iDomain = 1, domainMeta%nDomains
     ! setting bufferLength, lowBound and lowBoundOMP
     call MPIparam%init(1000, 3, 3)
     call get_decomposition_input(iDomain, nNodes, nLinks, iStart11)
-    call domain_decomposition(MPIparam%lowBound, &  
+    call domain_decomposition(domainMeta%comLocal, & ! communicator, domain process dependend
+         MPIparam%lowBound, &  ! minimum size of nodes in MPI-subtrees
          nLinks, nNodes, &     ! number of edges and nodes in the forest data structure
          L11_toN(iStart11:iStart11+nLinks-1), &     ! toNode array for domain iDomain
          L11_fromN(iStart11:iStart11+nLinks-1), &   ! fromNode array for domain iDomain
          L11_netPerm(iStart11:iStart11+nLinks-1), & ! permNode array for domain iDomain
-         decom &
+         decom(iDomain) &
          )
   end do
 #endif
@@ -401,7 +407,7 @@ PROGRAM mhm_driver
   call write_configfile()
 
 #ifdef MPI
-  end if
+  end if ! if (rankMasters > 0 .and. domainMeta%isMasterInComLocal) then
 #endif
   ! --------------------------------------------------------------------------
   ! RUN OR OPTIMIZE
